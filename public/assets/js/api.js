@@ -11,6 +11,8 @@ const API = {
 
     // ─── Token Management ────────────────────────────────────
     getSessionToken() {
+        // Session auth is only valid during explicit impersonation mode.
+        if (sessionStorage.getItem('returnpal_impersonating') !== '1') return null;
         return sessionStorage.getItem('returnpal_session_token');
     },
     getToken() {
@@ -32,6 +34,7 @@ const API = {
         localStorage.removeItem('returnpal_user');
     },
     getSessionUser() {
+        if (sessionStorage.getItem('returnpal_impersonating') !== '1') return null;
         try {
             return JSON.parse(sessionStorage.getItem('returnpal_session_user'));
         } catch { return null; }
