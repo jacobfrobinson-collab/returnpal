@@ -5,9 +5,24 @@
  */
 
 const Dashboard = {
+    getClientIdFromToken() {
+        try {
+            const token = API.getToken();
+            if (!token) return null;
+            const parts = token.split('.');
+            if (parts.length < 2) return null;
+            const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+            const decoded = JSON.parse(atob(padded));
+            const n = parseInt(decoded && decoded.id, 10);
+            return Number.isFinite(n) && n > 0 ? n : null;
+        } catch (e) {
+            return null;
+        }
+    },
+
     formatClientId(user) {
-        if (!user) return '';
-        const raw = user.id;
+        const raw = user && user.id != null ? user.id : this.getClientIdFromToken();
         const n = parseInt(raw, 10);
         if (!Number.isFinite(n) || n <= 0) return '';
         return String(n).padStart(4, '0');
