@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <!-- Title Meta -->
+        <meta charset="utf-8" />
+        <title>Dashboard | ReturnPal</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <!-- App favicon -->
+        <link rel="shortcut icon" href="assets/images/favicon.ico" />
+        <!-- Theme Config js -->
+        <script src="assets/js/config.min.js"></script>
+        <!-- Vendor css -->
+        <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
+        <!-- Icons css -->
+        <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+        <!-- App css -->
+        <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
+        <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+    </head>
+
+    <body>
+        <!-- START Wrapper -->
+        <div class="wrapper">
+            <!-- ========== Topbar Start ========== -->
+            <header class="">
+                <div class="topbar">
+                    <div class="container-fluid">
+                        <div class="navbar-header">
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- Menu Toggle Button -->
+                                <div class="topbar-item">
+                                    <button type="button" class="button-toggle-menu topbar-button">
+                                        <i class="ri-menu-2-line fs-24"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-1">
+                                <!-- Category -->
+                                <div class="dropdown topbar-item d-none d-lg-flex">
+                                    <button type="button" class="topbar-button" data-toggle="fullscreen">
+                                        <i class="ri-fullscreen-line fs-24 fullscreen"></i>
+                                        <i class="ri-fullscreen-exit-line fs-24 quit-fullscreen"></i>
+                                    </button>
+                                </div>
+                                <!-- Theme Color (Light/Dark) -->
+                                <div class="topbar-item">
+                                    <button type="button" class="topbar-button" id="light-dark-mode">
+                                        <i class="ri-moon-line fs-24 light-mode"></i>
+                                        <i class="ri-sun-line fs-24 dark-mode"></i>
+                                    </button>
+                                </div>
+                                <!-- User -->
+                                <div class="dropdown topbar-item">
+                                    <a
+                                        type="button"
+                                        class="topbar-button"
+                                        id="page-header-user-dropdown"
+                                        data-bs-toggle="dropdown"
+                                        aria-haspopup="true"
+                                        aria-expanded="false"
+                                    >
+                                        <span class="d-flex align-items-center">
+                                            <img
+                                                class="rounded-circle"
+                                                width="32"
+                                                src="assets/images/users/avatar-1.jpg"
+                                                alt="avatar-3"
+                                            />
+                                        </span>
+                                    </a>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <h6 class="dropdown-header">Welcome David!</h6>
+                                        <a class="dropdown-item" href="settings.html">
+                                            <i class="ri-settings-3-line align-middle me-1 fs-18"></i>
+                                            <span class="align-middle">Settings</span>
+                                        </a>
+                                        <div class="dropdown-divider my-1"></div>
+                                        <a class="dropdown-item text-danger" href="login.html">
+                                            <i class="ri-logout-circle-line align-middle me-1 fs-18"></i>
+                                            <span class="align-middle">Logout</span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- ========== App Menu Start ========== -->
+            <div class="main-nav">
+                <!-- Sidebar Logo -->
+                <div class="logo-box">
+                    <a href="index.html" class="logo-dark">
+                        <img src="assets/images/logo-sm-dark.png" class="logo-sm" alt="logo sm" />
+                        <img src="assets/images/logo-dark.png" class="logo-lg" alt="logo dark" />
+                    </a>
+
+                    <a href="index.html" class="logo-light">
+                        <img src="assets/images/logo-sm-light.png" class="logo-sm" alt="logo sm" />
+                        <img src="assets/images/logo-light.png" class="logo-lg" alt="logo light" />
+                    </a>
+                </div>
+
+                <!-- Menu Toggle Button (sm-hover) -->
+                <button type="button" class="button-sm-hover" aria-label="Show Full Sidebar">
+                    <i class="ri-menu-2-line fs-24 button-sm-hover-icon"></i>
+                </button>
+
+                <div class="scrollbar" data-simplebar>
+                    <ul class="navbar-nav" id="navbar-nav">
+                        <li class="menu-title">Menu</li>
+                        <li class="nav-item"><a class="nav-link" href="index.html"><span class="nav-icon"><i class="ri-dashboard-3-line"></i></span><span class="nav-text">Overview</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="packages.html"><span class="nav-icon"><i class="ri-box-3-line"></i></span><span class="nav-text">Packages Sent</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="received.html"><span class="nav-icon"><i class="ri-import-line"></i></span><span class="nav-text">Received</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="sold-items.html"><span class="nav-icon"><i class="ri-list-view"></i></span><span class="nav-text">Sold Items</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="item-pending.html"><span class="nav-icon"><i class="ri-time-line"></i></span><span class="nav-text">Items Pending</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="activity.html"><span class="nav-icon"><i class="ri-history-line"></i></span><span class="nav-text">Activity</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="inventory.html"><span class="nav-icon"><i class="ri-archive-drawer-line"></i></span><span class="nav-text">Inventory</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="analytics.html"><span class="nav-icon"><i class="ri-line-chart-line"></i></span><span class="nav-text">Analytics</span></a></li>
+                        <li class="nav-item"><a class="nav-link active" href="invoices.html"><span class="nav-icon"><i class="ri-receipt-line"></i></span><span class="nav-text">Payouts & Invoices</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="roi-report.html"><span class="nav-icon"><i class="ri-file-text-line"></i></span><span class="nav-text">ROI Report</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="referrals.html"><span class="nav-icon"><i class="ri-user-shared-line"></i></span><span class="nav-text">Referrals</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="settings.html"><span class="nav-icon"><i class="ri-settings-3-line"></i></span><span class="nav-text">Settings</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="faq.html"><span class="nav-icon"><i class="ri-question-line"></i></span><span class="nav-text">FAQ</span></a></li>
+                    </ul>
+                </div>
+            </div>
+            <!-- ========== App Menu End ========== -->
+
+            <!-- ==================================================== -->
+            <!-- Start right Content here -->
+            <!-- ==================================================== -->
+            <div class="page-content">
+                <!-- Start Container Fluid -->
+                <div class="container-fluid">
+                    <!-- ========== Page Title Start ========== -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="page-title-box">
+                                <div>
+                                    <h4 class="fw-semibold">Invoices</h4>
+                                    <p class="mb-0 text-muted">View and download your invoices</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ========== Page Title End ========== -->
+
+                    <!-- Start here.... -->
+                    <div class="card">
+                        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div>Monthly invoices</div>
+                            <div class="d-flex align-items-center gap-2">
+                                <select class="form-select form-select-sm w-auto" id="invoices-date-range" aria-label="Date range">
+                                    <option value="all">All time</option>
+                                    <option value="30">Last 30 days</option>
+                                    <option value="7">Last 7 days</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="invoices-export-csv"><i class="ri-download-2-line me-1"></i>Export CSV</button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="invoices-download-accountant" title="VAT-friendly summary for your accountant"><i class="ri-file-list-3-line me-1"></i>Download for accountant</button>
+                                <div class="dropdown">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="ri-download-2-line me-1"></i>Export for</button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#" id="invoices-export-xero"><i class="ri-file-excel-2-line me-1"></i>Xero</a></li>
+                                        <li><a class="dropdown-item" href="#" id="invoices-export-quickbooks"><i class="ri-file-excel-2-line me-1"></i>QuickBooks</a></li>
+                                    </ul>
+                                </div>
+                                <span class="seco-title text-muted">0 invoices</span>
+                            </div>
+                        </div>
+                        <div id="invoices-vat-summary" class="card-body border-bottom bg-light-subtle d-none">
+                            <p class="mb-0 small"><strong>VAT on fees (selected period):</strong> <span id="invoices-vat-amount">£0.00</span>. <span class="text-muted">VAT may be subject to reverse charge depending on your location. See your invoice for details.</span></p>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                                    <thead class="bg-light-subtle">
+                                        <tr>
+                                            <th class="py-55">Period</th>
+                                            <th class="py-55">Date issued</th>
+                                            <th class="py-55">Payout date</th>
+                                            <th class="py-55">Amount</th>
+                                            <th class="py-55">Items</th>
+                                            <th class="py-55">Status</th>
+                                            <th class="py-55 text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td colspan="7" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- End Container Fluid -->
+
+                <!-- ========== Footer Start ========== -->
+                <footer class="footer">
+                    <div class="container-fluid">
+                        <div class="row">
+                            <div class="col-12 text-center">
+                                <script>
+                                    document.write(new Date().getFullYear());
+                                </script>
+                                &copy; ReturnPal.
+                            </div>
+                        </div>
+                    </div>
+                </footer>
+                <!-- ========== Footer End ========== -->
+            </div>
+            <!-- ==================================================== -->
+            <!-- End Page Content -->
+            <!-- ==================================================== -->
+        </div>
+        <!-- END Wrapper -->
+
+        <!-- Vendor Javascript -->
+        <script src="assets/js/vendor.js"></script>
+        <!-- App Javascript -->
+        <script src="assets/js/app.js"></script>
+        <!-- Custom Js -->
+        <script src="/assets/js/api.js"></script>
+        <script src="assets/js/custom.js"></script>
+        <script src="assets/js/dashboard.js"></script>
+    </body>
+</html>

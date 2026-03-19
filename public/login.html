@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- meta tags -->
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="" />
+    <meta name="keywords" content="" />
+    <!-- title -->
+    <title>Login - ReturnPal</title>
+    <!-- favicon -->
+    <link rel="icon" type="image/x-icon" href="assets/img/logo/favicon.png" />
+    <!-- css -->
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="assets/css/all-fontawesome.min.css" />
+    <link rel="stylesheet" href="assets/css/animate.min.css" />
+    <link rel="stylesheet" href="assets/css/style.css" />
+    <script>
+        (function() {
+            document.documentElement.setAttribute('data-bs-theme', 'light');
+        })();
+    </script>
+</head>
+
+<body>
+    <!-- preloader -->
+    <div class="preloader">
+        <div class="loader-ripple">
+            <div></div>
+            <div></div>
+        </div>
+    </div>
+    <!-- preloader end -->
+
+    <main class="main">
+        <!-- login area -->
+        <div class="auth-area">
+            <div class="container">
+                <div class="col-md-5 mx-auto">
+                    <div class="auth-form">
+                        <div class="auth-header">
+                            <img src="assets/img/logo/logo.png" alt="" />
+                            <p>Login your ReturnPal account</p>
+                        </div>
+                        <div class="alert alert-danger d-none" id="auth-error"></div>
+                        <div class="alert alert-success d-none" id="auth-success"></div>
+
+                        <!-- Login Form -->
+                        <form id="login-form">
+                            <div class="form-group">
+                                <div class="form-icon">
+                                    <i class="far fa-envelope"></i>
+                                    <input type="email" class="form-control" id="login-email" placeholder="Your Email" required />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-icon">
+                                    <i class="far fa-key"></i>
+                                    <input type="password" id="login-password" class="form-control" placeholder="Your Password" required />
+                                    <span class="password-view"><i class="far fa-eye-slash"></i></span>
+                                </div>
+                            </div>
+                            <div class="auth-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="remember" />
+                                    <label class="form-check-label" for="remember"> Remember Me </label>
+                                </div>
+                                <a href="forgot-password.html" class="auth-group-link">Forgot Password?</a>
+                            </div>
+                            <div class="auth-btn">
+                                <button type="submit" class="theme-btn" id="login-btn"><span class="far fa-sign-in"></span> Login</button>
+                            </div>
+                        </form>
+
+                        <!-- Register Form (hidden by default) -->
+                        <form id="register-form" class="d-none">
+                            <div class="form-group">
+                                <div class="form-icon">
+                                    <i class="far fa-user-tie"></i>
+                                    <input type="text" class="form-control" id="reg-name" placeholder="Full Name" required />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-icon">
+                                    <i class="far fa-building"></i>
+                                    <input type="text" class="form-control" id="reg-company" placeholder="Company Name (optional)" />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-icon">
+                                    <i class="far fa-envelope"></i>
+                                    <input type="email" class="form-control" id="reg-email" placeholder="Your Email" required />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-icon">
+                                    <i class="far fa-key"></i>
+                                    <input type="password" class="form-control" id="reg-password" placeholder="Password (min 6 chars)" required minlength="6" />
+                                </div>
+                            </div>
+                            <div class="auth-btn">
+                                <button type="submit" class="theme-btn" id="register-btn"><span class="far fa-user-plus"></span> Create Account</button>
+                            </div>
+                        </form>
+
+                        <div class="auth-bottom">
+                            <p class="auth-bottom-text" id="auth-toggle-text">Don't have an account? <a href="#" id="show-register">Register.</a></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- login area end -->
+    </main>
+
+    <!-- js -->
+    <script src="assets/js/jquery-3.7.1.min.js"></script>
+    <script src="assets/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/wow.min.js"></script>
+    <script src="assets/js/api.js"></script>
+    <script src="assets/js/main.js"></script>
+    <script>
+    $(document).ready(function() {
+        // Redirect if already logged in
+        if (API.isLoggedIn()) {
+            window.location.href = '/dashboard/index.html';
+            return;
+        }
+
+        // Open register form when linked with #register
+        if (window.location.hash === '#register') {
+            $('#login-form').addClass('d-none');
+            $('#register-form').removeClass('d-none');
+            $('#auth-toggle-text').html('Already have an account? <a href="#" id="show-login">Login.</a>');
+            $('.auth-header p').text('Create your ReturnPal account');
+        }
+
+        const $error = $('#auth-error');
+        const $success = $('#auth-success');
+
+        function showError(msg) {
+            $error.text(msg).removeClass('d-none');
+            $success.addClass('d-none');
+        }
+        function showSuccess(msg) {
+            $success.text(msg).removeClass('d-none');
+            $error.addClass('d-none');
+        }
+        function clearAlerts() {
+            $error.addClass('d-none');
+            $success.addClass('d-none');
+        }
+
+        // Toggle between login and register
+        $('#show-register').on('click', function(e) {
+            e.preventDefault();
+            clearAlerts();
+            $('#login-form').addClass('d-none');
+            $('#register-form').removeClass('d-none');
+            $('#auth-toggle-text').html('Already have an account? <a href="#" id="show-login">Login.</a>');
+            $('.auth-header p').text('Create your ReturnPal account');
+        });
+
+        $(document).on('click', '#show-login', function(e) {
+            e.preventDefault();
+            clearAlerts();
+            $('#register-form').addClass('d-none');
+            $('#login-form').removeClass('d-none');
+            $('#auth-toggle-text').html('Don\'t have an account? <a href="#" id="show-register">Register.</a>');
+            $('.auth-header p').text('Login your ReturnPal account');
+        });
+
+        // Login
+        $('#login-form').on('submit', async function(e) {
+            e.preventDefault();
+            clearAlerts();
+            const btn = $('#login-btn');
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Logging in...');
+
+            try {
+                const email = $('#login-email').val().trim();
+                const password = $('#login-password').val();
+                await API.login(email, password);
+                showSuccess('Login successful! Redirecting...');
+                setTimeout(() => { window.location.href = '/dashboard/index.html'; }, 500);
+            } catch (err) {
+                showError(err.error || 'Login failed. Please check your credentials.');
+                btn.prop('disabled', false).html('<span class="far fa-sign-in"></span> Login');
+            }
+        });
+
+        // Register
+        $('#register-form').on('submit', async function(e) {
+            e.preventDefault();
+            clearAlerts();
+            const btn = $('#register-btn');
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Creating account...');
+
+            try {
+                const full_name = $('#reg-name').val().trim();
+                const company_name = $('#reg-company').val().trim();
+                const email = $('#reg-email').val().trim();
+                const password = $('#reg-password').val();
+                await API.register(email, password, full_name, company_name);
+                showSuccess('Account created! Redirecting...');
+                setTimeout(() => { window.location.href = '/dashboard/index.html'; }, 500);
+            } catch (err) {
+                const msg = err.errors ? err.errors.map(e => e.msg).join(', ') : (err.error || 'Registration failed.');
+                showError(msg);
+                btn.prop('disabled', false).html('<span class="far fa-user-plus"></span> Create Account');
+            }
+        });
+    });
+    </script>
+</body>
+
+</html>

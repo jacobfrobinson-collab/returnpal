@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <!-- Title Meta -->
+        <meta charset="utf-8" />
+        <title>Dashboard | ReturnPal</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <!-- App favicon -->
+        <link rel="shortcut icon" href="assets/images/favicon.ico" />
+        <!-- Theme Config js -->
+        <script src="assets/js/config.min.js"></script>
+        <!-- Vendor css -->
+        <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
+        <!-- Icons css -->
+        <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+        <!-- App css -->
+        <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
+        <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+    </head>
+
+    <body>
+        <!-- START Wrapper -->
+        <div class="wrapper">
+            <!-- ========== Topbar Start ========== -->
+            <header class="">
+                <div class="topbar">
+                    <div class="container-fluid">
+                        <div class="navbar-header">
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- Menu Toggle Button -->
+                                <div class="topbar-item">
+                                    <button type="button" class="button-toggle-menu topbar-button">
+                                        <i class="ri-menu-2-line fs-24"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-1">
+                                <!-- Category -->
+                                <div class="dropdown topbar-item d-none d-lg-flex">
+                                    <button type="button" class="topbar-button" data-toggle="fullscreen">
+                                        <i class="ri-fullscreen-line fs-24 fullscreen"></i>
+                                        <i class="ri-fullscreen-exit-line fs-24 quit-fullscreen"></i>
+                                    </button>
+                                </div>
+                                <!-- Theme Color (Light/Dark) -->
+                                <div class="topbar-item">
+                                    <button type="button" class="topbar-button" id="light-dark-mode">
+                                        <i class="ri-moon-line fs-24 light-mode"></i>
+                                        <i class="ri-sun-line fs-24 dark-mode"></i>
+                                    </button>
+                                </div>
+                                <!-- User -->
+                                <div class="dropdown topbar-item">
+                                    <a
+                                        type="button"
+                                        class="topbar-button"
+                                        id="page-header-user-dropdown"
+                                        data-bs-toggle="dropdown"
+                                        aria-haspopup="true"
+                                        aria-expanded="false"
+                                    >
+                                        <span class="d-flex align-items-center">
+                                            <img
+                                                class="rounded-circle"
+                                                width="32"
+                                                src="assets/images/users/avatar-1.jpg"
+                                                alt="avatar-3"
+                                            />
+                                        </span>
+                                    </a>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <h6 class="dropdown-header">Welcome David!</h6>
+                                        <a class="dropdown-item" href="settings.html">
+                                            <i class="ri-settings-3-line align-middle me-1 fs-18"></i>
+                                            <span class="align-middle">Settings</span>
+                                        </a>
+                                        <div class="dropdown-divider my-1"></div>
+                                        <a class="dropdown-item text-danger" href="login.html">
+                                            <i class="ri-logout-circle-line align-middle me-1 fs-18"></i>
+                                            <span class="align-middle">Logout</span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- ========== App Menu Start ========== -->
+            <div class="main-nav">
+                <!-- Sidebar Logo -->
+                <div class="logo-box">
+                    <a href="index.html" class="logo-dark">
+                        <img src="assets/images/logo-sm-dark.png" class="logo-sm" alt="logo sm" />
+                        <img src="assets/images/logo-dark.png" class="logo-lg" alt="logo dark" />
+                    </a>
+
+                    <a href="index.html" class="logo-light">
+                        <img src="assets/images/logo-sm-light.png" class="logo-sm" alt="logo sm" />
+                        <img src="assets/images/logo-light.png" class="logo-lg" alt="logo light" />
+                    </a>
+                </div>
+
+                <!-- Menu Toggle Button (sm-hover) -->
+                <button type="button" class="button-sm-hover" aria-label="Show Full Sidebar">
+                    <i class="ri-menu-2-line fs-24 button-sm-hover-icon"></i>
+                </button>
+
+                <div class="scrollbar" data-simplebar>
+                    <ul class="navbar-nav" id="navbar-nav">
+                        <li class="menu-title">Menu</li>
+                        <li class="nav-item"><a class="nav-link" href="index.html"><span class="nav-icon"><i class="ri-dashboard-3-line"></i></span><span class="nav-text">Overview</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="packages.html"><span class="nav-icon"><i class="ri-box-3-line"></i></span><span class="nav-text">Packages Sent</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="received.html"><span class="nav-icon"><i class="ri-import-line"></i></span><span class="nav-text">Received</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="sold-items.html"><span class="nav-icon"><i class="ri-list-view"></i></span><span class="nav-text">Sold Items</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="item-pending.html"><span class="nav-icon"><i class="ri-time-line"></i></span><span class="nav-text">Items Pending</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="activity.html"><span class="nav-icon"><i class="ri-history-line"></i></span><span class="nav-text">Activity</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="inventory.html"><span class="nav-icon"><i class="ri-archive-drawer-line"></i></span><span class="nav-text">Inventory</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="analytics.html"><span class="nav-icon"><i class="ri-line-chart-line"></i></span><span class="nav-text">Analytics</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="invoices.html"><span class="nav-icon"><i class="ri-receipt-line"></i></span><span class="nav-text">Payouts & Invoices</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="roi-report.html"><span class="nav-icon"><i class="ri-file-text-line"></i></span><span class="nav-text">ROI Report</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="referrals.html"><span class="nav-icon"><i class="ri-user-shared-line"></i></span><span class="nav-text">Referrals</span></a></li>
+                        <li class="nav-item"><a class="nav-link active" href="settings.html"><span class="nav-icon"><i class="ri-settings-3-line"></i></span><span class="nav-text">Settings</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="faq.html"><span class="nav-icon"><i class="ri-question-line"></i></span><span class="nav-text">FAQ</span></a></li>
+                    </ul>
+                </div>
+            </div>
+            <!-- ========== App Menu End ========== -->
+
+            <!-- ==================================================== -->
+            <!-- Start right Content here -->
+            <!-- ==================================================== -->
+            <div class="page-content">
+                <!-- Start Container Fluid -->
+                <div class="container-fluid">
+                    <!-- ========== Page Title Start ========== -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="page-title-box">
+                                <div>
+                                    <h4 class="fw-semibold">Settings</h4>
+                                    <p class="mb-0 text-muted">Manage your notification and business preferences</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ========== Page Title End ========== -->
+
+                    <!-- Start here.... -->
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div>Profile details</div>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="settings-profile-save">Save</button>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-3">Your account details. Used across the dashboard and can be synced with billing.</p>
+                                    <div class="mb-3">
+                                        <label class="form-label">Full name</label>
+                                        <input type="text" class="form-control" id="settings-profile-name" placeholder="e.g. John Smith" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" class="form-control" id="settings-profile-email" placeholder="you@example.com" readonly />
+                                        <small class="text-muted">Email is managed by your account login.</small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Company</label>
+                                        <input type="text" class="form-control" id="settings-profile-company" placeholder="Your company or trading name" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div>Billing / Invoice details</div>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-3">Used on your monthly payout invoices. Ensure these are correct so we can pay you on time.</p>
+                                    <div class="mb-3">
+                                        <label class="form-label">Full name</label>
+                                        <input type="text" class="form-control" id="settings-billing-name" placeholder="e.g. John Smith" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Company name</label>
+                                        <input type="text" class="form-control" id="settings-billing-company" placeholder="Your company or trading name" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Billing address</label>
+                                        <textarea class="form-control" id="settings-billing-address" rows="3" placeholder="Address line 1&#10;Address line 2&#10;Town / City&#10;Postcode&#10;Country"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Phone number</label>
+                                        <input type="text" class="form-control" id="settings-billing-phone" placeholder="e.g. +447712345678" />
+                                    </div>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="settings-billing-save">Save billing details</button>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div>Prep centre details</div>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-3">If you use a prep centre, we can send items we receive on your behalf (that are eligible to go back into Amazon) to your prep centre <strong>free of charge</strong> so they can re-prep them for you. Enter your prep centre details below.</p>
+                                    <div class="mb-3">
+                                        <label class="form-label">Prep centre name</label>
+                                        <input type="text" class="form-control" id="settings-prep-name" placeholder="e.g. My Prep Ltd" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Prep centre address</label>
+                                        <textarea class="form-control" id="settings-prep-address" rows="3" placeholder="Full address for shipping&#10;Town / City&#10;Postcode&#10;Country"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Contact name <span class="text-muted">(optional)</span></label>
+                                        <input type="text" class="form-control" id="settings-prep-contact" placeholder="Contact at prep centre" />
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Phone <span class="text-muted">(optional)</span></label>
+                                            <input type="text" class="form-control" id="settings-prep-phone" placeholder="e.g. +447712345678" />
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Email <span class="text-muted">(optional)</span></label>
+                                            <input type="email" class="form-control" id="settings-prep-email" placeholder="prep@example.com" />
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Reference / instructions <span class="text-muted">(optional)</span></label>
+                                        <input type="text" class="form-control" id="settings-prep-reference" placeholder="e.g. Your account ref or special instructions" />
+                                    </div>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="settings-prep-save">Save prep centre details</button>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div>VAT Registration</div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center portse mb-3">
+                                        <div>
+                                            <div class="fs-18 fw-semibold text-primary mb-1">I am VAT registered</div>
+                                            <div class="text-muted fs-15">Enable this if your business is registered for VAT. This affects how profits are calculated in Profit/Loss analytics.</div>
+                                        </div>
+                                        <div class="form-check form-switch ms-4">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="flexSwitchCheckDefault">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="form-label mb-1">VAT number <span class="text-muted">(UK/EU)</span></label>
+                                        <input type="text" class="form-control" id="settings-vat-number" placeholder="GB123456789 or EU country code + number" maxlength="20" />
+                                        <small class="text-muted">Used on invoices and for accountant exports.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div>Discord Notifications</div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-1">
+                                        <label class="form-label">Discord Webhook URL</label>
+                                        <input type="text" class="form-control" placeholder="https://discord.com/api/webhooks/...">
+                                    </div>
+                                    <small class="text-muted">Create a webhook in your Discord server settings → Integrations → Webhooks</small>
+                                    <div class="text-end">
+                                        <button class="btn btn-primary px-4 mt-3">Save Webhook</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">Email preferences</div>
+                                    <div class="card-body">
+                                        <p class="text-muted small mb-3">Choose when we email you (saved locally for now).</p>
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="email-package-delivered" checked>
+                                            <label class="form-check-label" for="email-package-delivered">When a package is delivered</label>
+                                        </div>
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="email-item-sold" checked>
+                                            <label class="form-check-label" for="email-item-sold">When an item is sold</label>
+                                        </div>
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="email-payout-sent" checked>
+                                            <label class="form-check-label" for="email-payout-sent">When a payout is sent</label>
+                                        </div>
+                                        <div class="mb-3 mt-3">
+                                            <label class="form-label">Email digest</label>
+                                            <select class="form-select form-select-sm" id="email-digest-preference" aria-label="Email digest">
+                                                <option value="off">Off</option>
+                                                <option value="weekly">Weekly – summary of items sold and recovered</option>
+                                                <option value="monthly">Monthly – ROI summary and key numbers</option>
+                                            </select>
+                                            <small class="text-muted">e.g. “This week: X items sold, £Y recovered. [View dashboard]”</small>
+                                        </div>
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="email-monthly-invoice">
+                                            <label class="form-check-label" for="email-monthly-invoice">Email my monthly invoice at the start of each month</label>
+                                        </div>
+                                        <small class="text-muted d-block mb-2">We'll send your previous month's payout invoice to your account email on the 1st so you can see how much you'll receive.</small>
+                                        <button type="button" class="btn btn-outline-primary btn-sm mt-2">Save preferences</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- End Container Fluid -->
+                </div>
+
+                <!-- ========== Footer Start ========== -->
+                <footer class="footer">
+                    <div class="container-fluid">
+                        <div class="row">
+                            <div class="col-12 text-center">
+                                <script>
+                                    document.write(new Date().getFullYear());
+                                </script>
+                                &copy; ReturnPal.
+                            </div>
+                        </div>
+                    </div>
+                </footer>
+                <!-- ========== Footer End ========== -->
+            </div>
+            <!-- ==================================================== -->
+            <!-- End Page Content -->
+            <!-- ==================================================== -->
+        </div>
+        <!-- END Wrapper -->
+
+        <!-- Vendor Javascript -->
+        <script src="assets/js/vendor.js"></script>
+        <!-- App Javascript -->
+        <script src="assets/js/app.js"></script>
+        <!-- Custom Js -->
+        <script src="/assets/js/api.js"></script>
+        <script src="assets/js/custom.js"></script>
+        <script src="assets/js/dashboard.js"></script>
+    </body>
+</html>

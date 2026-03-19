@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Inventory | ReturnPal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="shortcut icon" href="assets/images/favicon.ico" />
+    <script src="assets/js/config.min.js"></script>
+    <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+    <div class="wrapper">
+        <header class="">
+            <div class="topbar">
+                <div class="container-fluid">
+                    <div class="navbar-header">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="topbar-item">
+                                <button type="button" class="button-toggle-menu topbar-button" aria-label="Toggle menu">
+                                    <i class="ri-menu-2-line fs-24"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <div class="topbar-item">
+                                <button type="button" class="topbar-button" id="light-dark-mode" aria-label="Toggle theme">
+                                    <i class="ri-moon-line fs-24 light-mode"></i>
+                                    <i class="ri-sun-line fs-24 dark-mode"></i>
+                                </button>
+                            </div>
+                            <div class="dropdown topbar-item">
+                                <a type="button" class="topbar-button" id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="User" />
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <h6 class="dropdown-header">Welcome!</h6>
+                                    <a class="dropdown-item" href="settings.html"><i class="ri-settings-3-line me-1"></i>Settings</a>
+                                    <div class="dropdown-divider my-1"></div>
+                                    <a class="dropdown-item text-danger" href="login.html"><i class="ri-logout-circle-line me-1"></i>Logout</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-nav">
+            <div class="logo-box">
+                <a href="index.html" class="logo-dark"><img src="assets/images/logo-sm-dark.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-dark.png" class="logo-lg" alt="logo" /></a>
+                <a href="index.html" class="logo-light"><img src="assets/images/logo-sm-light.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-light.png" class="logo-lg" alt="logo" /></a>
+            </div>
+            <button type="button" class="button-sm-hover" aria-label="Show sidebar"><i class="ri-menu-2-line fs-24"></i></button>
+            <div class="scrollbar" data-simplebar>
+                <ul class="navbar-nav" id="navbar-nav">
+                    <li class="menu-title">Menu</li>
+                    <li class="nav-item"><a class="nav-link" href="index.html"><span class="nav-icon"><i class="ri-dashboard-3-line"></i></span><span class="nav-text">Overview</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="packages.html"><span class="nav-icon"><i class="ri-box-3-line"></i></span><span class="nav-text">Packages Sent</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="received.html"><span class="nav-icon"><i class="ri-import-line"></i></span><span class="nav-text">Received</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="sold-items.html"><span class="nav-icon"><i class="ri-list-view"></i></span><span class="nav-text">Sold Items</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="item-pending.html"><span class="nav-icon"><i class="ri-time-line"></i></span><span class="nav-text">Items Pending</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="activity.html"><span class="nav-icon"><i class="ri-history-line"></i></span><span class="nav-text">Activity</span></a></li>
+                    <li class="nav-item"><a class="nav-link active" href="inventory.html"><span class="nav-icon"><i class="ri-archive-drawer-line"></i></span><span class="nav-text">Inventory</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="analytics.html"><span class="nav-icon"><i class="ri-line-chart-line"></i></span><span class="nav-text">Analytics</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="invoices.html"><span class="nav-icon"><i class="ri-receipt-line"></i></span><span class="nav-text">Payouts & Invoices</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="roi-report.html"><span class="nav-icon"><i class="ri-file-text-line"></i></span><span class="nav-text">ROI Report</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="referrals.html"><span class="nav-icon"><i class="ri-user-shared-line"></i></span><span class="nav-text">Referrals</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="settings.html"><span class="nav-icon"><i class="ri-settings-3-line"></i></span><span class="nav-text">Settings</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="faq.html"><span class="nav-icon"><i class="ri-question-line"></i></span><span class="nav-text">FAQ</span></a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="page-content">
+            <div class="container-fluid">
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h4 class="fw-semibold mb-1"><i class="ri-archive-drawer-line me-2"></i>Inventory Overview</h4>
+                        <p class="mb-0 text-muted rp-label">Items received, processing, sold and value breakdown</p>
+                    </div>
+                </div>
+
+                <div id="inventory-cards">
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-md"><div class="rp-card card border-0 p-4 text-center"><div class="rp-label text-muted mb-1">Items Received</div><div class="rp-kpi" id="inv-received">0</div></div></div>
+                        <div class="col-6 col-md"><div class="rp-card card border-0 p-4 text-center"><div class="rp-label text-muted mb-1">Items Processing</div><div class="rp-kpi" id="inv-processing">0</div></div></div>
+                        <div class="col-6 col-md"><div class="rp-card card border-0 p-4 text-center"><div class="rp-label text-muted mb-1">Items Sold</div><div class="rp-kpi" id="inv-sold">0</div></div></div>
+                        <div class="col-6 col-md"><div class="rp-card card border-0 p-4 text-center"><div class="rp-label text-muted mb-1">Awaiting Inspection</div><div class="rp-kpi" id="inv-awaiting-inspection">0</div></div></div>
+                        <div class="col-6 col-md"><div class="rp-card card border-0 p-4 text-center"><div class="rp-label text-muted mb-1">Awaiting Listing</div><div class="rp-kpi" id="inv-awaiting-listing">0</div></div></div>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-lg-4">
+                            <div class="rp-card card border-0 p-4">
+                                <div class="rp-label text-muted mb-2">Estimated Resale Value</div>
+                                <div class="rp-kpi text-primary" id="inv-est-value">£0.00</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="rp-card card border-0 p-4">
+                                <div class="rp-label text-muted mb-2">Recovered So Far</div>
+                                <div class="rp-kpi text-success" id="inv-recovered">£0.00</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="rp-card card border-0 p-4">
+                                <div class="rp-label text-muted mb-2">Potential Remaining Value</div>
+                                <div class="rp-kpi" id="inv-remaining">£0.00</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rp-card card border-0 p-4 mb-4">
+                        <div class="rp-label text-muted mb-2">Stage breakdown</div>
+                        <div id="inventory-stage-bar">Loading…</div>
+                    </div>
+
+                    <p class="text-muted small">Reconciliation: Items Sent → Items Received → Items Processing → Items Sold → Items In Storage.</p>
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <script>document.write(new Date().getFullYear());</script> &copy; ReturnPal.
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="assets/js/vendor.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script src="/assets/js/api.js"></script>
+    <script src="assets/js/custom.js"></script>
+    <script src="assets/js/dashboard.js"></script>
+</body>
+</html>

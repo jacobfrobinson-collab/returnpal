@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Referrals | ReturnPal Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="shortcut icon" href="assets/images/favicon.ico" />
+    <script src="assets/js/config.min.js"></script>
+    <script>window.RETURNPAL_CONFIG = window.RETURNPAL_CONFIG || { useMock: false };</script>
+    <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+    <div class="wrapper">
+        <header class="">
+            <div class="topbar">
+                <div class="container-fluid">
+                    <div class="navbar-header">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="topbar-item">
+                                <button type="button" class="button-toggle-menu topbar-button" aria-label="Toggle menu">
+                                    <i class="ri-menu-2-line fs-24"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <div class="topbar-item">
+                                <button type="button" class="topbar-button" id="light-dark-mode" aria-label="Toggle theme">
+                                    <i class="ri-moon-line fs-24 light-mode"></i>
+                                    <i class="ri-sun-line fs-24 dark-mode"></i>
+                                </button>
+                            </div>
+                            <div class="dropdown topbar-item">
+                                <a type="button" class="topbar-button" id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="User" />
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <h6 class="dropdown-header">Welcome!</h6>
+                                    <a class="dropdown-item" href="settings.html"><i class="ri-settings-3-line me-1"></i>Settings</a>
+                                    <div class="dropdown-divider my-1"></div>
+                                    <a class="dropdown-item text-danger" href="login.html"><i class="ri-logout-circle-line me-1"></i>Logout</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-nav">
+            <div class="logo-box">
+                <a href="index.html" class="logo-dark"><img src="assets/images/logo-sm-dark.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-dark.png" class="logo-lg" alt="logo" /></a>
+                <a href="index.html" class="logo-light"><img src="assets/images/logo-sm-light.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-light.png" class="logo-lg" alt="logo" /></a>
+            </div>
+            <button type="button" class="button-sm-hover" aria-label="Show sidebar"><i class="ri-menu-2-line fs-24"></i></button>
+            <div class="scrollbar" data-simplebar>
+                <ul class="navbar-nav" id="navbar-nav">
+                    <li class="menu-title">Menu</li>
+                    <li class="nav-item"><a class="nav-link" href="index.html"><span class="nav-icon"><i class="ri-dashboard-3-line"></i></span><span class="nav-text">Overview</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="packages.html"><span class="nav-icon"><i class="ri-box-3-line"></i></span><span class="nav-text">Packages Sent</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="received.html"><span class="nav-icon"><i class="ri-import-line"></i></span><span class="nav-text">Received</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="sold-items.html"><span class="nav-icon"><i class="ri-list-view"></i></span><span class="nav-text">Sold Items</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="item-pending.html"><span class="nav-icon"><i class="ri-time-line"></i></span><span class="nav-text">Items Pending</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="activity.html"><span class="nav-icon"><i class="ri-history-line"></i></span><span class="nav-text">Activity</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="inventory.html"><span class="nav-icon"><i class="ri-archive-drawer-line"></i></span><span class="nav-text">Inventory</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="analytics.html"><span class="nav-icon"><i class="ri-line-chart-line"></i></span><span class="nav-text">Analytics</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="invoices.html"><span class="nav-icon"><i class="ri-receipt-line"></i></span><span class="nav-text">Payouts & Invoices</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="roi-report.html"><span class="nav-icon"><i class="ri-file-text-line"></i></span><span class="nav-text">ROI Report</span></a></li>
+                    <li class="nav-item"><a class="nav-link active" href="referrals.html"><span class="nav-icon"><i class="ri-user-shared-line"></i></span><span class="nav-text">Referrals</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="settings.html"><span class="nav-icon"><i class="ri-settings-3-line"></i></span><span class="nav-text">Settings</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="faq.html"><span class="nav-icon"><i class="ri-question-line"></i></span><span class="nav-text">FAQ</span></a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="page-content">
+            <div class="container-fluid">
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div>
+                                <h4 class="fw-semibold mb-1"><i class="ri-user-shared-line me-2"></i>Referrals</h4>
+                                <p class="mb-0 text-muted rp-label">Track your referrals and referral rewards</p>
+                            </div>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#referFriendModal"><i class="ri-user-add-line me-1"></i>Refer a seller</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary cards -->
+                <div class="row mb-4">
+                    <div class="col-sm-6 col-xl-3 mb-3">
+                        <div class="rp-card card border-0 h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-grow-1">
+                                        <p class="text-muted mb-1 small">Total referred</p>
+                                        <h4 class="mb-0" id="referrals-total">0</h4>
+                                    </div>
+                                    <div class="rounded p-2 bg-primary bg-opacity-10"><i class="ri-group-line fs-24 text-primary"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-3 mb-3">
+                        <div class="rp-card card border-0 h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-grow-1">
+                                        <p class="text-muted mb-1 small">Signed up</p>
+                                        <h4 class="mb-0" id="referrals-signed-up">0</h4>
+                                    </div>
+                                    <div class="rounded p-2 bg-success bg-opacity-10"><i class="ri-user-follow-line fs-24 text-success"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-3 mb-3">
+                        <div class="rp-card card border-0 h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-grow-1">
+                                        <p class="text-muted mb-1 small">Active (sent package)</p>
+                                        <h4 class="mb-0" id="referrals-active">0</h4>
+                                    </div>
+                                    <div class="rounded p-2 bg-info bg-opacity-10"><i class="ri-checkbox-circle-line fs-24 text-info"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-3 mb-3">
+                        <div class="rp-card card border-0 h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-grow-1">
+                                        <p class="text-muted mb-1 small">Total earned</p>
+                                        <h4 class="mb-0" id="referrals-earned">£0</h4>
+                                    </div>
+                                    <div class="rounded p-2 bg-warning bg-opacity-10"><i class="ri-money-pound-circle-line fs-24 text-warning"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Your reward tier -->
+                <div class="rp-card card border-0 mb-4" id="referrals-tier-card">
+                    <div class="card-body">
+                        <h6 class="mb-2"><i class="ri-medal-line me-1"></i>Your reward tier</h6>
+                        <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+                            <span class="badge bg-primary fs-6 px-3 py-2" id="referrals-tier-label">-</span>
+                            <span class="text-muted small" id="referrals-tier-reward">£0 per active referral</span>
+                        </div>
+                        <p class="small text-muted mb-0" id="referrals-tier-next"></p>
+                    </div>
+                </div>
+
+                <!-- How referral rewards work -->
+                <div class="rp-card card border-0 mb-4">
+                    <div class="card-body">
+                        <h6 class="mb-2"><i class="ri-gift-line me-1"></i>How referral rewards work</h6>
+                        <p class="text-muted small mb-2">Use your <strong>unique referral link</strong> (or share by email). When someone signs up via your link, they’re attributed to you and appear here as <span class="badge bg-secondary-subtle text-secondary">Pending</span>. After they <strong>sign up</strong> they move to <span class="badge bg-info-subtle text-info">Signed up</span>. When they <strong>send their first package</strong>, they become <span class="badge bg-success-subtle text-success">Active</span> and you earn a reward based on your current tier.</p>
+                        <p class="text-muted small mb-2">Rewards are <strong>tiered</strong>: the more active referrals you have, the more you earn per referral. No limit on how many people you refer. Full terms apply.</p>
+                        <div class="small text-muted" id="referrals-tier-breakdown">
+                            <span class="d-inline-block me-3">Tier 1 (1–5 active): £10 each</span>
+                            <span class="d-inline-block me-3">Tier 2 (6–10 active): £15 each</span>
+                            <span class="d-inline-block">Tier 3 (11+ active): £20 each</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Your referral link -->
+                <div class="rp-card card border-0 mb-4">
+                    <div class="card-body">
+                        <h6 class="mb-2">Your referral link</h6>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="referral-link-input" value="https://returnpal.co/ref/your-code" readonly aria-label="Referral link" />
+                            <button type="button" class="btn btn-outline-primary" id="referral-link-copy" aria-label="Copy link"><i class="ri-file-copy-line"></i></button>
+                        </div>
+                        <p class="small text-muted mt-2 mb-0">Share this link so new sign-ups are attributed to you. You can also add <code>?ref=YOUR_CODE</code> or use our invite-by-email.</p>
+                    </div>
+                </div>
+
+                <!-- Referrals table -->
+                <div class="rp-card card border-0">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Email</th>
+                                        <th>Date referred</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Earned</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="referrals-tbody">
+                                    <tr><td colspan="4" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <script>document.write(new Date().getFullYear());</script> &copy; ReturnPal.
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="assets/js/vendor.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script src="/assets/js/api.js"></script>
+    <script src="assets/js/custom.js"></script>
+    <script src="assets/js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,347 @@
+/**
+ * ReturnPal Dashboard – design tokens & professional UI
+ * Two-layer background, consistent radius, card elevation, Inter, badges, tables.
+ */
+@import url(https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap);
+
+:root {
+  /* 1. Two-layer background system */
+  --rp-page-bg: #F8FAFC;
+  --rp-card-bg: #FFFFFF;
+  --rp-border: #E5E7EB;
+  /* 2–3. Card spacing & radius (Stripe/Shopify style) */
+  --rp-card-padding: 24px;
+  --rp-card-radius: 8px;
+  --rp-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --rp-card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+  /* Typography */
+  --rp-font: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  --rp-label-size: 14px;
+  --rp-kpi-size: 32px;
+  --rp-kpi-weight: 700;
+  /* 8. Section dividers */
+  --rp-divider: 1px solid #F1F5F9;
+  /* 10. Active nav */
+  --rp-nav-active-bg: #EEF2FF;
+  --rp-nav-active-color: #4F46E5;
+  /* 12. Table headers */
+  --rp-table-header-bg: #F9FAFB;
+  --rp-table-header-color: #374151;
+  --rp-table-header-weight: 600;
+  /* 14. Button hierarchy */
+  --rp-btn-primary-bg: #4F46E5;
+  --rp-btn-primary-color: #fff;
+  --rp-btn-secondary-border: #E5E7EB;
+  --rp-btn-ghost-bg: transparent;
+}
+
+body,
+.page-content,
+.rp-card,
+.nav-link,
+.card,
+input,
+select,
+textarea,
+button,
+.btn {
+  font-family: var(--rp-font);
+}
+
+/* Page layer */
+.page-content {
+  background-color: var(--rp-page-bg);
+}
+
+/* Card layer: padding, radius, border, hover elevation */
+.rp-card,
+.page-content .rp-card.card {
+  background: var(--rp-card-bg);
+  border: 1px solid var(--rp-border);
+  border-radius: var(--rp-card-radius);
+  box-shadow: var(--rp-card-shadow);
+  padding: var(--rp-card-padding);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.rp-card.card.border-0 {
+  border: 1px solid var(--rp-border);
+}
+.rp-card:hover {
+  box-shadow: var(--rp-card-shadow-hover);
+}
+/* Clickable KPI cards – hover and focus */
+.rp-kpi-card:hover,
+.rp-kpi-card:focus {
+  box-shadow: var(--rp-card-shadow-hover);
+  border-color: var(--rp-btn-primary-bg);
+  outline: none;
+}
+.rp-kpi-card:focus-visible {
+  outline: 2px solid var(--rp-btn-primary-bg);
+  outline-offset: 2px;
+}
+.rp-card .card-header {
+  padding: 20px var(--rp-card-padding);
+  border-bottom: var(--rp-divider);
+  background: var(--rp-card-bg) !important;
+  font-weight: 600;
+  color: var(--rp-table-header-color);
+}
+.rp-card .card-body {
+  padding: var(--rp-card-padding);
+}
+.rp-card .card-body.p-0 {
+  padding: 0;
+}
+.rp-card .list-group-item {
+  border-bottom: var(--rp-divider);
+  padding: 16px var(--rp-card-padding);
+}
+.rp-card .list-group-item:last-child {
+  border-bottom: 0;
+}
+
+.rp-kpi {
+  font-size: var(--rp-kpi-size);
+  font-weight: var(--rp-kpi-weight);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Total Recovered: keep amount on one line */
+[data-kpi="total_recovered"] {
+  white-space: nowrap;
+}
+
+.rp-label {
+  font-size: var(--rp-label-size);
+  font-weight: 500;
+}
+
+/* 8. Section dividers */
+.rp-section-divider {
+  border-bottom: var(--rp-divider);
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+}
+
+/* 11–12. Compact data tables & headers */
+.page-content .table thead th,
+.rp-card .table thead th,
+.page-content .table thead.bg-light-subtle th,
+.rp-card .table thead.bg-light-subtle th {
+  font-weight: var(--rp-table-header-weight);
+  color: var(--rp-table-header-color);
+  background: var(--rp-table-header-bg) !important;
+  padding: 12px 16px;
+  font-size: 13px;
+  border-bottom: var(--rp-divider);
+}
+.page-content .table tbody td,
+.rp-card .table tbody td {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+.page-content .table,
+.rp-card .table {
+  margin-bottom: 0;
+}
+
+.rp-table-row {
+  cursor: pointer;
+}
+
+/* Sortable table headers */
+.rp-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.rp-sortable:hover {
+  color: var(--rp-btn-primary-bg);
+}
+.rp-sortable .rp-sort-icon {
+  font-size: 14px;
+  vertical-align: middle;
+}
+.rp-sort-active .rp-sort-icon {
+  opacity: 1;
+}
+
+/* 13. Status badges */
+.rp-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.rp-badge-success {
+  background: #D1FAE5;
+  color: #065F46;
+}
+.rp-badge-warning {
+  background: #FEF3C7;
+  color: #92400E;
+}
+.rp-badge-secondary,
+.rp-badge-inactive {
+  background: #F3F4F6;
+  color: #6B7280;
+}
+.rp-badge-info {
+  background: #DBEAFE;
+  color: #1E40AF;
+}
+.rp-badge-danger {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+/* 14. Button hierarchy (override where needed) */
+.btn-primary.rp-btn-primary,
+.rp-card .btn-primary {
+  background: var(--rp-btn-primary-bg);
+  border-color: var(--rp-btn-primary-bg);
+  color: var(--rp-btn-primary-color);
+}
+.btn-primary.rp-btn-primary:hover,
+.rp-card .btn-primary:hover {
+  background: #4338CA;
+  border-color: #4338CA;
+  color: #fff;
+}
+.btn-outline-secondary.rp-btn-secondary {
+  border: 1px solid var(--rp-btn-secondary-border);
+  color: #374151;
+  background: #fff;
+}
+.btn.rp-btn-ghost {
+  background: var(--rp-btn-ghost-bg);
+  border: none;
+  color: #6B7280;
+}
+
+/* 10. Sidebar active nav highlight */
+.wrapper .main-nav .navbar-nav .nav-item .nav-link.active {
+  background-color: var(--rp-nav-active-bg) !important;
+  color: var(--rp-nav-active-color) !important;
+  font-weight: 500;
+}
+
+/* 18. Chart styling: minimal gridlines, muted colors */
+.rp-chart-container {
+  padding: 16px 0;
+}
+.rp-chart-container canvas {
+  max-height: 280px;
+}
+
+/* 16. Skeleton loaders */
+.rp-skeleton {
+  background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+  background-size: 200% 100%;
+  animation: rp-skeleton 1.2s ease-in-out infinite;
+  border-radius: 4px;
+  min-height: 1em;
+}
+.rp-skeleton-text {
+  height: 14px;
+  margin-bottom: 8px;
+}
+.rp-skeleton-text:last-child {
+  width: 60%;
+  margin-bottom: 0;
+}
+.rp-skeleton-title {
+  height: 20px;
+  width: 40%;
+  margin-bottom: 12px;
+}
+@keyframes rp-skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+[data-bs-theme="dark"] .rp-skeleton {
+  background: linear-gradient(90deg, #374151 25%, #4B5563 50%, #374151 75%);
+  background-size: 200% 100%;
+}
+
+/* 20. Footer microcopy */
+.footer.rp-footer {
+  border-top: var(--rp-divider);
+  padding: 20px 0;
+  font-size: 13px;
+  color: #6B7280;
+}
+.footer.rp-footer a {
+  color: #4F46E5;
+  text-decoration: none;
+}
+.footer.rp-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Dark mode */
+[data-bs-theme="dark"] {
+  --rp-page-bg: var(--bs-body-bg);
+  --rp-card-bg: var(--bs-secondary-bg);
+  --rp-border: var(--bs-border-color);
+  --rp-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --rp-card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --rp-divider: 1px solid var(--bs-border-color);
+  --rp-table-header-bg: var(--bs-tertiary-bg);
+  --rp-table-header-color: var(--bs-body-color);
+  --rp-nav-active-bg: rgba(79, 70, 229, 0.2);
+  --rp-nav-active-color: #818CF8;
+}
+
+[data-bs-theme="dark"] .page-content {
+  background-color: var(--rp-page-bg);
+}
+
+[data-bs-theme="dark"] .rp-card,
+[data-bs-theme="dark"] .rp-card .card-header {
+  background-color: var(--rp-card-bg) !important;
+  border-color: var(--rp-border);
+  color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .rp-card .card-body,
+[data-bs-theme="dark"] .rp-card .list-group-item {
+  background-color: var(--rp-card-bg) !important;
+  border-color: var(--rp-border);
+  color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .rp-card .text-muted,
+[data-bs-theme="dark"] .page-content .text-muted {
+  color: var(--bs-secondary-color) !important;
+}
+
+[data-bs-theme="dark"] .card-header.bg-white,
+[data-bs-theme="dark"] .page-content .bg-white {
+  background-color: var(--rp-card-bg) !important;
+  border-color: var(--rp-border);
+}
+
+[data-bs-theme="dark"] .rp-card .bg-light,
+[data-bs-theme="dark"] .page-content .bg-light {
+  background-color: var(--bs-tertiary-bg) !important;
+  color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .rp-badge-success {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86EFAC;
+}
+[data-bs-theme="dark"] .rp-badge-warning {
+  background: rgba(234, 179, 8, 0.2);
+  color: #FDE047;
+}
+[data-bs-theme="dark"] .rp-badge-secondary,
+[data-bs-theme="dark"] .rp-badge-inactive {
+  background: rgba(255, 255, 255, 0.08);
+  color: #9CA3AF;
+}

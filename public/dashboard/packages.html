@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Packages Sent | ReturnPal</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="shortcut icon" href="assets/images/favicon.ico" />
+        <script src="assets/js/config.min.js"></script>
+        <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+        <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
+        <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+    </head>
+
+    <body>
+        <div class="wrapper">
+            <header class="">
+                <div class="topbar">
+                    <div class="container-fluid">
+                        <div class="navbar-header">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="topbar-item">
+                                    <button type="button" class="button-toggle-menu topbar-button" aria-label="Toggle menu">
+                                        <i class="ri-menu-2-line fs-24"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-1">
+                                <div class="topbar-item">
+                                    <button type="button" class="topbar-button" id="light-dark-mode" aria-label="Toggle theme">
+                                        <i class="ri-moon-line fs-24 light-mode"></i>
+                                        <i class="ri-sun-line fs-24 dark-mode"></i>
+                                    </button>
+                                </div>
+                                <div class="dropdown topbar-item">
+                                    <a type="button" class="topbar-button" id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                        <img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="User" />
+                                    </a>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <h6 class="dropdown-header">Welcome!</h6>
+                                        <a class="dropdown-item" href="settings.html"><i class="ri-settings-3-line me-1"></i>Settings</a>
+                                        <div class="dropdown-divider my-1"></div>
+                                        <a class="dropdown-item text-danger" href="login.html"><i class="ri-logout-circle-line me-1"></i>Logout</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="main-nav">
+                <div class="logo-box">
+                    <a href="index.html" class="logo-dark"><img src="assets/images/logo-sm-dark.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-dark.png" class="logo-lg" alt="logo" /></a>
+                    <a href="index.html" class="logo-light"><img src="assets/images/logo-sm-light.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-light.png" class="logo-lg" alt="logo" /></a>
+                </div>
+                <button type="button" class="button-sm-hover" aria-label="Show sidebar"><i class="ri-menu-2-line fs-24"></i></button>
+                <div class="scrollbar" data-simplebar>
+                    <ul class="navbar-nav" id="navbar-nav">
+                        <li class="menu-title">Menu</li>
+                        <li class="nav-item"><a class="nav-link" href="index.html"><span class="nav-icon"><i class="ri-dashboard-3-line"></i></span><span class="nav-text">Overview</span></a></li>
+                        <li class="nav-item"><a class="nav-link active" href="packages.html"><span class="nav-icon"><i class="ri-box-3-line"></i></span><span class="nav-text">Packages Sent</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="received.html"><span class="nav-icon"><i class="ri-import-line"></i></span><span class="nav-text">Received</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="sold-items.html"><span class="nav-icon"><i class="ri-list-view"></i></span><span class="nav-text">Sold Items</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="item-pending.html"><span class="nav-icon"><i class="ri-time-line"></i></span><span class="nav-text">Items Pending</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="activity.html"><span class="nav-icon"><i class="ri-history-line"></i></span><span class="nav-text">Activity</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="inventory.html"><span class="nav-icon"><i class="ri-archive-drawer-line"></i></span><span class="nav-text">Inventory</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="analytics.html"><span class="nav-icon"><i class="ri-line-chart-line"></i></span><span class="nav-text">Analytics</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="invoices.html"><span class="nav-icon"><i class="ri-receipt-line"></i></span><span class="nav-text">Payouts & Invoices</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="roi-report.html"><span class="nav-icon"><i class="ri-file-text-line"></i></span><span class="nav-text">ROI Report</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="referrals.html"><span class="nav-icon"><i class="ri-user-shared-line"></i></span><span class="nav-text">Referrals</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="settings.html"><span class="nav-icon"><i class="ri-settings-3-line"></i></span><span class="nav-text">Settings</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="faq.html"><span class="nav-icon"><i class="ri-question-line"></i></span><span class="nav-text">FAQ</span></a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="page-content">
+                <div class="container-fluid">
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="page-title-box d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <div>
+                                    <h4 class="fw-semibold">Packages Sent</h4>
+                                    <p class="mb-0 text-muted">Track packages you've shipped for liquidation</p>
+                                </div>
+                                <div class="d-flex">
+                                    <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#bulkUpload">
+                                        <i class="ri-upload-2-line me-1"></i> Bulk Upload
+                                    </button>
+                                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPackage">
+                                        <i class="ri-add-large-line me-1"></i> Add Package
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rp-card card border-0">
+                        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div>
+                                <select class="form-select form-select-sm w-auto" id="packages-status-select" aria-label="Filter by status">
+                                    <option value="">All statuses</option>
+                                    <option value="In Transit">In Transit</option>
+                                    <option value="Delivered">Delivered</option>
+                                    <option value="Processing">Processing</option>
+                                    <option value="Received">Received</option>
+                                </select>
+                            </div>
+                            <div class="seco-title">0 packages</div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table align-middle text-nowrap table-hover table-centered mb-0">
+                                    <thead class="bg-light-subtle">
+                                        <tr>
+                                            <th class="py-55 rp-sortable" data-sort="reference" scope="col">Reference <i class="ri-arrow-up-down-line ms-1 opacity-50 rp-sort-icon"></i></th>
+                                            <th class="py-55">Products</th>
+                                            <th class="py-55 rp-sortable" data-sort="total_qty" scope="col">Total Qty <i class="ri-arrow-up-down-line ms-1 opacity-50 rp-sort-icon"></i></th>
+                                            <th class="py-55 rp-sortable" data-sort="status" scope="col">Status <i class="ri-arrow-up-down-line ms-1 opacity-50 rp-sort-icon"></i></th>
+                                            <th class="py-55 rp-sortable rp-sort-active" data-sort="date_added" scope="col">Date Added <i class="ri-arrow-down-line ms-1 rp-sort-icon"></i></th>
+                                            <th class="py-55">Notes</th>
+                                            <th class="py-55 text-center">Send to prep centre</th>
+                                            <th class="py-55"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td colspan="8" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading packages…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="packages-load-more" class="p-3 text-center border-top d-none"><button type="button" class="btn btn-outline-primary btn-sm" id="packages-load-more-btn">Load more</button></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bulk Upload Modal -->
+                <div class="modal fade" id="bulkUpload" tabindex="-1" aria-labelledby="bulkUploadTitle" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="bulkUploadTitle">Bulk Upload Packages</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="bg-light rounded mb-3">
+                                    <div class="p-3">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div class="d-flex align-items-center">
+                                                <i class="ri-download-2-line fs-24 text-primary"></i>
+                                                <div class="ms-3">
+                                                    <div class="fs-19 fw-semibold">Download Template</div>
+                                                    <p class="mb-0 text-muted">Get the branded Excel template to fill in</p>
+                                                </div>
+                                            </div>
+                                            <button class="btn btn-success"><i class="ri-download-2-line me-1 fs-18"></i>Download</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="dropzone">
+                                    <div class="fallback">
+                                        <input name="file" type="file" multiple="multiple" />
+                                    </div>
+                                    <div class="dz-message needsclick">
+                                        <i class="h1 ri-upload-cloud-2-line"></i>
+                                        <h4 class="fs-20 mt-2">Drop your Excel file here or click to browse</h4>
+                                        <span class="text-muted">Supports .xlsx and .csv files</span>
+                                    </div>
+                                </div>
+                                <ul class="list-unstyled mb-0" id="dropzone-preview">
+                                    <li class="mt-2" id="dropzone-preview-list">
+                                        <div class="border rounded">
+                                            <div class="d-flex p-2">
+                                                <div class="flex-shrink-0 me-3">
+                                                    <div class="avatar-md bg-light rounded d-flex justify-content-center align-items-center">
+                                                        <i class="ri-file-excel-line fs-24"></i>
+                                                    </div>
+                                                </div>
+                                                <div class="flex-grow-1">
+                                                    <div class="pt-1">
+                                                        <h5 class="fs-14 mb-1" data-dz-name>&nbsp;</h5>
+                                                        <p class="fs-13 text-muted mb-0" data-dz-size></p>
+                                                        <strong class="error text-danger" data-dz-errormessage></strong>
+                                                    </div>
+                                                </div>
+                                                <div class="flex-shrink-0 ms-3">
+                                                    <button data-dz-remove class="btn btn-sm btn-danger">Delete</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                </ul>
+                                <div class="text-end mt-3">
+                                    <button type="button" class="btn btn-dark me-1" data-bs-dismiss="modal">Close</button>
+                                    <button type="button" class="btn btn-primary">Upload</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Package Modal -->
+                <div class="modal fade" id="addPackage" tabindex="-1" aria-labelledby="addPackageTitle" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="addPackageTitle">Add New Package</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Package Reference / Tracking Number</label>
+                                    <input type="text" class="form-control" placeholder="e.g., TRACK-12345 or Royal Mail reference">
+                                </div>
+                                <div class="pb-2">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <label class="form-label mb-0">Products in Package</label>
+                                        <button type="button" class="btn btn-outline-primary btn-sm px-4 add-new"><i class="ri-add-large-line me-1"></i>Add New</button>
+                                    </div>
+                                    <div class="product-wrapper">
+                                        <div class="product-row bg-light rounded p-2 grid grid-cols-12 gap-2 align-items-end mb-1">
+                                            <div class="g-col-5 space-y-1">
+                                                <label class="form-label">Product Name / SKU</label>
+                                                <input type="text" class="form-control rp-product-name" placeholder="e.g., iPhone Case">
+                                                <label class="form-label mt-1">ASIN (optional)</label>
+                                                <input type="text" class="form-control rp-product-asin" placeholder="e.g., B0C1234567">
+                                                <label class="form-label mt-1">Cost of goods (£, optional)</label>
+                                                <input type="number" step="0.01" min="0" class="form-control rp-product-cost" placeholder="e.g., 12.50">
+                                            </div>
+                                            <div class="g-col-2 space-y-1">
+                                                <label class="form-label">Qty</label>
+                                                <input type="number" class="form-control rp-product-qty" value="1" min="1">
+                                            </div>
+                                            <div class="g-col-4 space-y-1">
+                                                <label class="form-label">Condition</label>
+                                                <select class="form-select rp-product-condition">
+                                                    <option>New</option>
+                                                    <option>Used</option>
+                                                    <option>Return</option>
+                                                    <option>Return Review</option>
+                                                </select>
+                                            </div>
+                                            <div class="g-col-1 d-flex justify-content-end">
+                                                <button class="btn btn-sm btn-light remove-row" disabled><i class="ri-delete-bin-line fs-18"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Notes (Optional)</label>
+                                    <textarea class="form-control" placeholder="Any additional information..." style="height: 100px;"></textarea>
+                                </div>
+                                <div class="text-end mt-3">
+                                    <button type="button" class="btn btn-dark me-1" data-bs-dismiss="modal">Close</button>
+                                    <button type="button" class="btn btn-primary">Add Package</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Edit Package Modal -->
+                <div class="modal fade" id="editPackage" tabindex="-1" aria-labelledby="editPackageTitle" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="editPackageTitle">Edit Package</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Package Reference / Tracking Number</label>
+                                    <input type="text" class="form-control">
+                                </div>
+                                <div class="pb-2">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <label class="form-label mb-0">Products in Package</label>
+                                        <button type="button" class="btn btn-outline-primary btn-sm px-4 add-new"><i class="ri-add-large-line me-1"></i>Add New</button>
+                                    </div>
+                                    <div class="product-wrapper"></div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Notes (Optional)</label>
+                                    <textarea class="form-control" placeholder="Any additional information..." style="height: 100px;"></textarea>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <button type="button" class="btn btn-danger"><i class="ri-delete-bin-line me-1 fs-17 align-middle"></i>Delete Package</button>
+                                    <div>
+                                        <button type="button" class="btn btn-dark me-1" data-bs-dismiss="modal">Close</button>
+                                        <button type="button" class="btn btn-primary">Save Changes</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="footer">
+                    <div class="container-fluid">
+                        <div class="row">
+                            <div class="col-12 text-center">
+                                <script>document.write(new Date().getFullYear());</script> &copy; ReturnPal.
+                            </div>
+                        </div>
+                    </div>
+                </footer>
+            </div>
+        </div>
+
+        <script src="assets/js/vendor.js"></script>
+        <script src="assets/js/app.js"></script>
+        <script src="/assets/js/api.js"></script>
+        <script src="assets/js/custom.js"></script>
+        <script src="assets/js/dashboard.js"></script>
+    </body>
+</html>

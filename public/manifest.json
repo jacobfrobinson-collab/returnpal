@@ -1,0 +1,10 @@
+{
+  "name": "ReturnPal",
+  "short_name": "ReturnPal",
+  "description": "Turn Amazon returns into recovered revenue",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#128BD0",
+  "icons": []
+}

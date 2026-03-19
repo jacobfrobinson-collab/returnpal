@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Configure Returns Settings | ReturnPal Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="shortcut icon" href="assets/images/favicon.ico" />
+    <script src="assets/js/config.min.js"></script>
+    <script>window.RETURNPAL_CONFIG = window.RETURNPAL_CONFIG || { useMock: false };</script>
+    <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+    <div class="wrapper">
+        <header class="">
+            <div class="topbar">
+                <div class="container-fluid">
+                    <div class="navbar-header">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="topbar-item">
+                                <button type="button" class="button-toggle-menu topbar-button" aria-label="Toggle menu">
+                                    <i class="ri-menu-2-line fs-24"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <div class="topbar-item">
+                                <button type="button" class="topbar-button" id="light-dark-mode" aria-label="Toggle theme">
+                                    <i class="ri-moon-line fs-24 light-mode"></i>
+                                    <i class="ri-sun-line fs-24 dark-mode"></i>
+                                </button>
+                            </div>
+                            <div class="dropdown topbar-item">
+                                <a type="button" class="topbar-button" id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="User" />
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <h6 class="dropdown-header">Welcome!</h6>
+                                    <a class="dropdown-item" href="settings.html"><i class="ri-settings-3-line me-1"></i>Settings</a>
+                                    <div class="dropdown-divider my-1"></div>
+                                    <a class="dropdown-item text-danger" href="login.html"><i class="ri-logout-circle-line me-1"></i>Logout</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-nav">
+            <div class="logo-box">
+                <a href="index.html" class="logo-dark"><img src="assets/images/logo-sm-dark.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-dark.png" class="logo-lg" alt="logo" /></a>
+                <a href="index.html" class="logo-light"><img src="assets/images/logo-sm-light.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-light.png" class="logo-lg" alt="logo" /></a>
+            </div>
+            <button type="button" class="button-sm-hover" aria-label="Show sidebar"><i class="ri-menu-2-line fs-24"></i></button>
+            <div class="scrollbar" data-simplebar>
+                <ul class="navbar-nav" id="navbar-nav">
+                    <li class="menu-title">Menu</li>
+                    <li class="nav-item"><a class="nav-link" href="index.html"><span class="nav-icon"><i class="ri-dashboard-3-line"></i></span><span class="nav-text">Overview</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="packages.html"><span class="nav-icon"><i class="ri-box-3-line"></i></span><span class="nav-text">Packages Sent</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="received.html"><span class="nav-icon"><i class="ri-import-line"></i></span><span class="nav-text">Received</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="sold-items.html"><span class="nav-icon"><i class="ri-list-view"></i></span><span class="nav-text">Sold Items</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="item-pending.html"><span class="nav-icon"><i class="ri-time-line"></i></span><span class="nav-text">Items Pending</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="activity.html"><span class="nav-icon"><i class="ri-history-line"></i></span><span class="nav-text">Activity</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="inventory.html"><span class="nav-icon"><i class="ri-archive-drawer-line"></i></span><span class="nav-text">Inventory</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="analytics.html"><span class="nav-icon"><i class="ri-line-chart-line"></i></span><span class="nav-text">Analytics</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="invoices.html"><span class="nav-icon"><i class="ri-receipt-line"></i></span><span class="nav-text">Payouts & Invoices</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="roi-report.html"><span class="nav-icon"><i class="ri-file-text-line"></i></span><span class="nav-text">ROI Report</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="referrals.html"><span class="nav-icon"><i class="ri-user-shared-line"></i></span><span class="nav-text">Referrals</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="returns-settings.html"><span class="nav-icon"><i class="ri-settings-4-line"></i></span><span class="nav-text">Returns Settings</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="settings.html"><span class="nav-icon"><i class="ri-settings-3-line"></i></span><span class="nav-text">Settings</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="faq.html"><span class="nav-icon"><i class="ri-question-line"></i></span><span class="nav-text">FAQ</span></a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="page-content">
+            <div class="container-fluid">
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h4 class="fw-semibold mb-1"><i class="ri-settings-4-line me-2"></i>Configure Returns Settings</h4>
+                        <p class="mb-0 text-muted rp-label">Set your Amazon return address to send unfulfillable inventory to ReturnPal</p>
+                    </div>
+                </div>
+
+                <div class="rp-card card border-0">
+                    <div class="card-body">
+                        <p class="mb-4">Use these steps in Amazon Seller Central so your FBA unfulfillable returns are sent to our facility. This helps clients change their return address to ReturnPal.</p>
+
+                        <ol class="mb-4 ps-3">
+                            <li class="mb-2"><strong>Log in to Amazon Seller Central</strong></li>
+                            <li class="mb-2">Go to <strong>Settings</strong> → <strong>Fulfillment by Amazon</strong></li>
+                            <li class="mb-2">Scroll to <strong>Automated Unfulfillable Settings</strong> and click <strong>Edit</strong></li>
+                            <li class="mb-2">Ensure <strong>Enable</strong> is toggled on for Automated Unfulfillable Settings</li>
+                            <li class="mb-2">Ensure <strong>Refurbishment</strong> is selected for <strong>Enroll in value recovery options</strong></li>
+                            <li class="mb-2">Scroll to the <strong>Removals</strong> section and make sure <strong>Return</strong> is toggled on</li>
+                            <li class="mb-2">Set <strong>Schedule</strong> to <strong>Weekly</strong> (on the 8th, 15th, 22nd and 28th)</li>
+                            <li class="mb-2">Enter our address as the return address (use your personal or company name for the return address):</li>
+                        </ol>
+
+                        <div class="border rounded-3 p-4 mb-4 bg-light">
+                            <h6 class="fw-semibold mb-2">ReturnPal return address</h6>
+                            <p class="mb-1"><strong>Address</strong></p>
+                            <p class="mb-1"><span id="returns-settings-client-id" class="fw-semibold">—</span><br />Unit 2B Bondisle Way<br />Bishop Auckland<br />DL13 2YS</p>
+                            <p class="mb-0"><strong>Phone</strong> <a href="tel:+447774904697">+44 7774 904697</a></p>
+                        </div>
+
+                        <p class="text-muted small mb-0">Need help? <a href="/index.html#contact">Contact us</a>.</p>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <script>document.write(new Date().getFullYear());</script> &copy; ReturnPal. <a href="faq.html">FAQ</a> | <a href="../index.html#contact">Contact</a> | <a href="../privacy.html">Privacy</a> | <a href="../terms.html">Terms</a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="assets/js/vendor.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script src="/assets/js/api.js"></script>
+    <script src="assets/js/custom.js"></script>
+    <script src="assets/js/dashboard.js"></script>
+</body>
+</html>
