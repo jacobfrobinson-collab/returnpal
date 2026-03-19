@@ -10,23 +10,42 @@ const API = {
     baseUrl: '/api',
 
     // ─── Token Management ────────────────────────────────────
+    getSessionToken() {
+        return sessionStorage.getItem('returnpal_session_token');
+    },
     getToken() {
-        return localStorage.getItem('returnpal_token');
+        return this.getSessionToken() || localStorage.getItem('returnpal_token');
     },
     setToken(token) {
         localStorage.setItem('returnpal_token', token);
     },
+    setSessionToken(token) {
+        sessionStorage.setItem('returnpal_session_token', token);
+    },
+    clearSessionAuth() {
+        sessionStorage.removeItem('returnpal_session_token');
+        sessionStorage.removeItem('returnpal_session_user');
+    },
     clearToken() {
+        this.clearSessionAuth();
         localStorage.removeItem('returnpal_token');
         localStorage.removeItem('returnpal_user');
     },
-    getUser() {
+    getSessionUser() {
         try {
-            return JSON.parse(localStorage.getItem('returnpal_user'));
+            return JSON.parse(sessionStorage.getItem('returnpal_session_user'));
         } catch { return null; }
+    },
+    getUser() {
+        const sessionUser = this.getSessionUser();
+        if (sessionUser) return sessionUser;
+        try { return JSON.parse(localStorage.getItem('returnpal_user')); } catch { return null; }
     },
     setUser(user) {
         localStorage.setItem('returnpal_user', JSON.stringify(user));
+    },
+    setSessionUser(user) {
+        sessionStorage.setItem('returnpal_session_user', JSON.stringify(user));
     },
     isLoggedIn() {
         return !!this.getToken();
@@ -58,7 +77,9 @@ const API = {
             const response = await fetch(url, config);
 
             if (response.status === 401) {
-                this.clearToken();
+                // During admin impersonation, clear only tab-scoped auth.
+                if (this.getSessionToken()) this.clearSessionAuth();
+                else this.clearToken();
                 window.location.href = '/login.html';
                 return null;
             }

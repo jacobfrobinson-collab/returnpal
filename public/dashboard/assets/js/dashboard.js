@@ -9,9 +9,10 @@ const Dashboard = {
         const params = new URLSearchParams(window.location.search);
         const impersonateToken = params.get('impersonate');
         if (impersonateToken) {
-            API.setToken(impersonateToken);
+            // Use tab-scoped auth for impersonation so admin auth remains intact in other tabs.
+            API.setSessionToken(impersonateToken);
             API.request('/auth/me').then(me => {
-                if (me && me.user) API.setUser(me.user);
+                if (me && me.user) API.setSessionUser(me.user);
                 window.history.replaceState({}, '', window.location.pathname + (window.location.hash || ''));
                 sessionStorage.setItem('returnpal_impersonating', '1');
                 this.injectImpersonationBanner();
@@ -248,6 +249,7 @@ const Dashboard = {
         $target.prepend(html);
         $('#rp-impersonation-banner a').on('click', function() {
             sessionStorage.removeItem('returnpal_impersonating');
+            API.clearSessionAuth();
         });
     },
 
