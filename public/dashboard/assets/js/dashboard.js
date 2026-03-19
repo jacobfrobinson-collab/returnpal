@@ -5,9 +5,17 @@
  */
 
 const Dashboard = {
+    formatClientId(user) {
+        if (!user) return '';
+        const raw = user.id;
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || n <= 0) return '';
+        return String(n).padStart(4, '0');
+    },
+
     updateUserIdentityUI(user) {
         if (!user) return;
-        const clientIdFormatted = user.id != null ? String(user.id).padStart(4, '0') : '';
+        const clientIdFormatted = this.formatClientId(user);
         const firstName = (user.full_name || user.email || '').split(' ')[0] || 'Client';
 
         const $userMenu = $('#page-header-user-dropdown').siblings('.dropdown-menu').first();
@@ -487,13 +495,14 @@ const Dashboard = {
         if ($hello.length) $hello.text('Welcome back, ' + firstName);
 
         // Client ID for return address (4-digit padded)
-        const clientIdFormatted = (user && user.id != null) ? String(user.id).padStart(4, '0') : '—';
+        const clientIdFormatted = this.formatClientId(user) || '—';
         const $clientIdVal = $('#dashboard-client-id-value');
         if ($clientIdVal.length) $clientIdVal.text(clientIdFormatted);
         $('#dashboard-copy-client-id').off('click').on('click', function() {
             const id = (API.getUser() || {}).id;
-            if (id == null) return;
-            const toCopy = String(id).padStart(4, '0');
+            const n = parseInt(id, 10);
+            if (!Number.isFinite(n) || n <= 0) return;
+            const toCopy = String(n).padStart(4, '0');
             navigator.clipboard.writeText(toCopy).then(() => {
                 Dashboard.showToast('Client ID copied to clipboard', 'success');
             }).catch(() => {});
