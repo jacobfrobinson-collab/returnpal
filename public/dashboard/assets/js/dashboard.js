@@ -5,6 +5,31 @@
  */
 
 const Dashboard = {
+    updateUserIdentityUI(user) {
+        if (!user) return;
+        const clientIdFormatted = user.id != null ? String(user.id).padStart(4, '0') : '';
+        const firstName = (user.full_name || user.email || '').split(' ')[0] || 'Client';
+
+        const $userMenu = $('#page-header-user-dropdown').siblings('.dropdown-menu').first();
+        if ($userMenu.length) {
+            $userMenu.find('.dropdown-header').first().text('Welcome ' + firstName + '!');
+            if (clientIdFormatted) {
+                const $existing = $userMenu.find('#dashboard-client-id-dropdown');
+                const html = 'Client ID: <strong>' + clientIdFormatted + '</strong> <span class="text-muted">(use for return address)</span>';
+                if ($existing.length) $existing.html(html);
+                else $userMenu.find('.dropdown-header').first().after('<div class="dropdown-item disabled small py-2" id="dashboard-client-id-dropdown">' + html + '</div>');
+            }
+        }
+
+        // Overview card
+        const $clientIdVal = $('#dashboard-client-id-value');
+        if ($clientIdVal.length) $clientIdVal.text(clientIdFormatted || '—');
+
+        // Returns Settings page address line
+        const $returnsClientId = $('#returns-settings-client-id');
+        if ($returnsClientId.length) $returnsClientId.text(clientIdFormatted ? 'ReturnPal ' + clientIdFormatted : '—');
+    },
+
     init() {
         const params = new URLSearchParams(window.location.search);
         const impersonateToken = params.get('impersonate');
@@ -33,21 +58,16 @@ const Dashboard = {
             this.injectImpersonationBanner();
         }
 
-        // Set user name and Client ID in dropdown (4-digit padded)
+        // Render from cached user first, then refresh from DB (/auth/me) to avoid stale IDs.
         const user = API.getUser();
-        if (user) {
-            const clientIdFormatted = user.id != null ? String(user.id).padStart(4, '0') : '';
-            const $userMenu = $('#page-header-user-dropdown').siblings('.dropdown-menu').first();
-            $userMenu.find('.dropdown-header').first().text('Welcome ' + (user.full_name || user.email).split(' ')[0] + '!');
-            if (!$userMenu.find('#dashboard-client-id-dropdown').length && clientIdFormatted) {
-                $userMenu.find('.dropdown-header').first().after(
-                    '<div class="dropdown-item disabled small py-2" id="dashboard-client-id-dropdown">Client ID: <strong>' + clientIdFormatted + '</strong> <span class="text-muted">(use for return address)</span></div>'
-                );
-            }
-            // Returns Settings page: show "ReturnPal 0001" in the return address block
-            const $returnsClientId = $('#returns-settings-client-id');
-            if ($returnsClientId.length) $returnsClientId.text(clientIdFormatted ? 'ReturnPal ' + clientIdFormatted : '—');
-        }
+        this.updateUserIdentityUI(user);
+        const useSession = !!API.getSessionToken();
+        API.request('/auth/me').then(me => {
+            if (!me || !me.user) return;
+            if (useSession) API.setSessionUser(me.user);
+            else API.setUser(me.user);
+            this.updateUserIdentityUI(me.user);
+        }).catch(() => {});
 
         // Logout handler
         $(document).on('click', 'a[href="login.html"], a[href="../login.html"], a[href="/login.html"]', function(e) {
