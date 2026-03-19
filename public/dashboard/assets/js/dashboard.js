@@ -870,6 +870,52 @@ const Dashboard = {
         this._packageEventsBound = true;
         const self = this;
 
+        // ─── Add/Edit package modal: add/remove product rows ─────────────
+        $(document).on('click', '#addPackage .add-new', function() {
+            const modal = $('#addPackage');
+            const wrapper = modal.find('.product-wrapper');
+            if (!wrapper.length) return;
+            const rows = wrapper.find('.product-row');
+            // Once there are 2+ rows, allow removing rows.
+            rows.find('.remove-row').prop('disabled', false);
+            wrapper.append(self.productRowHtml('', 1, 'New', false, '', ''));
+        });
+
+        $(document).on('click', '#addPackage .remove-row', function() {
+            const modal = $('#addPackage');
+            const wrapper = modal.find('.product-wrapper');
+            if (!wrapper.length) return;
+            $(this).closest('.product-row').remove();
+            const rows = wrapper.find('.product-row');
+            if (rows.length <= 1) {
+                rows.find('.remove-row').prop('disabled', true);
+            } else {
+                rows.find('.remove-row').prop('disabled', false);
+            }
+        });
+
+        $(document).on('click', '#editPackage .add-new', function() {
+            const modal = $('#editPackage');
+            const wrapper = modal.find('.product-wrapper');
+            if (!wrapper.length) return;
+            const rows = wrapper.find('.product-row');
+            rows.find('.remove-row').prop('disabled', false);
+            wrapper.append(self.productRowHtml('', 1, 'New', false, '', ''));
+        });
+
+        $(document).on('click', '#editPackage .remove-row', function() {
+            const modal = $('#editPackage');
+            const wrapper = modal.find('.product-wrapper');
+            if (!wrapper.length) return;
+            $(this).closest('.product-row').remove();
+            const rows = wrapper.find('.product-row');
+            if (rows.length <= 1) {
+                rows.find('.remove-row').prop('disabled', true);
+            } else {
+                rows.find('.remove-row').prop('disabled', false);
+            }
+        });
+
         // Edit package - load data into modal
         $(document).on('click', '.edit-pkg', async function(e) {
             e.preventDefault();
@@ -1038,13 +1084,37 @@ const Dashboard = {
     getProductsFromModal(modal) {
         const products = [];
         modal.find('.product-row').each(function() {
-            const name = $(this).find('.rp-product-name').val().trim();
-            const asin = $(this).find('.rp-product-asin').val().trim();
-            const qty = parseInt($(this).find('.rp-product-qty').val(), 10) || 1;
-            const condition = $(this).find('.rp-product-condition').val();
-            const costStr = $(this).find('.rp-product-cost').val().trim();
-            const costNum = costStr ? Number(costStr) : null;
-            const cost = costNum != null && !isNaN(costNum) && costNum >= 0 ? costNum : null;
+            // Be tolerant: fall back to older DOM structure if rp-* classes aren't present.
+            const $row = $(this);
+            const $nameEl = $row.find('.rp-product-name').first();
+            const name = ($nameEl.length ? $nameEl.val() : $row.find('input[type="text"]').first().val() || '').toString().trim();
+
+            const $asinEl = $row.find('.rp-product-asin').first();
+            const asin = $asinEl.length ? ($asinEl.val() || '').toString().trim() : '';
+
+            const $qtyEl = $row.find('.rp-product-qty').first();
+            let qty = 1;
+            if ($qtyEl.length) {
+                qty = parseInt($qtyEl.val(), 10) || 1;
+            } else {
+                // Try to pick the numeric input that looks like "Qty" (min >= 1).
+                const $qtyCandidates = $row.find('input[type="number"]').filter(function() {
+                    const minAttr = parseFloat($(this).attr('min') || '0');
+                    return !isNaN(minAttr) && minAttr >= 1;
+                });
+                qty = parseInt(($qtyCandidates.first().val() || ''), 10) || 1;
+            }
+
+            const $condEl = $row.find('.rp-product-condition').first();
+            const condition = $condEl.length ? $condEl.val() : ($row.find('select').first().val() || 'New');
+
+            const $costEl = $row.find('.rp-product-cost').first();
+            let cost = null;
+            if ($costEl.length) {
+                const costStr = ($costEl.val() || '').toString().trim();
+                const costNum = costStr ? Number(costStr) : null;
+                if (costNum != null && !isNaN(costNum) && costNum >= 0) cost = costNum;
+            }
             if (name) {
                 const product = { product_name: name, quantity: qty, condition: condition };
                 if (asin) product.asin = asin;
