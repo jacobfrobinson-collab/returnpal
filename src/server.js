@@ -35,6 +35,10 @@ app.get('/privacy.html', (req, res) => {
 app.get('/terms.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/terms.html'));
 });
+// Backward-compat redirect for stale dashboard links
+app.get('/dashboard/login.html', (req, res) => {
+    res.redirect(302, '/login.html');
+});
 
 // ─── Static Files (serve frontend) ──────────────────────────
 // Serve the main frontend
