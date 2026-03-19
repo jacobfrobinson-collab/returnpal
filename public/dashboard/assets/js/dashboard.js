@@ -876,9 +876,29 @@ const Dashboard = {
             const wrapper = modal.find('.product-wrapper');
             if (!wrapper.length) return;
             const rows = wrapper.find('.product-row');
-            // Once there are 2+ rows, allow removing rows.
-            rows.find('.remove-row').prop('disabled', false);
-            wrapper.append(self.productRowHtml('', 1, 'New', false, '', ''));
+            const $firstRow = rows.first();
+            if (!$firstRow.length) return;
+
+            // Clone the first row so the UI fields stay consistent with the current HTML.
+            const $newRow = $firstRow.clone(false, false);
+            $newRow.find('input, select, textarea').each(function() {
+                const $el = $(this);
+                const type = ($el.attr('type') || '').toLowerCase();
+                if (type === 'number') {
+                    // Qty and/or cost inputs
+                    if ($el.hasClass('rp-product-qty')) $el.val(1);
+                    else $el.val('');
+                } else if ($el.is('select')) {
+                    $el.val('New');
+                } else {
+                    $el.val('');
+                }
+            });
+
+            // Enable/disable remove based on new total
+            wrapper.append($newRow);
+            const updatedRows = wrapper.find('.product-row');
+            updatedRows.find('.remove-row').prop('disabled', updatedRows.length <= 1);
         });
 
         $(document).on('click', '#addPackage .remove-row', function() {
@@ -899,8 +919,24 @@ const Dashboard = {
             const wrapper = modal.find('.product-wrapper');
             if (!wrapper.length) return;
             const rows = wrapper.find('.product-row');
-            rows.find('.remove-row').prop('disabled', false);
-            wrapper.append(self.productRowHtml('', 1, 'New', false, '', ''));
+            const $firstRow = rows.first();
+            if (!$firstRow.length) return;
+            const $newRow = $firstRow.clone(false, false);
+            $newRow.find('input, select, textarea').each(function() {
+                const $el = $(this);
+                const type = ($el.attr('type') || '').toLowerCase();
+                if (type === 'number') {
+                    if ($el.hasClass('rp-product-qty')) $el.val(1);
+                    else $el.val('');
+                } else if ($el.is('select')) {
+                    $el.val('New');
+                } else {
+                    $el.val('');
+                }
+            });
+            wrapper.append($newRow);
+            const updatedRows = wrapper.find('.product-row');
+            updatedRows.find('.remove-row').prop('disabled', updatedRows.length <= 1);
         });
 
         $(document).on('click', '#editPackage .remove-row', function() {
