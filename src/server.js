@@ -5,6 +5,10 @@ const cors = require('cors');
 const path = require('path');
 const { getDb } = require('./database');
 
+const UPLOAD_DIR = process.env.UPLOAD_DIR
+    ? path.resolve(process.env.UPLOAD_DIR)
+    : path.join(__dirname, '../uploads');
+
 // Prevent silent crashes
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
@@ -36,7 +40,7 @@ app.get('/terms.html', (req, res) => {
 // Serve the main frontend
 app.use(express.static(path.join(__dirname, '../public')));
 // Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 // ─── API Routes ──────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));

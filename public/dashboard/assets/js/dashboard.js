@@ -321,17 +321,54 @@ const Dashboard = {
             $gap1.prepend(
                 '<div class="dropdown topbar-item">' +
                 '<button type="button" class="topbar-button position-relative" data-bs-toggle="dropdown" aria-label="Notifications" id="dashboard-notifications-btn">' +
-                '<i class="ri-notification-3-line fs-24"></i><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger py-1 px-1" style="font-size: 10px;">3</span>' +
+                '<i class="ri-notification-3-line fs-24"></i>' +
+                '<span id="dashboard-notifications-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger py-1 px-1 d-none" style="font-size: 10px;">0</span>' +
                 '</button>' +
                 '<div class="dropdown-menu dropdown-menu-end py-0" style="min-width: 320px;">' +
                 '<div class="dropdown-header border-bottom">Notifications</div>' +
-                '<a class="dropdown-item py-3 border-bottom" href="packages.html">Package TRACK-RP001 delivered</a>' +
-                '<a class="dropdown-item py-3 border-bottom" href="sold-items.html">Item sold: Wireless Earbuds Pro £34.99</a>' +
-                '<a class="dropdown-item py-3" href="invoices.html">Payout £1,240.00 sent</a>' +
+                '<div id="dashboard-notifications-items" class="py-3 px-3 text-center text-muted small">Loading…</div>' +
                 '<a class="dropdown-item text-center small text-primary" href="activity.html">View all activity</a>' +
                 '</div></div>' +
                 '<a href="/index.html#contact" class="topbar-item topbar-button d-none d-lg-flex align-items-center" title="Help"><i class="ri-customer-service-2-line fs-24"></i></a>'
             );
+
+            // Load per-client notifications from the backend
+            (async () => {
+                try {
+                    const data = await API.getDashboardSummary();
+                    const recent = (data && data.recent_activity) ? data.recent_activity : [];
+                    const items = recent.slice(0, 4);
+                    const $itemsWrap = $('#dashboard-notifications-items');
+                    if (!$itemsWrap.length) return;
+
+                    if (items.length === 0) {
+                        $itemsWrap.html('<div class="py-4 text-muted small">No new notifications</div>');
+                        $('#dashboard-notifications-badge').addClass('d-none');
+                        return;
+                    }
+
+                    $itemsWrap.empty();
+                    items.forEach((evt, idx) => {
+                        const msg = evt.message ? String(evt.message) : 'Notification';
+                        const icon = evt.icon ? String(evt.icon) : 'ri-circle-line';
+                        const href = evt.link ? String(evt.link) : 'activity.html';
+                        const border = idx < items.length - 1 ? ' border-bottom' : '';
+                        $itemsWrap.append(
+                            '<a class="dropdown-item py-3' + border + '" href="' + href + '">' +
+                            '<i class="' + icon + ' me-2 align-middle"></i>' +
+                            msg +
+                            '</a>'
+                        );
+                    });
+
+                    const $badge = $('#dashboard-notifications-badge');
+                    $badge.text(items.length);
+                    $badge.removeClass('d-none');
+                } catch (e) {
+                    const $itemsWrap = $('#dashboard-notifications-items');
+                    if ($itemsWrap.length) $itemsWrap.html('<div class="py-4 text-danger small">Unable to load notifications.</div>');
+                }
+            })();
         }
     },
 
@@ -703,6 +740,8 @@ const Dashboard = {
                 $tbody.html('<tr><td colspan="8" class="text-center py-5"><p class="text-muted mb-3">No packages yet. Send your first package to start recovering value.</p><a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPackage">Add Package</a></td></tr>');
                 if ($('.seco-title').length) $('.seco-title').text('0 packages');
                 this._packagesList = [];
+                // Ensure modal buttons work even when there are no existing packages.
+                this.bindPackageEvents();
                 return;
             }
 
@@ -826,6 +865,9 @@ const Dashboard = {
     },
 
     bindPackageEvents() {
+        // loadPackages() runs again after create/update, so guard against double-binding.
+        if (this._packageEventsBound) return;
+        this._packageEventsBound = true;
         const self = this;
 
         // Edit package - load data into modal

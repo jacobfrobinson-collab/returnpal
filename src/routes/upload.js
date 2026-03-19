@@ -9,7 +9,7 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 // Configure multer for file uploads
-const uploadDir = path.join(__dirname, '../../uploads');
+const uploadDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }

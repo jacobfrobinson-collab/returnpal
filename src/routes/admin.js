@@ -7,7 +7,8 @@ const { authMiddleware, requireAdmin, generateToken } = require('../middleware/a
 
 const router = express.Router();
 
-const reimbursementUploadDir = path.join(__dirname, '../../uploads/reimbursement');
+const uploadsBaseDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, '../../uploads');
+const reimbursementUploadDir = path.join(uploadsBaseDir, 'reimbursement');
 const reimbursementMulter = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
