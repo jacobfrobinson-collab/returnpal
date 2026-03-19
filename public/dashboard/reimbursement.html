@@ -15,6 +15,7 @@
         .reimb-photos { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
         .reimb-photos a { display: block; }
         .reimb-photos img { max-width: 120px; max-height: 120px; object-fit: cover; border-radius: 6px; border: 1px solid var(--bs-border-color, #dee2e6); }
+        .reimb-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
     </style>
 </head>
 <body>
@@ -90,7 +91,21 @@
                                 <h4 class="fw-semibold mb-1"><i class="ri-refund-line me-2"></i>Reimbursement / Claims</h4>
                                 <p class="mb-0 text-muted rp-label">Items and photos for Amazon FBA reimbursement cases. Use the package reference and photos when opening or forwarding a case in Seller Central.</p>
                             </div>
+                            <a href="https://sellercentral.amazon.co.uk/help/hub/reference/G202130860" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                                <i class="ri-external-link-line me-1"></i>Open Amazon Seller Central
+                            </a>
                         </div>
+                    </div>
+                </div>
+
+                <div class="rp-card card border-0 mb-3">
+                    <div class="card-body">
+                        <h6 class="mb-2">How to use these claims</h6>
+                        <ol class="mb-0 small text-muted ps-3">
+                            <li>Open each flagged item and review package reference, reimbursement type, and notes.</li>
+                            <li>Download photo evidence and attach it to your Amazon reimbursement case.</li>
+                            <li>Copy claim details and paste into your Seller Central case text for faster submission.</li>
+                        </ol>
                     </div>
                 </div>
 
@@ -127,6 +142,22 @@
             return;
         }
         function fmtDate(s) { return s ? new Date(s).toLocaleDateString() : '-'; }
+        function escHtml(s) {
+            return String(s || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+        function downloadOne(url, fileName) {
+            var a = document.createElement('a');
+            a.href = url;
+            a.setAttribute('download', fileName || '');
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
         function loadClaims() {
             var $list = $('#reimbursement-list');
             API.request('/reimbursement/claims').then(function(data) {
@@ -136,26 +167,67 @@
                     return;
                 }
                 var html = '';
-                claims.forEach(function(c) {
+                claims.forEach(function(c, claimIdx) {
                     var photoHtml = '';
-                    (c.photos || []).forEach(function(ph) {
+                    (c.photos || []).forEach(function(ph, photoIdx) {
                         var url = '/uploads/' + (ph.file_path || '');
-                        photoHtml += '<a href="' + url + '" target="_blank" rel="noopener"><img src="' + url + '" alt="Photo" /></a>';
+                        var safeUrl = escHtml(url);
+                        var photoName = 'claim-' + (c.id || claimIdx + 1) + '-photo-' + (photoIdx + 1) + '.jpg';
+                        photoHtml += '<div>' +
+                            '<a href="' + safeUrl + '" target="_blank" rel="noopener"><img src="' + safeUrl + '" alt="Photo" /></a>' +
+                            '<button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100 download-photo-btn" data-url="' + safeUrl + '" data-name="' + escHtml(photoName) + '">Download</button>' +
+                            '</div>';
                     });
                     if (!photoHtml) photoHtml = '<span class="text-muted">No photos</span>';
+                    var detailText = [
+                        'Package reference: ' + (c.package_reference || ''),
+                        'Item: ' + (c.item_description || ''),
+                        'Reimbursement type: ' + (c.reimbursement_type || ''),
+                        'Notes: ' + (c.notes || ''),
+                        'Added: ' + fmtDate(c.created_at)
+                    ].join('\n');
                     html += '<div class="reimb-card card border"><div class="card-body">' +
                         '<div class="d-flex flex-wrap align-items-center gap-2 mb-2">' +
-                        '<span class="badge bg-secondary">' + (c.package_reference || '') + '</span>' +
-                        '<span class="badge bg-info">' + (c.reimbursement_type || '') + '</span>' +
+                        '<span class="badge bg-secondary">' + escHtml(c.package_reference || '') + '</span>' +
+                        '<span class="badge bg-info">' + escHtml(c.reimbursement_type || '') + '</span>' +
                         '</div>' +
-                        '<h6 class="card-title">' + (c.item_description || 'Item') + '</h6>' +
-                        (c.notes ? '<p class="small text-muted mb-2">' + c.notes + '</p>' : '') +
+                        '<h6 class="card-title">' + escHtml(c.item_description || 'Item') + '</h6>' +
+                        (c.notes ? '<p class="small text-muted mb-2">' + escHtml(c.notes) + '</p>' : '') +
                         '<p class="small mb-1">Photos (open to view or download for your Amazon case):</p>' +
                         '<div class="reimb-photos">' + photoHtml + '</div>' +
+                        '<div class="reimb-actions">' +
+                        '<button type="button" class="btn btn-sm btn-primary copy-claim-btn" data-claim="' + escHtml(detailText) + '"><i class="ri-file-copy-line me-1"></i>Copy claim details</button>' +
+                        '<button type="button" class="btn btn-sm btn-outline-primary download-all-photos-btn" data-claim-id="' + (c.id || '') + '"><i class="ri-download-2-line me-1"></i>Download all photos</button>' +
+                        '<a class="btn btn-sm btn-outline-success" href="https://sellercentral.amazon.co.uk/help/hub/reference/G202130860" target="_blank" rel="noopener"><i class="ri-external-link-line me-1"></i>Open case in Seller Central</a>' +
+                        '</div>' +
                         '<p class="small text-muted mt-2 mb-0">Added ' + fmtDate(c.created_at) + '</p>' +
                         '</div></div>';
                 });
                 $list.html(html);
+
+                $(document).off('click', '.download-photo-btn').on('click', '.download-photo-btn', function() {
+                    downloadOne($(this).data('url'), $(this).data('name'));
+                });
+
+                $(document).off('click', '.download-all-photos-btn').on('click', '.download-all-photos-btn', function() {
+                    var $card = $(this).closest('.reimb-card');
+                    var $buttons = $card.find('.download-photo-btn');
+                    if (!$buttons.length) return;
+                    $buttons.each(function(i) {
+                        var $btn = $(this);
+                        setTimeout(function() {
+                            downloadOne($btn.data('url'), $btn.data('name'));
+                        }, i * 250);
+                    });
+                });
+
+                $(document).off('click', '.copy-claim-btn').on('click', '.copy-claim-btn', function() {
+                    var text = $(this).data('claim') || '';
+                    navigator.clipboard.writeText(text).then(function() {
+                        if (window.Dashboard && Dashboard.showToast) Dashboard.showToast('Claim details copied', 'success');
+                        else alert('Claim details copied.');
+                    }).catch(function() { alert('Could not copy claim details.'); });
+                });
             }).catch(function() {
                 $list.html('<div class="text-danger text-center py-4">Failed to load claims.</div>');
             });
