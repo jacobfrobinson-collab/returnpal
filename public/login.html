@@ -183,6 +183,10 @@
                 const email = $('#login-email').val().trim();
                 const password = $('#login-password').val();
                 await API.login(email, password);
+                try {
+                    const me = await API.getProfile();
+                    if (me && me.user) API.setUser(me.user);
+                } catch (e) { /* non-fatal */ }
                 showSuccess('Login successful! Redirecting...');
                 setTimeout(() => { window.location.href = '/dashboard/index.html'; }, 500);
             } catch (err) {
@@ -204,6 +208,10 @@
                 const email = $('#reg-email').val().trim();
                 const password = $('#reg-password').val();
                 await API.register(email, password, full_name, company_name);
+                try {
+                    const me = await API.getProfile();
+                    if (me && me.user) API.setUser(me.user);
+                } catch (e) { /* non-fatal */ }
                 showSuccess('Account created! Redirecting...');
                 setTimeout(() => { window.location.href = '/dashboard/index.html'; }, 500);
             } catch (err) {

@@ -29,9 +29,10 @@ const Dashboard = {
     },
 
     updateUserIdentityUI(user) {
-        if (!user) return;
-        const clientIdFormatted = this.formatClientId(user);
-        const firstName = (user.full_name || user.email || '').split(' ')[0] || 'Client';
+        // Always run: formatClientId falls back to JWT when cached user omits id (new signups, stale storage).
+        const u = user || {};
+        const clientIdFormatted = this.formatClientId(u);
+        const firstName = (u.full_name || u.email || '').split(' ')[0] || 'Client';
 
         const $userMenu = $('#page-header-user-dropdown').siblings('.dropdown-menu').first();
         if ($userMenu.length) {
@@ -51,6 +52,36 @@ const Dashboard = {
         // Returns Settings page address line
         const $returnsClientId = $('#returns-settings-client-id');
         if ($returnsClientId.length) $returnsClientId.text(clientIdFormatted ? 'ReturnPal ' + clientIdFormatted : '—');
+    },
+
+    /**
+     * Reimbursement page only: same impersonation handling as init() but NEVER runs full _initRest
+     * (no overview loaders, injectTopbarExtras, etc.) — avoids any redirect / wrong-route side effects.
+     */
+    initReimbursementOnly() {
+        const params = new URLSearchParams(window.location.search);
+        const impersonateToken = params.get('impersonate');
+        if (impersonateToken) {
+            API.setSessionToken(impersonateToken);
+            API.request('/auth/me').then(me => {
+                if (me && me.user) API.setSessionUser(me.user);
+                window.history.replaceState({}, '', window.location.pathname + (window.location.hash || ''));
+                sessionStorage.setItem('returnpal_impersonating', '1');
+                this.injectImpersonationBanner();
+            }).catch(() => {}).finally(() => {
+                if (!API.isLoggedIn()) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+                this._initReimbursementPage();
+            });
+            return;
+        }
+        if (!API.isLoggedIn()) {
+            window.location.href = '/login.html';
+            return;
+        }
+        this._initReimbursementPage();
     },
 
     init() {
@@ -2316,7 +2347,12 @@ const Dashboard = {
     }
 };
 
-// Auto-init when DOM is ready
+// Auto-init when DOM is ready — reimbursement uses a slim bootstrap (never full _initRest)
 $(document).ready(function() {
+    const p = (window.location.pathname || '').toLowerCase();
+    if (p.indexOf('reimbursement') !== -1) {
+        Dashboard.initReimbursementOnly();
+        return;
+    }
     Dashboard.init();
 });

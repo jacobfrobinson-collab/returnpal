@@ -42,6 +42,10 @@ app.get('/dashboard/login.html', (req, res) => {
 app.get('/dashboard/reimbursement.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/dashboard/reimbursement.html'));
 });
+// Without .html, static may 404 and SPA fallback would serve marketing index.html (looks like "bounce to home")
+app.get('/dashboard/reimbursement', (req, res) => {
+    res.redirect(302, '/dashboard/reimbursement.html');
+});
 
 // ─── Static Files (serve frontend) ──────────────────────────
 // Serve the main frontend
