@@ -124,11 +124,6 @@ const Dashboard = {
         });
 
         this.injectFooter();
-        $(document).off('click', '#navbar-nav a[href="/dashboard/reimbursement.html"], #navbar-nav a[href="reimbursement.html"]')
-            .on('click', '#navbar-nav a[href="/dashboard/reimbursement.html"], #navbar-nav a[href="reimbursement.html"]', function(e) {
-                e.preventDefault();
-                window.location.href = '/dashboard/reimbursement.html';
-            });
     },
 
     _initRest() {
@@ -257,12 +252,6 @@ const Dashboard = {
         this.injectCommandPalette();
         this.initCommandPalette();
         this.injectFooter();
-        // Hard-route reimbursement nav to prevent template/js conflicts.
-        $(document).off('click', '#navbar-nav a[href="/dashboard/reimbursement.html"], #navbar-nav a[href="reimbursement.html"]')
-            .on('click', '#navbar-nav a[href="/dashboard/reimbursement.html"], #navbar-nav a[href="reimbursement.html"]', function(e) {
-                e.preventDefault();
-                window.location.href = '/dashboard/reimbursement.html';
-            });
         $(document).on('click', '#support-submit-btn', function() {
             const regarding = $('#support-regarding').val() || 'general';
             const ref = $('#support-reference').val().trim();
@@ -329,7 +318,8 @@ const Dashboard = {
     injectReimbursementLink() {
         if ($('#navbar-nav a[href="reimbursement.html"], #navbar-nav a[href="/dashboard/reimbursement.html"]').length) return;
         const $settings = $('#navbar-nav a[href="settings.html"]').closest('li');
-        if ($settings.length) $settings.before('<li class="nav-item"><a class="nav-link" href="/dashboard/reimbursement.html"><span class="nav-icon"><i class="ri-refund-line"></i></span><span class="nav-text">Reimbursement / Claims</span></a></li>');
+        // Relative href matches other sidebar links (packages.html, etc.) — reliable full page navigation.
+        if ($settings.length) $settings.before('<li class="nav-item"><a class="nav-link" href="reimbursement.html"><span class="nav-icon"><i class="ri-refund-line"></i></span><span class="nav-text">Reimbursement / Claims</span></a></li>');
     },
     injectConnectAmazonLink() {
         if ($('#nav-link-connect-amazon').length) return;
