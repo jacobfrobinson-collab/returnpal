@@ -88,9 +88,10 @@ const API = {
     // ─── Core Request Method ─────────────────────────────────
     async request(endpoint, options = {}) {
         const url = this.baseUrl + endpoint;
+        const { skipAuthRedirect, ...fetchOptions } = options;
         const config = {
             headers: { 'Content-Type': 'application/json' },
-            ...options,
+            ...fetchOptions,
         };
 
         const token = this.getToken();
@@ -111,6 +112,10 @@ const API = {
             const response = await fetch(url, config);
 
             if (response.status === 401) {
+                // Let callers handle auth (e.g. reimbursement page must not redirect before Dashboard.init runs).
+                if (skipAuthRedirect) {
+                    throw { status: 401, error: 'Unauthorized' };
+                }
                 // During admin impersonation, clear only tab-scoped auth.
                 const hadSessionToken = !!this.getSessionToken();
                 if (hadSessionToken) {

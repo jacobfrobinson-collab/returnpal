@@ -40,6 +40,7 @@ app.get('/dashboard/login.html', (req, res) => {
     res.redirect(302, '/login.html');
 });
 app.get('/dashboard/reimbursement.html', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.sendFile(path.join(__dirname, '../public/dashboard/reimbursement.html'));
 });
 // Without .html, static may 404 and SPA fallback would serve marketing index.html (looks like "bounce to home")

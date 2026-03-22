@@ -133,24 +133,11 @@
 
     <script src="assets/js/vendor.js"></script>
     <script src="assets/js/app.js"></script>
-    <script src="/assets/js/api.js?v=rp4"></script>
+    <script src="/assets/js/api.js?v=rp5"></script>
     <script src="assets/js/custom.js"></script>
-    <script src="assets/js/dashboard.js?v=rp4"></script>
+    <script src="assets/js/dashboard.js?v=rp5"></script>
     <script>
     (function() {
-        if (!window.API) {
-            window.location.href = '/login.html';
-            return;
-        }
-        // Fallback: if only local token exists (and API.getToken() returns empty), hydrate it.
-        if (!API.getToken()) {
-            var localTok = localStorage.getItem('returnpal_token');
-            if (localTok) API.setToken(localTok);
-        }
-        if (!API.isLoggedIn()) {
-            window.location.href = '/login.html';
-            return;
-        }
         function fmtDate(s) { return s ? new Date(s).toLocaleDateString() : '-'; }
         function escHtml(s) {
             return String(s || '')
@@ -170,7 +157,8 @@
         }
         function loadClaims() {
             var $list = $('#reimbursement-list');
-            API.request('/reimbursement/claims').then(function(data) {
+            // skipAuthRedirect: avoid global 401 → login → "logged in" → dashboard bounce BEFORE Dashboard.init runs
+            API.request('/reimbursement/claims', { skipAuthRedirect: true }).then(function(data) {
                 var claims = data.claims || [];
                 if (claims.length === 0) {
                     $list.html('<div class="text-muted text-center py-5"><p class="mb-2">No reimbursement items yet.</p><p class="small">When ReturnPal adds an item with photos for an Amazon claim, it will appear here so you can view the package reference and photos to use in Seller Central.</p></div>');
@@ -238,11 +226,30 @@
                         else alert('Claim details copied.');
                     }).catch(function() { alert('Could not copy claim details.'); });
                 });
-            }).catch(function() {
+            }).catch(function(err) {
+                if (err && err.status === 401) {
+                    window.location.href = '/login.html';
+                    return;
+                }
                 $list.html('<div class="text-danger text-center py-4">Failed to load claims.</div>');
             });
         }
-        loadClaims();
+        // Run after dashboard.js ready (initReimbursementOnly) so we never race a 401 redirect against init.
+        $(function() {
+            if (!window.API) {
+                window.location.href = '/login.html';
+                return;
+            }
+            if (!API.getToken()) {
+                var localTok = localStorage.getItem('returnpal_token');
+                if (localTok) API.setToken(localTok);
+            }
+            if (!API.isLoggedIn()) {
+                window.location.href = '/login.html';
+                return;
+            }
+            loadClaims();
+        });
     })();
     </script>
 </body>
