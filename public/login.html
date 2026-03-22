@@ -123,9 +123,9 @@
     <script src="assets/js/main.js"></script>
     <script>
     $(document).ready(function() {
-        // Redirect if already logged in
+        // Redirect if already logged in (admins → admin panel, clients → dashboard)
         if (API.isLoggedIn()) {
-            window.location.href = '/dashboard/index.html';
+            window.location.href = API.isCurrentUserAdmin() ? '/admin/index.html' : '/dashboard/index.html';
             return;
         }
 

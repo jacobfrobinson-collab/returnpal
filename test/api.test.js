@@ -51,6 +51,7 @@ async function runTests() {
         });
         assert(reg.status === 201, 'Register should return 201');
         assert(reg.data.token, 'Register should return token');
+        assert(reg.data.user && reg.data.user.id > 0, 'Register should return numeric user.id for Client ID');
         token = reg.data.token;
         console.log('  ✓ POST /api/auth/register');
     } catch (e) {

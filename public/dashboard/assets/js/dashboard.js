@@ -109,8 +109,7 @@ const Dashboard = {
 
         const pathLower = (window.location.pathname || '').toLowerCase();
         // Reimbursement page: has its own claims loader; skip heavy init (topbar summary API, overview detection, etc.)
-        // that can cause redirects or wrong "overview" routing on some hosts.
-        if (pathLower.includes('reimbursement.html')) {
+        if (pathLower.includes('reimbursement')) {
             this._initReimbursementPage();
             return;
         }

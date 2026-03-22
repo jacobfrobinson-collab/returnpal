@@ -44,14 +44,45 @@ const API = {
         if (sessionUser) return sessionUser;
         try { return JSON.parse(localStorage.getItem('returnpal_user')); } catch { return null; }
     },
+    /** Ensure numeric `id` is stored so Client ID / JWT stay in sync after register/login. */
+    _normalizeUserForStorage(user) {
+        if (!user || typeof user !== 'object') return user;
+        const u = { ...user };
+        if (u.id != null && u.id !== '') {
+            const n = parseInt(u.id, 10);
+            if (Number.isFinite(n) && n > 0) u.id = n;
+        }
+        return u;
+    },
     setUser(user) {
-        localStorage.setItem('returnpal_user', JSON.stringify(user));
+        localStorage.setItem('returnpal_user', JSON.stringify(this._normalizeUserForStorage(user)));
     },
     setSessionUser(user) {
-        sessionStorage.setItem('returnpal_session_user', JSON.stringify(user));
+        sessionStorage.setItem('returnpal_session_user', JSON.stringify(this._normalizeUserForStorage(user)));
     },
     isLoggedIn() {
         return !!this.getToken();
+    },
+
+    /** Decode JWT payload (no verify — for UI routing only). */
+    _decodeJwtPayload(token) {
+        try {
+            const parts = (token || '').split('.');
+            if (parts.length < 2) return null;
+            const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+            return JSON.parse(atob(padded));
+        } catch {
+            return null;
+        }
+    },
+
+    /** True if stored user or JWT indicates admin (cached user can omit is_admin). */
+    isCurrentUserAdmin() {
+        const u = this.getUser();
+        if (u && u.is_admin) return true;
+        const p = this._decodeJwtPayload(this.getToken());
+        return !!(p && p.is_admin);
     },
 
     // ─── Core Request Method ─────────────────────────────────
@@ -81,8 +112,20 @@ const API = {
 
             if (response.status === 401) {
                 // During admin impersonation, clear only tab-scoped auth.
-                if (this.getSessionToken()) this.clearSessionAuth();
-                else this.clearToken();
+                const hadSessionToken = !!this.getSessionToken();
+                if (hadSessionToken) {
+                    this.clearSessionAuth();
+                    sessionStorage.removeItem('returnpal_impersonating');
+                    // Admin token is still in localStorage — do NOT send user to /login.html:
+                    // login page auto-redirects "logged in" users to the client dashboard, which looks like
+                    // "reimbursement → dashboard" after a failed client API call while impersonating.
+                    if (localStorage.getItem('returnpal_token') && this.isCurrentUserAdmin()) {
+                        window.location.href = '/admin/index.html';
+                        return null;
+                    }
+                } else {
+                    this.clearToken();
+                }
                 window.location.href = '/login.html';
                 return null;
             }

@@ -35,8 +35,39 @@ router.post('/register', [
         );
         saveDb();
 
-        const result = db.exec('SELECT last_insert_rowid() as id');
-        const userId = result[0].values[0][0];
+        // Resolve new row id reliably (sql.js last_insert_rowid() can be unreliable across run/exec)
+        let userId = null;
+        let stmt = null;
+        try {
+            stmt = db.prepare('SELECT id FROM users WHERE email = ?');
+            stmt.bind([email]);
+            if (stmt.step()) {
+                const row = stmt.getAsObject();
+                userId = row.id;
+            }
+        } catch (e) {
+            console.error('Register: prepare SELECT id failed', e);
+        } finally {
+            try {
+                if (stmt && typeof stmt.free === 'function') stmt.free();
+            } catch (e) { /* ignore */ }
+        }
+        if (userId == null || userId === undefined) {
+            try {
+                const fallback = db.exec('SELECT last_insert_rowid() as id');
+                if (fallback.length && fallback[0].values && fallback[0].values[0]) {
+                    userId = fallback[0].values[0][0];
+                }
+            } catch (e) {
+                console.error('Register: last_insert_rowid fallback failed', e);
+            }
+        }
+
+        userId = parseInt(userId, 10);
+        if (!Number.isFinite(userId) || userId <= 0) {
+            console.error('Register: invalid user id after insert', userId);
+            return res.status(500).json({ error: 'Could not create account. Please try again.' });
+        }
 
         const user = { id: userId, email };
         const token = generateToken(user);
@@ -88,11 +119,12 @@ router.post('/login', [
         const isAdmin = !!(user.is_admin || user.is_admin === 1);
         const token = generateToken({ id: user.id, email: user.email, is_admin: isAdmin });
 
+        const uid = parseInt(user.id, 10);
         res.json({
             message: 'Login successful',
             token,
             user: {
-                id: user.id,
+                id: Number.isFinite(uid) && uid > 0 ? uid : user.id,
                 email: user.email,
                 full_name: user.full_name,
                 company_name: user.company_name,
@@ -123,6 +155,11 @@ router.get('/me', authMiddleware, async (req, res) => {
         const cols = result[0].columns;
         const user = {};
         cols.forEach((col, i) => { user[col] = row[i]; });
+
+        if (user.id != null) {
+            const nid = parseInt(user.id, 10);
+            if (Number.isFinite(nid) && nid > 0) user.id = nid;
+        }
 
         res.json({ user });
     } catch (err) {
