@@ -137,7 +137,16 @@
     <script src="assets/js/dashboard.js"></script>
     <script>
     (function() {
-        if (!window.API || !API.isLoggedIn()) {
+        if (!window.API) {
+            window.location.href = '/login.html';
+            return;
+        }
+        // Fallback: if only local token exists (and API.getToken() returns empty), hydrate it.
+        if (!API.getToken()) {
+            var localTok = localStorage.getItem('returnpal_token');
+            if (localTok) API.setToken(localTok);
+        }
+        if (!API.isLoggedIn()) {
             window.location.href = '/login.html';
             return;
         }

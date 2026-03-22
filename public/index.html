@@ -68,7 +68,7 @@
                             </ul>
                             <div class="nav-btn d-flex align-items-center gap-2">
                                 <a href="login.html#register" class="theme-btn theme-btn-get-started">Get Started</a>
-                                <a href="login.html" class="theme-btn nav-cta-primary">Get Started Free</a>
+                                <a href="/dashboard/index.html" class="theme-btn nav-cta-primary">Dashboard</a>
                             </div>
                         </div>
                         <div class="mobile-menu-right d-lg-none">
@@ -109,7 +109,7 @@
                         </ul>
                         <div class="nav-right mt-3">
                             <a href="login.html#register" class="theme-btn theme-btn-get-started w-100 text-center d-block mb-2">Get Started</a>
-                            <a href="login.html" class="theme-btn nav-cta-primary w-100 text-center d-block mb-2">Get Started Free</a>
+                            <a href="/dashboard/index.html" class="theme-btn nav-cta-primary w-100 text-center d-block mb-2">Dashboard</a>
                             <button type="button" class="sidebar-btn nav-right-link border-0 bg-transparent mt-2 w-100 text-start" data-bs-toggle="offcanvas" data-bs-target="#sidebarPopup">
                                 <span></span><span></span><span></span> Menu
                             </button>
@@ -1170,10 +1170,7 @@
         <script src="assets/js/main.js"></script>
         <script>
         $(document).ready(function() {
-            // Update nav if logged in (only the blue CTA becomes Dashboard; yellow stays Get Started)
-            if (API.isLoggedIn()) {
-                $('.nav-btn .theme-btn.nav-cta-primary').attr('href', '/dashboard/index.html').text('Dashboard');
-            }
+            // Blue CTA is "Dashboard" in HTML (no JS) so first paint is correct on fresh sessions; unauthenticated users are redirected from /dashboard to login.
 
             // Contact form
             $('#contact-form').on('submit', async function(e) {

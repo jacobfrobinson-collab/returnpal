@@ -189,6 +189,12 @@ const Dashboard = {
         this.injectCommandPalette();
         this.initCommandPalette();
         this.injectFooter();
+        // Hard-route reimbursement nav to prevent template/js conflicts.
+        $(document).off('click', '#navbar-nav a[href="/dashboard/reimbursement.html"], #navbar-nav a[href="reimbursement.html"]')
+            .on('click', '#navbar-nav a[href="/dashboard/reimbursement.html"], #navbar-nav a[href="reimbursement.html"]', function(e) {
+                e.preventDefault();
+                window.location.href = '/dashboard/reimbursement.html';
+            });
         $(document).on('click', '#support-submit-btn', function() {
             const regarding = $('#support-regarding').val() || 'general';
             const ref = $('#support-reference').val().trim();

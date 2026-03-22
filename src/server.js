@@ -39,6 +39,9 @@ app.get('/terms.html', (req, res) => {
 app.get('/dashboard/login.html', (req, res) => {
     res.redirect(302, '/login.html');
 });
+app.get('/dashboard/reimbursement.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/dashboard/reimbursement.html'));
+});
 
 // ─── Static Files (serve frontend) ──────────────────────────
 // Serve the main frontend
