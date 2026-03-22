@@ -70,10 +70,48 @@ const Dashboard = {
         this._initRest();
     },
 
+    /** Minimal dashboard chrome for reimbursement.html only (avoids duplicate summary API + overview detection). */
+    _initReimbursementPage() {
+        if (sessionStorage.getItem('returnpal_impersonating') === '1') {
+            this.injectImpersonationBanner();
+        }
+        const user = API.getUser();
+        this.updateUserIdentityUI(user);
+        const useSession = !!API.getSessionToken();
+        API.request('/auth/me').then(me => {
+            if (!me || !me.user) return;
+            if (useSession) API.setSessionUser(me.user);
+            else API.setUser(me.user);
+            this.updateUserIdentityUI(me.user);
+        }).catch(() => {});
+
+        $(document).on('click', 'a[href="login.html"], a[href="../login.html"], a[href="/login.html"]', function(e) {
+            if ($(this).text().trim() === 'Logout') {
+                e.preventDefault();
+                API.logout();
+            }
+        });
+
+        this.injectFooter();
+        $(document).off('click', '#navbar-nav a[href="/dashboard/reimbursement.html"], #navbar-nav a[href="reimbursement.html"]')
+            .on('click', '#navbar-nav a[href="/dashboard/reimbursement.html"], #navbar-nav a[href="reimbursement.html"]', function(e) {
+                e.preventDefault();
+                window.location.href = '/dashboard/reimbursement.html';
+            });
+    },
+
     _initRest() {
         // Auth guard - redirect to login if not authenticated
         if (!API.isLoggedIn()) {
             window.location.href = '/login.html';
+            return;
+        }
+
+        const pathLower = (window.location.pathname || '').toLowerCase();
+        // Reimbursement page: has its own claims loader; skip heavy init (topbar summary API, overview detection, etc.)
+        // that can cause redirects or wrong "overview" routing on some hosts.
+        if (pathLower.includes('reimbursement.html')) {
+            this._initReimbursementPage();
             return;
         }
 
@@ -110,9 +148,9 @@ const Dashboard = {
             this._activityTimer = null;
         }
 
-        // Detect which page we're on and load data
+        // Detect which page we're on and load data (only true dashboard overview, never reimbursement/other subpages)
         const page = (window.location.pathname || '').toLowerCase();
-        const isOverview = page.includes('dashboard/index') || page.endsWith('dashboard/') || page === '/dashboard' || page.endsWith('/dashboard') && !page.includes('packages') || (page.endsWith('index.html') && page.includes('dashboard'));
+        const isOverview = /\/dashboard\/?(index\.html)?$/i.test(page || '') || page === '/dashboard/index.html';
         if (isOverview) {
             this.loadOverview();
         } else if (page.includes('packages')) {
