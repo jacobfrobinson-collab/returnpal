@@ -95,17 +95,50 @@
                 </div>
 
                 <div class="row g-3 mb-4">
-                    <div class="col-md-4">
+                    <div class="col-6 col-md-4 col-xl-2">
                         <div class="rp-card card border-0 p-4">
-                            <div class="rp-label text-muted mb-1">Recovery Rate</div>
+                            <div class="rp-label text-muted mb-1">Recovery rate</div>
                             <div class="rp-kpi" id="kpi-recovery-rate">0%</div>
+                            <small class="text-muted">Sold vs received</small>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-6 col-md-4 col-xl-2">
                         <div class="rp-card card border-0 p-4">
-                            <div class="rp-label text-muted mb-1">Average Recovery per Item</div>
+                            <div class="rp-label text-muted mb-1">Sell-through</div>
+                            <div class="rp-kpi" id="kpi-sell-through">0%</div>
+                            <small class="text-muted">Units sold ÷ received</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-xl-2">
+                        <div class="rp-card card border-0 p-4">
+                            <div class="rp-label text-muted mb-1">Avg sale price</div>
+                            <div class="rp-kpi" id="kpi-avg-sale-price">£0.00</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-xl-2">
+                        <div class="rp-card card border-0 p-4">
+                            <div class="rp-label text-muted mb-1">Return rate</div>
+                            <div class="rp-kpi" id="kpi-return-rate">0%</div>
+                            <small class="text-muted">Refunds + clawbacks</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-xl-2">
+                        <div class="rp-card card border-0 p-4">
+                            <div class="rp-label text-muted mb-1">Avg recovery / item</div>
                             <div class="rp-kpi" id="kpi-avg-recovery">£0.00</div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="rp-card card border-0 p-4 mb-4">
+                    <div class="rp-label text-muted mb-3">Best performing product lines</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Product</th><th class="text-end">Units</th><th class="text-end">Profit sum</th><th class="text-end">Avg sale</th></tr></thead>
+                            <tbody id="analytics-top-categories">
+                                <tr><td colspan="4" class="text-muted small">Loading…</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 

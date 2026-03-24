@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin – Client queries – ReturnPal</title>
+    <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
+    <style>body{background:#f8f9fa;} .admin-header{background:#212529;color:#fff;} .admin-header a{color:rgba(255,255,255,.9);}</style>
+</head>
+<body>
+    <header class="admin-header py-3 mb-4">
+        <div class="container-fluid d-flex justify-content-between flex-wrap gap-2">
+            <h1 class="h5 mb-0">Open item queries</h1>
+            <div class="d-flex gap-3">
+                <a href="/admin/index.html" class="small text-white-50">Clients</a>
+                <a href="/admin/insights.html" class="small text-white-50">Insights</a>
+                <a href="/login.html" class="small text-white-50" id="logout">Logout</a>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <div id="msg" class="text-muted py-4 text-center">Loading…</div>
+        <div class="table-responsive d-none" id="wrap">
+            <table class="table table-sm bg-white shadow-sm">
+                <thead><tr><th>When</th><th>Client</th><th>Context</th><th>Message</th></tr></thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="/assets/js/jquery-3.7.1.min.js"></script>
+    <script src="/assets/js/api.js"></script>
+    <script>
+    $(function() {
+        var u = API.getUser();
+        if (!API.isLoggedIn() || !u || !u.is_admin) { window.location.href = '/admin/login.html'; return; }
+        $('#logout').on('click', function(e) { e.preventDefault(); API.clearToken(); window.location.href = '/admin/login.html'; });
+        API.request('/admin/queries').then(function(d) {
+            $('#msg').addClass('d-none');
+            var q = d.queries || [];
+            if (!q.length) { $('#msg').removeClass('d-none').text('No open queries.'); return; }
+            var esc = function(s) { return $('<div/>').text(s || '').html(); };
+            q.forEach(function(r) {
+                $('#tbody').append('<tr><td class="text-nowrap small">' + esc(r.created_at) + '</td><td><div>' + esc(r.full_name) + '</div><small class="text-muted">' + esc(r.email) + '</small></td><td class="small">' + esc(r.context_type) + (r.context_id ? ' #' + r.context_id : '') + '<div class="text-muted">' + esc(r.context_label) + '</div></td><td class="small">' + esc(r.message) + '</td></tr>');
+            });
+            $('#wrap').removeClass('d-none');
+        }).catch(function(e) { $('#msg').text(e.error || 'Failed to load'); });
+    });
+    </script>
+</body>
+</html>

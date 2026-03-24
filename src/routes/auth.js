@@ -1,10 +1,53 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { generateToken, authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
+
+const uploadRoot = process.env.UPLOAD_DIR
+    ? path.resolve(process.env.UPLOAD_DIR)
+    : path.join(__dirname, '../../uploads');
+
+function unlinkAvatarIfOwned(avatarUrl) {
+    if (!avatarUrl || typeof avatarUrl !== 'string') return;
+    if (!avatarUrl.startsWith('/uploads/')) return;
+    const rel = avatarUrl.replace(/^\/uploads\/?/, '').replace(/^\/+/, '');
+    if (!rel.startsWith('avatars/')) return;
+    const full = path.join(uploadRoot, rel);
+    const resolved = path.resolve(full);
+    const rootResolved = path.resolve(uploadRoot);
+    if (!resolved.startsWith(rootResolved + path.sep) && resolved !== rootResolved) return;
+    fs.unlink(resolved, () => {});
+}
+
+const avatarStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dir = path.join(uploadRoot, 'avatars');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+        const safe = allowed.includes(ext) ? ext : '.jpg';
+        cb(null, `user-${req.user.id}-${Date.now()}${safe}`);
+    }
+});
+
+const avatarUpload = multer({
+    storage: avatarStorage,
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const ok = /^image\/(jpeg|png|webp|gif)$/i.test(file.mimetype);
+        if (ok) cb(null, true);
+        else cb(new Error('Only JPEG, PNG, WebP, or GIF images are allowed'));
+    }
+});
 
 /** Parse referral code like RP12 → user id 12 */
 function parseReferralCode(input) {
@@ -103,7 +146,7 @@ router.post('/register', [
         res.status(201).json({
             message: 'Account created successfully',
             token,
-            user: { id: userId, email, full_name, company_name: company_name || '' }
+            user: { id: userId, email, full_name, company_name: company_name || '', avatar_url: '' }
         });
     } catch (err) {
         console.error('Register error:', err);
@@ -192,6 +235,58 @@ router.get('/me', authMiddleware, async (req, res) => {
         res.json({ user });
     } catch (err) {
         console.error('Get profile error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/auth/avatar — multipart field "photo"
+router.post('/avatar', authMiddleware, (req, res) => {
+    avatarUpload.single('photo')(req, res, async (err) => {
+        if (err) {
+            const msg = err.message || 'Upload failed';
+            return res.status(400).json({ error: msg });
+        }
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        try {
+            const db = await getDb();
+            const prev = db.exec('SELECT avatar_url FROM users WHERE id = ?', [req.user.id]);
+            let oldUrl = '';
+            if (prev.length && prev[0].values && prev[0].values[0]) {
+                oldUrl = prev[0].values[0][0] || '';
+            }
+            const publicPath = '/uploads/avatars/' + req.file.filename;
+            db.run(
+                "UPDATE users SET avatar_url = ?, updated_at = datetime('now') WHERE id = ?",
+                [publicPath, req.user.id]
+            );
+            saveDb();
+            unlinkAvatarIfOwned(oldUrl);
+            res.json({ avatar_url: publicPath, message: 'Photo updated' });
+        } catch (e) {
+            console.error('Avatar save error:', e);
+            fs.unlink(req.file.path, () => {});
+            res.status(500).json({ error: 'Could not save photo' });
+        }
+    });
+});
+
+// DELETE /api/auth/avatar — clear stored photo
+router.delete('/avatar', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const prev = db.exec('SELECT avatar_url FROM users WHERE id = ?', [req.user.id]);
+        let oldUrl = '';
+        if (prev.length && prev[0].values && prev[0].values[0]) {
+            oldUrl = prev[0].values[0][0] || '';
+        }
+        db.run("UPDATE users SET avatar_url = '', updated_at = datetime('now') WHERE id = ?", [req.user.id]);
+        saveDb();
+        unlinkAvatarIfOwned(oldUrl);
+        res.json({ avatar_url: '', message: 'Photo removed' });
+    } catch (e) {
+        console.error('Avatar delete error:', e);
         res.status(500).json({ error: 'Server error' });
     }
 });

@@ -212,6 +212,41 @@ async function getDb() {
         )
     `);
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS return_adjustments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            product TEXT NOT NULL,
+            reference TEXT DEFAULT '',
+            amount REAL NOT NULL,
+            linked_sold_item_id INTEGER,
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending','applied')),
+            notes TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS item_queries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            context_type TEXT NOT NULL,
+            context_id INTEGER,
+            context_label TEXT DEFAULT '',
+            message TEXT NOT NULL,
+            status TEXT DEFAULT 'open' CHECK(status IN ('open','closed')),
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+
+    try {
+        db.run("ALTER TABLE received_items ADD COLUMN sku TEXT DEFAULT ''");
+    } catch (e) {
+        // Column already exists
+    }
+
     // Create indexes
     db.run('CREATE INDEX IF NOT EXISTS idx_packages_user ON packages(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_received_user ON received_items(user_id)');
@@ -221,6 +256,8 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_activities_user ON activities(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_reimbursement_claims_user ON reimbursement_claims(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_reimbursement_claim_photos_claim ON reimbursement_claim_photos(claim_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_return_adjustments_user ON return_adjustments(user_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_item_queries_user ON item_queries(user_id)');
 
     // Save to disk
     saveDb();

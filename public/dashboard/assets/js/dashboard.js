@@ -28,6 +28,150 @@ const Dashboard = {
         return String(n).padStart(4, '0');
     },
 
+    ensureItemQueryModal() {
+        if (document.getElementById('rp-item-query-modal')) return;
+        $('body').append(
+            '<div class="modal fade" id="rp-item-query-modal" tabindex="-1" aria-labelledby="rp-item-query-title" aria-hidden="true">' +
+            '<div class="modal-dialog"><div class="modal-content">' +
+            '<div class="modal-header"><h5 class="modal-title" id="rp-item-query-title">Query this item</h5>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>' +
+            '<div class="modal-body"><p class="small text-muted mb-2" id="rp-item-query-context"></p>' +
+            '<label class="form-label" for="rp-item-query-message">Your message</label>' +
+            '<textarea class="form-control" id="rp-item-query-message" rows="4" placeholder="Describe your question or issue…"></textarea></div>' +
+            '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+            '<button type="button" class="btn btn-primary" id="rp-item-query-submit">Send query</button></div>' +
+            '</div></div></div>'
+        );
+        const self = this;
+        $(document).off('click', '#rp-item-query-submit').on('click', '#rp-item-query-submit', async function() {
+            const msg = ($('#rp-item-query-message').val() || '').trim();
+            const ctx = $('#rp-item-query-modal').data('ctx') || {};
+            if (msg.length < 5) {
+                alert('Please enter at least 5 characters.');
+                return;
+            }
+            try {
+                await API.submitItemQuery({
+                    context_type: ctx.type || 'general',
+                    context_id: ctx.id,
+                    context_label: ctx.label || '',
+                    message: msg
+                });
+                const el = document.getElementById('rp-item-query-modal');
+                if (el && window.bootstrap) {
+                    const inst = bootstrap.Modal.getInstance(el);
+                    if (inst) inst.hide();
+                }
+                $('#rp-item-query-message').val('');
+                self.showToast('Query sent. We will get back to you.');
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Failed to send');
+            }
+        });
+    },
+
+    openItemQueryModal(type, id, label) {
+        this.ensureItemQueryModal();
+        $('#rp-item-query-modal').data('ctx', { type: type || 'general', id, label: label || '' });
+        $('#rp-item-query-context').text(label || '');
+        const el = document.getElementById('rp-item-query-modal');
+        if (el && window.bootstrap) {
+            new bootstrap.Modal(el).show();
+        }
+    },
+
+    loadDashboardNotifications() {
+        const $dd = $('#dashboard-notifications-dropdown');
+        if (!$dd.length) return;
+        API.getActivity({ limit: 12 }).then((data) => {
+            const events = data.events || [];
+            const $badge = $('#dashboard-notifications-badge');
+            if (events.length === 0) {
+                $badge.addClass('d-none').text('');
+                $dd.html(
+                    '<div class="dropdown-header border-bottom">Notifications</div>' +
+                    '<div class="dropdown-item-text py-3 px-3 text-muted small">No recent notifications.</div>' +
+                    '<a class="dropdown-item text-center small text-primary py-2" href="activity.html">View all activity</a>'
+                );
+                return;
+            }
+            $badge.removeClass('d-none').text(events.length > 9 ? '9+' : String(events.length));
+            const esc = (s) => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+            let html = '<div class="dropdown-header border-bottom">Notifications</div>';
+            events.slice(0, 6).forEach((evt) => {
+                const time = evt.timestamp ? this.formatTimeAgo(evt.timestamp) : '';
+                const link = evt.link ? String(evt.link) : '';
+                const href = link ? ' href="' + esc(link).replace(/"/g, '&quot;') + '"' : '';
+                html += '<a class="dropdown-item py-2 border-bottom small"' + href + '><span class="d-block">' + esc(evt.message || '') + '</span>' +
+                    (time ? '<small class="text-muted">' + esc(time) + '</small>' : '') + '</a>';
+            });
+            html += '<a class="dropdown-item text-center small text-primary py-2" href="activity.html">View all activity</a>';
+            $dd.html(html);
+        }).catch(() => {});
+    },
+
+    userAvatarInitials(user) {
+        const u = user || {};
+        const name = String(u.full_name || '').trim();
+        const email = String(u.email || '').trim();
+        if (name) {
+            const parts = name.split(/\s+/).filter(Boolean);
+            if (parts.length >= 2) {
+                return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+            }
+            return name.slice(0, 2).toUpperCase();
+        }
+        if (email) return email.slice(0, 2).toUpperCase();
+        return 'RP';
+    },
+
+    updateAvatarWidgets(user) {
+        const u = user || {};
+        const url = (u.avatar_url && String(u.avatar_url).trim()) || '';
+        const initials = this.userAvatarInitials(u);
+        const firstName = (u.full_name || u.email || '').split(' ')[0] || 'Client';
+
+        const $btn = $('#page-header-user-dropdown');
+        if ($btn.length) {
+            let $img = $btn.find('#dashboard-header-avatar-img');
+            if (!$img.length) {
+                $img = $btn.find('img').first();
+                if ($img.length) $img.attr('id', 'dashboard-header-avatar-img');
+            }
+            let $ini = $btn.find('#dashboard-header-avatar-initials');
+            if (url && $img.length) {
+                $img.attr('src', url).attr('alt', firstName).css({ display: '', width: 32, height: 32, objectFit: 'cover' }).show();
+                $ini.hide();
+            } else {
+                if ($img.length) $img.hide().removeAttr('src');
+                if (!$ini.length) {
+                    $ini = $('<span id="dashboard-header-avatar-initials" class="rounded-circle d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary fw-semibold flex-shrink-0" style="width:32px;height:32px;font-size:0.7rem;line-height:1" aria-hidden="true"></span>');
+                    $btn.append($ini);
+                }
+                $ini.text(initials).show();
+            }
+        }
+
+        const $sImg = $('#settings-avatar-preview-img');
+        const $sIni = $('#settings-avatar-preview-initials');
+        if ($sImg.length || $sIni.length) {
+            if (url && $sImg.length) {
+                $sImg.attr('src', url).attr('alt', '').css({ display: '', objectFit: 'cover' }).show();
+                $sIni.hide();
+            } else {
+                if ($sImg.length) $sImg.hide().removeAttr('src');
+                if ($sIni.length) {
+                    $sIni.text(initials).show();
+                }
+            }
+            $('#settings-avatar-remove').toggleClass('d-none', !url);
+        }
+    },
+
     updateUserIdentityUI(user) {
         // Always run: formatClientId falls back to JWT when cached user omits id (new signups, stale storage).
         const u = user || {};
@@ -44,6 +188,8 @@ const Dashboard = {
                 else $userMenu.find('.dropdown-header').first().after('<div class="dropdown-item disabled small py-2" id="dashboard-client-id-dropdown">' + html + '</div>');
             }
         }
+
+        this.updateAvatarWidgets(u);
 
         // Overview card
         const $clientIdVal = $('#dashboard-client-id-value');
@@ -228,6 +374,12 @@ const Dashboard = {
             else API.setUser(me.user);
             this.updateUserIdentityUI(me.user);
         }).catch(() => {});
+
+        this.loadDashboardNotifications();
+        $(document).off('click', '.rp-query-item-btn').on('click', '.rp-query-item-btn', function() {
+            const $b = $(this);
+            Dashboard.openItemQueryModal($b.data('ctx-type') || 'general', $b.data('ctx-id'), $b.data('ctx-label'));
+        });
 
         // Logout handler
         $(document).on('click', 'a[href="login.html"], a[href="../login.html"], a[href="/login.html"]', function(e) {
@@ -663,12 +815,17 @@ const Dashboard = {
         const $feed = $('#dashboard-activity');
         if ($feed.length) this.showLoading($feed, 'Loading…');
 
+        let packagesSent = 0;
         try {
-            const data = await API.getDashboardSummary();
+            const [data, bal, ledgerData] = await Promise.all([
+                API.getDashboardSummary(),
+                API.getBalanceSummary().catch(() => null),
+                API.getBalanceLedger({ limit: 8 }).catch(() => ({ lines: [] }))
+            ]);
             const totalRecovered = Number(data.total_recovered) || 0;
             const itemsProcessing = Number(data.items_processing) || 0;
             const itemsSold = Number(data.items_sold) || 0;
-            const packagesSent = Number(data.packages_sent) || 0;
+            packagesSent = Number(data.packages_sent) || 0;
 
             // KPI count-up
             const kpiDuration = 1200;
@@ -714,6 +871,43 @@ const Dashboard = {
             this.updateOnboardingCheckmark('#onboarding-2', amazonConnected, null);
             this.updateOnboardingCheckmark('#onboarding-3', hasPayout, 'invoices.html');
             this.updateOnboardingCheckmark('#onboarding-4', hasPrepCentre, 'settings.html');
+
+            const escBal = (s) => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+            const $balCard = $('#dashboard-balance-card');
+            if ($balCard.length && bal) {
+                $('#dash-balance-current').text('£' + Number(bal.current_balance || 0).toFixed(2));
+                const pend = Number(bal.pending_returns || 0);
+                $('#dash-balance-pending').text('−£' + pend.toFixed(2));
+                $('#dash-balance-pending-note').text(bal.pending_returns_count ? '(' + bal.pending_returns_count + ' open)' : '');
+                $('#dash-balance-available').text('£' + Number(bal.available_for_payout || 0).toFixed(2));
+                const br = bal.breakdown || {};
+                $('#dash-balance-sales-mtd').text('£' + Number(br.sales_this_month || 0).toFixed(2));
+                $('#dash-balance-returns-mtd').text('−£' + Number(br.returns_this_month || 0).toFixed(2));
+                $('#dash-balance-fees-mtd').text('−£' + Number(br.fees_deducted || 0).toFixed(2));
+                const pf = bal.payout_forecast || {};
+                $('#dash-forecast-no-returns').text('£' + Number(pf.if_no_more_returns != null ? pf.if_no_more_returns : bal.current_balance || 0).toFixed(2));
+                $('#dash-forecast-after-pending').text('£' + Number(pf.after_pending_returns != null ? pf.after_pending_returns : bal.available_for_payout || 0).toFixed(2));
+                const lines = ledgerData && ledgerData.lines ? ledgerData.lines : [];
+                const $prev = $('#dash-balance-ledger-preview');
+                if ($prev.length) {
+                    if (!lines.length) {
+                        $prev.html('<p class="text-muted small mb-0">No recent sale or return lines yet.</p>');
+                    } else {
+                        let lh = '<div class="small fw-semibold text-muted mb-1">Recent movement</div><ul class="list-unstyled small mb-0">';
+                        lines.slice(0, 6).forEach((ln) => {
+                            const amt = Number(ln.amount) || 0;
+                            const pos = amt >= 0;
+                            lh += '<li class="d-flex justify-content-between py-1 border-bottom border-light-subtle"><span>' + escBal(ln.label || '') + '</span><span class="' + (pos ? 'text-success' : 'text-danger') + '">' + (pos ? '+' : '−') + '£' + Math.abs(amt).toFixed(2) + '</span></li>';
+                        });
+                        lh += '</ul><a href="invoices.html" class="small">Monthly statement →</a>';
+                        $prev.html(lh);
+                    }
+                }
+            }
 
             // Last updated + refresh
             this._lastOverviewUpdate = Date.now();
@@ -1453,9 +1647,70 @@ const Dashboard = {
     },
     async loadSold() {
         const $tbody = $('table tbody');
-        if ($tbody.length) $tbody.html('<tr><td colspan="10" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        if ($tbody.length) $tbody.html('<tr><td colspan="11" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getSold();
+
+            const esc = (s) => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+            const escAttr = (s) => esc(s).replace(/'/g, '&#039;');
+            const formatYmLabel = (ym) => {
+                if (!ym || typeof ym !== 'string') return '';
+                const p = ym.split('-');
+                const y = parseInt(p[0], 10);
+                const m = parseInt(p[1], 10);
+                if (!Number.isFinite(y) || !Number.isFinite(m)) return ym;
+                return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+            };
+            const productCell = (item) => {
+                let badge = '';
+                if (item.is_monthly_free_processing) {
+                    const title = 'Highest-value eligible resale in ' + formatYmLabel(item.monthly_free_processing_month) + ' — processing fee waived on this line (you keep 100% of this sale).';
+                    badge = '<span class="badge bg-info-subtle text-info ms-1" title="' + escAttr(title) + '">Fee waived</span>';
+                }
+                return esc(item.product) + badge;
+            };
+            const soldRowHtml = (item) => (
+                '<tr>' +
+                '<td>' + esc(item.reference) + '</td>' +
+                '<td>' + productCell(item) + '</td>' +
+                '<td>' + esc(String(item.quantity)) + '</td>' +
+                '<td>£' + Number(item.unit_price).toFixed(2) + '</td>' +
+                '<td class="text-success">£' + Number(item.total_revenue).toFixed(2) + '</td>' +
+                '<td class="text-success">£' + Number(item.profit).toFixed(2) + '</td>' +
+                '<td class="text-primary">' + Number(item.margin).toFixed(0) + '%</td>' +
+                '<td>' + this.recoveryRouteBadge(item.recovery_route, item.recovery_status, item.damage_note) + '</td>' +
+                '<td>' + this.formatDate(item.sold_date) + '</td>' +
+                '<td>' + this.statusBadge(item.status) + '</td>' +
+                '<td class="text-end"><button type="button" class="btn btn-link btn-sm p-0 rp-query-item-btn" data-ctx-type="sold" data-ctx-id="' + esc(String(item.id != null ? item.id : '')) + '" data-ctx-label="' + escAttr((item.product || '') + ' · ref ' + (item.reference || '')) + '">Query</button></td>' +
+                '</tr>'
+            );
+
+            const $banner = $('#sold-monthly-free-banner');
+            const $bannerText = $('#sold-monthly-free-banner-text');
+            if ($banner.length && data.monthly_free_processing && $bannerText.length) {
+                const promo = data.monthly_free_processing;
+                const ymNow = new Date().toISOString().slice(0, 7);
+                const cur = (promo.months || []).find((m) => m.year_month === ymNow);
+                if (cur) {
+                    const pct = Math.round((Number(promo.fee_percent) || 0.15) * 100);
+                    const g = Number(cur.gross_sale || 0).toFixed(2);
+                    const fee = Number(cur.fee_normally_charged || 0).toFixed(2);
+                    $bannerText.html(
+                        'In <strong>' + esc(formatYmLabel(cur.year_month)) + '</strong>, your highest eligible resale by gross sale value is <strong>' + esc(cur.product || '') + '</strong> (gross £' + g + '). ' +
+                        'We waive our ' + pct + '% processing fee on that line — you keep <strong>100%</strong> of that sale (fee normally ~£' + fee + ' on that line).'
+                    );
+                    $banner.removeClass('d-none');
+                } else {
+                    $banner.addClass('d-none');
+                }
+            } else if ($banner.length) {
+                $banner.addClass('d-none');
+            }
+
             const filter = $('#sold-recovery-filter').val() || '';
 
             // Update stat cards (use filtered count for display if filtering)
@@ -1490,7 +1745,7 @@ const Dashboard = {
             $('.seco-title').text(items.length + ' Total Sold' + (filter || soldSearch ? ' (filtered)' : ''));
 
             if (items.length === 0) {
-                $tbody.html('<tr><td colspan="10" class="text-center py-5"><p class="text-muted mb-3">No sold items match this filter. Change the recovery route filter or send more packages.</p><a href="packages.html" class="btn btn-primary">Send packages</a></td></tr>');
+                $tbody.html('<tr><td colspan="11" class="text-center py-5"><p class="text-muted mb-3">No sold items match this filter. Change the recovery route filter or send more packages.</p><a href="packages.html" class="btn btn-primary">Send packages</a></td></tr>');
                 return;
             }
 
@@ -1499,20 +1754,7 @@ const Dashboard = {
             this._soldVisible = Math.min(pageSize, items.length);
             const toShow = items.slice(0, this._soldVisible);
             toShow.forEach(item => {
-                $tbody.append(`
-                    <tr>
-                        <td>${item.reference}</td>
-                        <td>${item.product}</td>
-                        <td>${item.quantity}</td>
-                        <td>£${Number(item.unit_price).toFixed(2)}</td>
-                        <td class="text-success">£${Number(item.total_revenue).toFixed(2)}</td>
-                        <td class="text-success">£${Number(item.profit).toFixed(2)}</td>
-                        <td class="text-primary">${Number(item.margin).toFixed(0)}%</td>
-                        <td>${this.recoveryRouteBadge(item.recovery_route, item.recovery_status, item.damage_note)}</td>
-                        <td>${this.formatDate(item.sold_date)}</td>
-                        <td>${this.statusBadge(item.status)}</td>
-                    </tr>
-                `);
+                $tbody.append(soldRowHtml(item));
             });
             const $loadMore = $('#sold-load-more');
             if ($loadMore.length && items.length > this._soldVisible) {
@@ -1521,20 +1763,7 @@ const Dashboard = {
                     this._soldVisible = Math.min(this._soldVisible + pageSize, this._soldListFiltered.length);
                     $tbody.empty();
                     this._soldListFiltered.slice(0, this._soldVisible).forEach(item => {
-                        $tbody.append(`
-                            <tr>
-                                <td>${item.reference}</td>
-                                <td>${item.product}</td>
-                                <td>${item.quantity}</td>
-                                <td>£${Number(item.unit_price).toFixed(2)}</td>
-                                <td class="text-success">£${Number(item.total_revenue).toFixed(2)}</td>
-                                <td class="text-success">£${Number(item.profit).toFixed(2)}</td>
-                                <td class="text-primary">${Number(item.margin).toFixed(0)}%</td>
-                                <td>${this.recoveryRouteBadge(item.recovery_route, item.recovery_status, item.damage_note)}</td>
-                                <td>${this.formatDate(item.sold_date)}</td>
-                                <td>${this.statusBadge(item.status)}</td>
-                            </tr>
-                        `);
+                        $tbody.append(soldRowHtml(item));
                     });
                     if (this._soldVisible >= this._soldListFiltered.length) $loadMore.addClass('d-none');
                 });
@@ -1542,7 +1771,7 @@ const Dashboard = {
         } catch(err) {
             console.error('Load sold error:', err);
             const msg = err.error || 'Unable to load sold items.';
-            $tbody.html('<tr><td colspan="10" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
+            $tbody.html('<tr><td colspan="11" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
             $tbody.find('.btn').on('click', () => this.loadSold());
         }
     },
@@ -1550,7 +1779,7 @@ const Dashboard = {
     // ─── PENDING ITEMS PAGE ──────────────────────────────────
     async loadPending() {
         const $tbody = $('table tbody');
-        if ($tbody.length) $tbody.html('<tr><td colspan="8" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        if ($tbody.length) $tbody.html('<tr><td colspan="9" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getPending();
             const filter = $('#pending-recovery-filter').val() || '';
@@ -1582,7 +1811,7 @@ const Dashboard = {
             $('.seco-title').text(items.length + ' Items Pending' + (filter || pendingSearch ? ' (filtered)' : ''));
 
             if (items.length === 0) {
-                $tbody.html('<tr><td colspan="8" class="text-center py-5"><p class="text-muted mb-3">No pending items match this filter. Change the recovery route filter or view received packages.</p><a href="received.html" class="btn btn-primary">View Received</a></td></tr>');
+                $tbody.html('<tr><td colspan="9" class="text-center py-5"><p class="text-muted mb-3">No pending items match this filter. Change the recovery route filter or view received packages.</p><a href="received.html" class="btn btn-primary">View Received</a></td></tr>');
                 return;
             }
 
@@ -1591,6 +1820,8 @@ const Dashboard = {
             this._pendingVisible = Math.min(pageSize, items.length);
             const toShow = items.slice(0, this._pendingVisible);
             toShow.forEach(item => {
+                const qLabel = String(item.product || '') + ' · ref ' + String(item.reference || '');
+                const qEsc = qLabel.replace(/"/g, '&quot;').replace(/</g, '&lt;');
                 $tbody.append(`
                     <tr>
                         <td>${item.reference}</td>
@@ -1601,6 +1832,7 @@ const Dashboard = {
                         <td>${this.statusBadge(item.current_stage)}</td>
                         <td>${this.formatDate(item.est_completion)}</td>
                         <td>${item.notes || '-'}</td>
+                        <td class="text-end"><button type="button" class="btn btn-link btn-sm p-0 rp-query-item-btn" data-ctx-type="pending" data-ctx-id="${item.id != null ? item.id : ''}" data-ctx-label="${qEsc}">Query</button></td>
                     </tr>
                 `);
             });
@@ -1630,7 +1862,7 @@ const Dashboard = {
         } catch(err) {
             console.error('Load pending error:', err);
             const msg = err.error || 'Unable to load pending items.';
-            $tbody.html('<tr><td colspan="8" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
+            $tbody.html('<tr><td colspan="9" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
             $tbody.find('.btn').on('click', () => this.loadPending());
         }
     },
@@ -1996,6 +2228,36 @@ const Dashboard = {
                     '</div>'
                 );
             }
+            $('#inventory-csv-upload').off('click').on('click', async () => {
+                const inp = document.getElementById('inventory-csv-input');
+                const f = inp && inp.files && inp.files[0];
+                if (!f) {
+                    alert('Choose a CSV file first.');
+                    return;
+                }
+                const text = await f.text();
+                const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+                if (lines.length < 2) {
+                    alert('CSV needs a header row and at least one data row.');
+                    return;
+                }
+                const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+                const rows = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const cols = lines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
+                    const o = {};
+                    headers.forEach((h, idx) => { o[h] = cols[idx] != null ? cols[idx] : ''; });
+                    rows.push(o);
+                }
+                try {
+                    const r = await API.importInventoryRows(rows);
+                    Dashboard.showToast((r && r.message) || 'Import complete');
+                    inp.value = '';
+                    this.loadInventory();
+                } catch (e) {
+                    alert((e && e.error) || e.message || 'Import failed');
+                }
+            });
         } catch (err) {
             console.error('Load inventory error:', err);
             if ($stageBar.length) {
@@ -2023,7 +2285,27 @@ const Dashboard = {
                 series = series.slice(-Math.min(n, series.length));
             }
             $('#kpi-recovery-rate').text(Number((data.recoveryRate || 0) * 100).toFixed(0) + '%');
+            $('#kpi-sell-through').text(Number((data.sellThroughRate || data.recoveryRate || 0) * 100).toFixed(0) + '%');
+            $('#kpi-avg-sale-price').text('£' + Number(data.averageSalePrice || 0).toFixed(2));
+            $('#kpi-return-rate').text(Number((data.returnRate || 0) * 100).toFixed(1) + '%');
             $('#kpi-avg-recovery').text('£' + Number(data.avgRecoveryPerItem || 0).toFixed(2));
+            const $top = $('#analytics-top-categories');
+            if ($top.length) {
+                const cats = data.top_categories || [];
+                if (!cats.length) {
+                    $top.html('<tr><td colspan="4" class="text-muted small">No sold data yet.</td></tr>');
+                } else {
+                    $top.empty();
+                    cats.forEach((c) => {
+                        $top.append(
+                            '<tr><td>' + String(c.name || '').replace(/</g, '&lt;') + '</td>' +
+                            '<td class="text-end">' + (c.units_sold || 0) + '</td>' +
+                            '<td class="text-end">£' + Number(c.profit_sum || 0).toFixed(2) + '</td>' +
+                            '<td class="text-end">£' + Number(c.avg_sale_price || 0).toFixed(2) + '</td></tr>'
+                        );
+                    });
+                }
+            }
             $chart.empty();
             if (window.ApexCharts && series.length) {
                 new ApexCharts($chart[0], {
@@ -2154,7 +2436,10 @@ const Dashboard = {
             const subtotalNet = lineItems.reduce((s, i) => s + (Number(i.amount || 0) * (Number(i.quantity) || 1)), 0);
             const vatAmount = isVatRegistered ? (subtotalNet * 0.2) : 0;
             const totalGBP = isVatRegistered ? (subtotalNet + vatAmount) : (subtotalNet * 0.8);
-            const amountDue = totalGBP;
+            let amountDue = totalGBP;
+            if (!isVatRegistered && data.total != null && !Number.isNaN(Number(data.total))) {
+                amountDue = Number(data.total);
+            }
 
             const billingName = localStorage.getItem('returnpal_billing_name') || '';
             const billingCompany = localStorage.getItem('returnpal_billing_company') || '';
@@ -2172,6 +2457,23 @@ const Dashboard = {
                 const vatCol = isVatRegistered ? '<td class="num">20%</td>' : '';
                 return '<tr><td>' + (i.description || '') + '</td><td class="num">' + qty + '</td><td>' + unitLabel + '</td><td class="num">£' + netPerUnit.toFixed(2) + '</td>' + vatCol + '<td class="num">£' + lineTotal.toFixed(2) + '</td></tr>';
             }).join('');
+
+            const stmt = data.statement_lines || [];
+            const summary = data.summary || {};
+            let stmtBlock = '';
+            if (stmt.length) {
+                const sr = stmt.map((s) => {
+                    const amt = Number(s.amount) || 0;
+                    const neg = amt < 0;
+                    const lab = String(s.label || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                    return '<tr><td>' + lab + '</td><td class="num" style="color:' + (neg ? '#b02a37' : '#0f5132') + '">' + (neg ? '−' : '+') + '£' + Math.abs(amt).toFixed(2) + '</td></tr>';
+                }).join('');
+                stmtBlock =
+                    '<h2 style="font-size:18px;margin:32px 0 12px;letter-spacing:-0.02em;">Statement (per item)</h2>' +
+                    '<p class="period-note" style="margin-top:-8px;">Each line shows how your balance moved — sales add, returns and clawbacks subtract.</p>' +
+                    '<table class="items-table"><thead><tr><th>Line</th><th class="num">Amount</th></tr></thead><tbody>' + sr + '</tbody></table>' +
+                    '<p class="period-note small">Sales (your share): <strong>£' + Number(summary.sales_profit || 0).toFixed(2) + '</strong> · Returns &amp; clawbacks: <strong>£' + Number(summary.refunds_and_returns || 0).toFixed(2) + '</strong> · Processing fees: <strong>£' + Number(summary.fees_deducted || data.fees || 0).toFixed(2) + '</strong> · <strong>Net payout estimate: £' + Number(summary.net_payout_estimate != null ? summary.net_payout_estimate : data.total || 0).toFixed(2) + '</strong></p>';
+            }
 
             const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ' + invoiceNum + '</title><style>' +
                 '*{box-sizing:border-box;} body{margin:0;font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.5;color:#1a1a1a;background:#fff;}' +
@@ -2220,6 +2522,7 @@ const Dashboard = {
                 '<tr class="totals-row"><td colspan="5" class="num">Total GBP</td><td class="num">£' + (subtotalNet + vatAmount).toFixed(2) + '</td></tr>') : '') +
                 '<tr class="totals-row final"><td colspan="' + (isVatRegistered ? 5 : 4) + '" class="num">Amount due</td><td class="num">£' + amountDue.toFixed(2) + '</td></tr>' +
                 '</tbody></table>' +
+                stmtBlock +
                 '<div class="terms-box">' +
                 (isVatRegistered && vatNumber ? '<p><strong>VAT No.</strong> ' + vatNumber + '. VAT may be subject to reverse charge where applicable.</p>' : '<p>This is a non-VAT invoice. A 20% deduction has been applied as you are not VAT registered.</p>') +
                 '<p>Payment is due by the date stated above. Thank you for selling with ReturnPal.</p>' +
@@ -2305,6 +2608,15 @@ const Dashboard = {
     // ─── SETTINGS PAGE ───────────────────────────────────────
     async loadSettings() {
         try {
+            try {
+                const me = await API.request('/auth/me', { skipAuthRedirect: true });
+                if (me && me.user) {
+                    if (API.getSessionToken()) API.setSessionUser(me.user);
+                    else API.setUser(me.user);
+                    this.updateUserIdentityUI(me.user);
+                }
+            } catch (e) { /* offline or 401 — use cached user */ }
+
             const data = await API.getSettings();
             if (data.settings) {
                 $('#flexSwitchCheckDefault').prop('checked', !!data.settings.vat_registered);
@@ -2318,6 +2630,30 @@ const Dashboard = {
             $('#settings-profile-name').val(profileName);
             $('#settings-profile-email').val(profileEmail);
             $('#settings-profile-company').val(profileCompany);
+            this.updateAvatarWidgets(user);
+
+            $(document).off('change', '#settings-avatar-input').on('change', '#settings-avatar-input', async function() {
+                const f = this.files && this.files[0];
+                if (!f) return;
+                try {
+                    await API.uploadAvatar(f);
+                    Dashboard.updateAvatarWidgets(API.getUser());
+                    Dashboard.showToast('Photo updated');
+                } catch (err) {
+                    alert((err && err.error) || err.message || 'Upload failed');
+                }
+                $(this).val('');
+            });
+            $(document).off('click', '#settings-avatar-remove').on('click', '#settings-avatar-remove', async function() {
+                try {
+                    await API.deleteAvatar();
+                    Dashboard.updateAvatarWidgets(API.getUser());
+                    Dashboard.showToast('Photo removed');
+                } catch (err) {
+                    alert((err && err.error) || err.message || 'Could not remove photo');
+                }
+            });
+
             $(document).off('click', '#settings-profile-save').on('click', '#settings-profile-save', function() {
                 localStorage.setItem('returnpal_profile_name', $('#settings-profile-name').val().trim());
                 localStorage.setItem('returnpal_profile_company', $('#settings-profile-company').val().trim());

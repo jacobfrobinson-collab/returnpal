@@ -190,6 +190,34 @@ const API = {
         return this.request('/auth/profile', { method: 'PUT', body: profile });
     },
 
+    async uploadAvatar(file) {
+        if (!file || !(file instanceof Blob)) {
+            throw Object.assign(new Error('Choose an image file'), { status: 400 });
+        }
+        const fd = new FormData();
+        fd.append('photo', file);
+        const token = this.getToken();
+        const res = await fetch(this.baseUrl + '/auth/avatar', {
+            method: 'POST',
+            headers: token ? { Authorization: 'Bearer ' + token } : {},
+            body: fd
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw Object.assign(new Error(data.error || 'Upload failed'), { status: res.status, error: data.error });
+        }
+        const u = this.getUser();
+        if (u) this.setUser({ ...u, avatar_url: data.avatar_url });
+        return data;
+    },
+
+    async deleteAvatar() {
+        const data = await this.request('/auth/avatar', { method: 'DELETE' });
+        const u = this.getUser();
+        if (u) this.setUser({ ...u, avatar_url: data.avatar_url != null ? data.avatar_url : '' });
+        return data;
+    },
+
     async changePassword(current_password, new_password) {
         return this.request('/auth/password', {
             method: 'PUT',
@@ -413,7 +441,6 @@ const API = {
     },
     _getSoldMock() {
         const now = new Date();
-        const date = (d) => { const x = new Date(now); x.setDate(x.getDate() - d); return x.toISOString().slice(0, 10); };
         const items = [
             { product: 'Wireless Earbuds Pro', qty: 1, unit_price: 34.99, profit: 29.74, margin: 85, recovery_route: 'Resale', recovery_status: 'Sold' },
             { product: 'USB-C Hub 7-in-1', qty: 1, unit_price: 28.50, profit: 24.23, margin: 85, recovery_route: 'Resale', recovery_status: 'Sold' },
@@ -424,11 +451,14 @@ const API = {
             { product: 'Used charger – unsellable', qty: 1, unit_price: 0, profit: 0, margin: 0, total_revenue: 0, recovery_route: 'Not recoverable', recovery_status: 'No recovery', damage_note: 'Condition below resale threshold' }
         ];
         let totalEarnings = 0, totalQty = 0;
+        const today = now.toISOString().slice(0, 10);
+        const ym = now.toISOString().slice(0, 7);
         const out = items.map((it, i) => {
             const total_revenue = it.unit_price * it.qty;
             totalEarnings += it.profit * it.qty;
             totalQty += it.qty;
             return {
+                id: i + 1,
                 reference: 'TRACK-RP' + String(i + 1).padStart(3, '0'),
                 product: it.product,
                 quantity: it.qty,
@@ -436,22 +466,50 @@ const API = {
                 total_revenue,
                 profit: it.profit * it.qty,
                 margin: it.margin,
-                sold_date: date(3 + i),
+                sold_date: today,
                 status: it.recovery_route === 'Not recoverable' ? 'No recovery' : 'Sold',
                 recovery_route: it.recovery_route || 'Resale',
                 recovery_status: it.recovery_status || 'Sold',
                 damage_note: it.damage_note || null
             };
         });
+        let best = null;
+        out.forEach((row) => {
+            if (Number(row.total_revenue) <= 0) return;
+            const route = String(row.recovery_route || 'Resale');
+            if (/reimbursement/i.test(route) || /not recoverable/i.test(route)) return;
+            if (!best || Number(row.total_revenue) > Number(best.total_revenue)) best = row;
+        });
+        const itemsOut = out.map((row) => ({
+            ...row,
+            is_monthly_free_processing: !!(best && best.id === row.id),
+            monthly_free_processing_month: best && best.id === row.id ? ym : null
+        }));
+        const gross = best ? Number(best.total_revenue) : 0;
+        const fee = Math.round(gross * 0.15 * 100) / 100;
         return {
-            total: out.length,
+            total: itemsOut.length,
             stats: {
                 total_earnings: totalEarnings,
                 items_sold: totalQty,
                 avg_earnings: totalQty ? totalEarnings / totalQty : 0,
                 avg_margin: 85
             },
-            items: out
+            items: itemsOut,
+            monthly_free_processing: {
+                fee_percent: 0.15,
+                revenue_interpreted_as_net: false,
+                months: best ? [{
+                    year_month: ym,
+                    sold_item_id: best.id,
+                    reference: best.reference,
+                    product: best.product,
+                    sold_date: best.sold_date,
+                    gross_sale: gross,
+                    fee_normally_charged: fee,
+                    note: 'Highest-value eligible sale this calendar month — processing fee waived; you keep 100% of this sale.'
+                }] : []
+            }
         };
     },
 
@@ -635,17 +693,67 @@ const API = {
         const total = line_items.reduce((s, i) => s + (i.amount || 0), 0);
         const fees = line_items.reduce((s, i) => s + ((i.unit_price || 0) * (i.quantity || 1) - (i.amount || 0)), 0);
         const vat = 0; // or fees * 0.2 if applicable
+        const statement_lines = line_items.map((i) => ({
+            kind: 'sale',
+            label: i.description + ' → Sold',
+            amount: (i.amount || 0) * (i.quantity || 1),
+            reference: ''
+        }));
         return {
             period,
             period_label: monthNames[(m || 1) - 1] + ' ' + (y || new Date().getFullYear()),
             date_issued: new Date(y || 2026, (m || 1) - 1, 1).toISOString().slice(0, 10),
             line_items,
+            statement_lines,
+            summary: {
+                sales_profit: total,
+                refunds_and_returns: 0,
+                fees_deducted: fees,
+                net_payout_estimate: total - fees
+            },
+            return_lines: [],
             subtotal: total,
             fees,
             vat_amount: vat,
-            total,
+            total: total - fees,
             status: 'Paid'
         };
+    },
+
+    async getBalanceSummary() {
+        try {
+            return await this.request('/balance/summary');
+        } catch (err) {
+            if (err.status === 404 || err.status === 501) {
+                return {
+                    year_month: new Date().toISOString().slice(0, 7),
+                    current_balance: 0,
+                    pending_returns: 0,
+                    available_for_payout: 0,
+                    payout_forecast: { if_no_more_returns: 0, after_pending_returns: 0 },
+                    breakdown: { sales_this_month: 0, returns_this_month: 0, fees_deducted: 0 }
+                };
+            }
+            throw err;
+        }
+    },
+
+    async getBalanceLedger(params = {}) {
+        try {
+            const q = params.limit ? '?limit=' + encodeURIComponent(params.limit) : '';
+            return await this.request('/balance/ledger' + q);
+        } catch (err) {
+            if (err.status === 404 || err.status === 501) return { lines: [] };
+            throw err;
+        }
+    },
+
+    async submitItemQuery(body) {
+        return this.request('/queries', { method: 'POST', body });
+    },
+
+    async importInventoryRows(rows) {
+        return this.request('/inventory/import', { method: 'POST', body: { rows } });
     },
 
     // ─── Settings ────────────────────────────────────────────
@@ -736,7 +844,15 @@ const API = {
         return {
             recoveryRate: 0.72,
             avgRecoveryPerItem: 32.45,
-            recoveredOverTime: months.map((m, i) => ({ month: m, value: values[i] }))
+            recoveredOverTime: months.map((m, i) => ({ month: m, value: values[i] })),
+            sellThroughRate: 0.58,
+            averageSalePrice: 28.5,
+            returnRate: 0.04,
+            top_categories: [
+                { name: 'Wireless Earbuds Pro', units_sold: 12, profit_sum: 356.88, avg_sale_price: 34.99 },
+                { name: 'USB-C Hub', units_sold: 8, profit_sum: 193.84, avg_sale_price: 28.5 }
+            ],
+            counts: { items_received: 120, items_sold: 70, items_refunded: 2, return_adjustments: 1 }
         };
     },
 

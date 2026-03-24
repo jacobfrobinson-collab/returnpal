@@ -11,6 +11,7 @@ const ACTIVITY_ICONS = {
     item_sold: 'ri-money-pound-circle-line',
     item_pending: 'ri-time-line',
     payout_sent: 'ri-bank-card-line',
+    return_deducted: 'ri-refund-2-line',
     info: 'ri-circle-line'
 };
 

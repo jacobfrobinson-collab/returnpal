@@ -118,6 +118,15 @@
                         <div id="inventory-stage-bar">Loading…</div>
                     </div>
 
+                    <div class="rp-card card border-0 p-4 mb-4">
+                        <h6 class="mb-2">Bulk inventory (CSV)</h6>
+                        <p class="small text-muted mb-2">Upload a CSV to create <strong>received</strong> intake lines (intake → processing → sale → payout). Header row required. Columns: <code>product</code> (required), <code>sku</code>, <code>quantity</code>, <code>reference</code> (tracking).</p>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <input type="file" id="inventory-csv-input" accept=".csv,text/csv" class="form-control form-control-sm" style="max-width: 280px;" />
+                            <button type="button" class="btn btn-primary btn-sm" id="inventory-csv-upload"><i class="ri-upload-2-line me-1"></i>Import CSV</button>
+                        </div>
+                    </div>
+
                     <p class="text-muted small">Reconciliation: Items Sent → Items Received → Items Processing → Items Sold → Items In Storage.</p>
                 </div>
             </div>

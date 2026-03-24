@@ -90,6 +90,8 @@ app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/balance', require('./routes/balance'));
+app.use('/api/queries', require('./routes/queries'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/reimbursement', require('./routes/reimbursement'));
 

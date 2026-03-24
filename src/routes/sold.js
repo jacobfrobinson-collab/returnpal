@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
 
 const router = express.Router();
 
@@ -39,7 +40,26 @@ router.get('/', authMiddleware, async (req, res) => {
             total_earnings: 0, items_sold: 0, avg_earnings: 0, avg_margin: 0
         };
 
-        res.json({ items, stats, total: items.length });
+        const promo = computeMonthlyFreeProcessing(items);
+        const itemsWithPromo = items.map((row) => {
+            const w = promo.winner_by_item_id[String(row.id)];
+            return {
+                ...row,
+                is_monthly_free_processing: !!w,
+                monthly_free_processing_month: w ? w.year_month : null
+            };
+        });
+
+        res.json({
+            items: itemsWithPromo,
+            stats,
+            total: items.length,
+            monthly_free_processing: {
+                fee_percent: promo.fee_percent,
+                revenue_interpreted_as_net: promo.revenue_interpreted_as_net,
+                months: promo.months
+            }
+        });
     } catch (err) {
         console.error('Get sold items error:', err);
         res.status(500).json({ error: 'Server error' });

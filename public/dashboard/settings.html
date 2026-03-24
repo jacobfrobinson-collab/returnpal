@@ -160,6 +160,39 @@
                                 <div class="card-body">
                                     <p class="text-muted small mb-3">Your account details. Used across the dashboard and can be synced with billing.</p>
                                     <div class="mb-3">
+                                        <label class="form-label">Profile photo</label>
+                                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                                            <div id="settings-avatar-preview-wrap" class="flex-shrink-0">
+                                                <img
+                                                    id="settings-avatar-preview-img"
+                                                    class="rounded-circle border"
+                                                    width="72"
+                                                    height="72"
+                                                    style="object-fit: cover; display: none"
+                                                    alt=""
+                                                />
+                                                <span
+                                                    id="settings-avatar-preview-initials"
+                                                    class="rounded-circle d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary fw-semibold border"
+                                                    style="width: 72px; height: 72px; font-size: 1.25rem"
+                                                    aria-hidden="true"
+                                                >?</span>
+                                            </div>
+                                            <div class="flex-grow-1" style="min-width: 200px">
+                                                <input
+                                                    type="file"
+                                                    class="form-control form-control-sm"
+                                                    id="settings-avatar-input"
+                                                    accept="image/jpeg,image/png,image/webp,image/gif"
+                                                />
+                                                <small class="text-muted d-block mt-1">JPG, PNG, WebP or GIF. Max 2&nbsp;MB.</small>
+                                                <button type="button" class="btn btn-link btn-sm text-danger px-0 mt-1 d-none" id="settings-avatar-remove">
+                                                    Remove photo
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
                                         <label class="form-label">Full name</label>
                                         <input type="text" class="form-control" id="settings-profile-name" placeholder="e.g. John Smith" />
                                     </div>

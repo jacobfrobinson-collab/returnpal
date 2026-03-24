@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb, saveDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { feesDeductedForCalendarMonth } = require('../utils/monthlyFreeProcessing');
 
 const router = express.Router();
 
@@ -41,13 +42,28 @@ router.get('/period/:period', authMiddleware, async (req, res) => {
         const monthEndStr = monthEnd.getFullYear() + '-' + String(monthEnd.getMonth() + 1).padStart(2, '0') + '-' + String(monthEnd.getDate()).padStart(2, '0');
 
         const db = await getDb();
+        const periodYm = y + '-' + String(m).padStart(2, '0');
+
         const items = parseResults(
             db.exec(
-                `SELECT product as description, quantity, unit_price, total_revenue, profit 
+                `SELECT id, product as description, quantity, unit_price, total_revenue, profit, status, sold_date, reference
                  FROM sold_items 
                  WHERE user_id = ? AND date(sold_date) >= date(?) AND date(sold_date) <= date(?) 
                  ORDER BY sold_date`,
                 [req.user.id, monthStart, monthEndStr]
+            )
+        );
+
+        const allSold = parseResults(db.exec('SELECT * FROM sold_items WHERE user_id = ?', [req.user.id]));
+        const fees = feesDeductedForCalendarMonth(allSold, periodYm);
+
+        const returnRows = parseResults(
+            db.exec(
+                `SELECT id, product, reference, amount, status, notes, created_at, linked_sold_item_id
+                 FROM return_adjustments 
+                 WHERE user_id = ? AND strftime('%Y-%m', created_at) = ?
+                 ORDER BY created_at`,
+                [req.user.id, periodYm]
             )
         );
 
@@ -59,11 +75,51 @@ router.get('/period/:period', authMiddleware, async (req, res) => {
                 description: i.description,
                 quantity: qty,
                 unit_price: Number(i.unit_price) || 0,
-                amount: profitPerUnit
+                amount: profitPerUnit,
+                status: i.status || 'Completed',
+                sold_item_id: i.id,
+                reference: i.reference || ''
             };
         });
+
+        const statement_lines = [];
+        items.forEach((i) => {
+            const qty = Number(i.quantity) || 1;
+            const lineProfit = Number(i.profit) || 0;
+            const isRefunded = i.status === 'Refunded';
+            statement_lines.push({
+                kind: isRefunded ? 'return' : 'sale',
+                label: (i.description || 'Item') + (isRefunded ? ' → Returned (refund)' : ' → Sold'),
+                reference: i.reference || '',
+                amount: isRefunded ? -Math.abs(lineProfit) : lineProfit,
+                date: i.sold_date
+            });
+        });
+        returnRows.forEach((r) => {
+            const amt = Number(r.amount) || 0;
+            statement_lines.push({
+                kind: 'return_adjustment',
+                label: (r.product || 'Item') + ' → Return / clawback' + (r.status === 'pending' ? ' (pending)' : ''),
+                reference: r.reference || '',
+                amount: -Math.abs(amt),
+                date: r.created_at,
+                status: r.status
+            });
+        });
+        statement_lines.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+
+        const salesProfit = items
+            .filter((i) => i.status !== 'Refunded')
+            .reduce((s, i) => s + (Number(i.profit) || 0), 0);
+        const refundedProfit = items
+            .filter((i) => i.status === 'Refunded')
+            .reduce((s, i) => s + (Number(i.profit) || 0), 0);
+        const adjustmentsApplied = returnRows
+            .filter((r) => r.status === 'applied')
+            .reduce((s, r) => s + (Number(r.amount) || 0), 0);
         const subtotal = line_items.reduce((s, i) => s + (i.amount * i.quantity), 0);
-        const fees = 0;
+        const net_after_returns = Math.round((salesProfit - refundedProfit - adjustmentsApplied) * 100) / 100;
+        const total = Math.round((net_after_returns - fees) * 100) / 100;
         const vat_amount = 0;
 
         res.json({
@@ -71,10 +127,18 @@ router.get('/period/:period', authMiddleware, async (req, res) => {
             period_label: monthNames[m - 1] + ' ' + y,
             date_issued: monthStart,
             line_items,
+            statement_lines,
+            summary: {
+                sales_profit: Math.round(salesProfit * 100) / 100,
+                refunds_and_returns: Math.round((refundedProfit + adjustmentsApplied) * 100) / 100,
+                fees_deducted: fees,
+                net_payout_estimate: total
+            },
+            return_lines: returnRows,
             subtotal,
             fees,
             vat_amount,
-            total: subtotal,
+            total,
             status: 'Paid'
         });
     } catch (err) {

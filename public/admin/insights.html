@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin – Client insights – ReturnPal</title>
+    <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/assets/css/style.css" />
+    <style>
+        body { background: var(--bs-light, #f8f9fa); }
+        .admin-header { background: var(--bs-dark); color: #fff; }
+        .admin-header a { color: rgba(255,255,255,.9); text-decoration: none; }
+        .admin-header a:hover { color: #fff; }
+    </style>
+</head>
+<body>
+    <header class="admin-header py-3 mb-4">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h1 class="h5 mb-0">ReturnPal Admin – Client insights</h1>
+                <div class="d-flex align-items-center gap-3">
+                    <a href="/admin/index.html" class="small">All clients</a>
+                    <a href="/login.html" class="small" id="admin-logout">Logout</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container-fluid">
+        <p class="text-muted small mb-3">Profit to clients, return exposure, and pending return liabilities. Use <strong>Risk</strong> to prioritise follow-ups.</p>
+        <div id="insights-loading" class="p-4 text-center text-muted">
+            <span class="spinner-border spinner-border-sm me-2"></span>Loading…
+        </div>
+        <div id="insights-error" class="alert alert-danger d-none"></div>
+        <div id="insights-summary" class="alert alert-secondary d-none mb-3"></div>
+        <div class="table-responsive d-none" id="insights-table-wrap">
+            <table class="table table-sm table-hover align-middle bg-white shadow-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Client</th>
+                        <th class="text-end">Profit (sum)</th>
+                        <th class="text-end">Sold</th>
+                        <th class="text-end">Refunded</th>
+                        <th class="text-end">Return rate</th>
+                        <th class="text-end">Pending liability</th>
+                        <th>Risk</th>
+                    </tr>
+                </thead>
+                <tbody id="insights-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="/assets/js/jquery-3.7.1.min.js"></script>
+    <script src="/assets/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/js/api.js"></script>
+    <script>
+    $(function() {
+        if (!API.isLoggedIn()) {
+            window.location.href = '/admin/login.html';
+            return;
+        }
+        var user = API.getUser();
+        if (!user || !user.is_admin) {
+            API.clearToken();
+            window.location.href = '/admin/login.html';
+            return;
+        }
+        $('#admin-logout').on('click', function(e) {
+            e.preventDefault();
+            API.clearToken();
+            window.location.href = '/admin/login.html';
+        });
+
+        API.request('/admin/insights').then(function(data) {
+            $('#insights-loading').addClass('d-none');
+            var clients = data.clients || [];
+            var liab = data.total_pending_return_liability != null ? data.total_pending_return_liability : 0;
+            $('#insights-summary').removeClass('d-none').html(
+                '<strong>Outstanding pending return liability (all clients):</strong> £' + Number(liab).toFixed(2)
+            );
+            var $tb = $('#insights-tbody');
+            $tb.empty();
+            if (!clients.length) {
+                $tb.html('<tr><td colspan="8" class="text-center py-4 text-muted">No non-admin clients.</td></tr>');
+            } else {
+                clients.forEach(function(c) {
+                    var rr = (Number(c.return_rate) * 100).toFixed(1) + '%';
+                    var risk = c.risk_flag ? '<span class="badge bg-warning text-dark">Review</span>' : '<span class="text-muted">—</span>';
+                    $tb.append(
+                        '<tr><td>' + c.user_id + '</td><td>' +
+                        $('<span/>').text(c.full_name || c.email || '').html() + '<br><small class="text-muted">' + $('<span/>').text(c.email || '').html() + '</small></td>' +
+                        '<td class="text-end">£' + Number(c.total_client_profit || 0).toFixed(2) + '</td>' +
+                        '<td class="text-end">' + (c.items_sold || 0) + '</td>' +
+                        '<td class="text-end">' + (c.refunded_items_count || 0) + '</td>' +
+                        '<td class="text-end">' + rr + '</td>' +
+                        '<td class="text-end">£' + Number(c.pending_return_liability || 0).toFixed(2) + '</td>' +
+                        '<td>' + risk + '</td></tr>'
+                    );
+                });
+            }
+            $('#insights-table-wrap').removeClass('d-none');
+        }).catch(function(err) {
+            $('#insights-loading').addClass('d-none');
+            $('#insights-error').removeClass('d-none').text(err.error || err.message || 'Failed to load insights');
+        });
+    });
+    </script>
+</body>
+</html>
