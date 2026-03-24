@@ -159,6 +159,146 @@ async function runTests() {
         console.error('  ✗ GET /api/invoices/period/:period:', e.message);
     }
 
+    // Invoices list (dashboard Payouts page)
+    try {
+        const invList = await request('GET', '/api/invoices', null, token);
+        assert(invList.status === 200, 'Invoices list should return 200');
+        assert(Array.isArray(invList.data.invoices), 'Invoices should have invoices array');
+        console.log('  ✓ GET /api/invoices');
+    } catch (e) {
+        console.error('  ✗ GET /api/invoices:', e.message);
+    }
+
+    // Balance (overview live balance card)
+    try {
+        const bal = await request('GET', '/api/balance/summary', null, token);
+        assert(bal.status === 200, 'Balance summary should return 200');
+        assert(bal.data.breakdown != null, 'Balance should have breakdown');
+        console.log('  ✓ GET /api/balance/summary');
+    } catch (e) {
+        console.error('  ✗ GET /api/balance/summary:', e.message);
+    }
+
+    try {
+        const led = await request('GET', '/api/balance/ledger?limit=5', null, token);
+        assert(led.status === 200, 'Balance ledger should return 200');
+        assert(Array.isArray(led.data.lines), 'Ledger should have lines array');
+        console.log('  ✓ GET /api/balance/ledger');
+    } catch (e) {
+        console.error('  ✗ GET /api/balance/ledger:', e.message);
+    }
+
+    // Item query (sold/pending Query button)
+    try {
+        const q = await request('POST', '/api/queries', {
+            context_type: 'sold',
+            context_id: 1,
+            context_label: 'Test product',
+            message: 'Integration test query message for button flow.'
+        }, token);
+        assert(q.status === 201, 'Create query should return 201');
+        console.log('  ✓ POST /api/queries');
+    } catch (e) {
+        console.error('  ✗ POST /api/queries:', e.message);
+    }
+
+    try {
+        const qList = await request('GET', '/api/queries', null, token);
+        assert(qList.status === 200, 'Queries list should return 200');
+        assert(Array.isArray(qList.data.queries), 'Queries should have queries array');
+        console.log('  ✓ GET /api/queries');
+    } catch (e) {
+        console.error('  ✗ GET /api/queries:', e.message);
+    }
+
+    // Sold / pending / received (tables)
+    try {
+        const sold = await request('GET', '/api/sold', null, token);
+        assert(sold.status === 200, 'Sold should return 200');
+        assert(Array.isArray(sold.data.items), 'Sold should have items');
+        console.log('  ✓ GET /api/sold');
+    } catch (e) {
+        console.error('  ✗ GET /api/sold:', e.message);
+    }
+
+    try {
+        const pend = await request('GET', '/api/pending', null, token);
+        assert(pend.status === 200, 'Pending should return 200');
+        assert(Array.isArray(pend.data.items), 'Pending should have items');
+        console.log('  ✓ GET /api/pending');
+    } catch (e) {
+        console.error('  ✗ GET /api/pending:', e.message);
+    }
+
+    try {
+        const rec = await request('GET', '/api/received', null, token);
+        assert(rec.status === 200, 'Received should return 200');
+        assert(Array.isArray(rec.data.items), 'Received should have items');
+        console.log('  ✓ GET /api/received');
+    } catch (e) {
+        console.error('  ✗ GET /api/received:', e.message);
+    }
+
+    // Activity feed & notifications dropdown
+    try {
+        const act = await request('GET', '/api/activity?limit=10', null, token);
+        assert(act.status === 200, 'Activity should return 200');
+        assert(Array.isArray(act.data.events), 'Activity should have events');
+        console.log('  ✓ GET /api/activity');
+    } catch (e) {
+        console.error('  ✗ GET /api/activity:', e.message);
+    }
+
+    // Settings (settings page)
+    try {
+        const settings = await request('GET', '/api/settings', null, token);
+        assert(settings.status === 200, 'Settings should return 200');
+        console.log('  ✓ GET /api/settings');
+    } catch (e) {
+        console.error('  ✗ GET /api/settings:', e.message);
+    }
+
+    // ROI report
+    try {
+        const roi = await request('GET', '/api/reports/roi', null, token);
+        assert(roi.status === 200, 'ROI report should return 200');
+        console.log('  ✓ GET /api/reports/roi');
+    } catch (e) {
+        console.error('  ✗ GET /api/reports/roi:', e.message);
+    }
+
+    // Reimbursement claims list
+    try {
+        const reimb = await request('GET', '/api/reimbursement/claims', null, token);
+        assert(reimb.status === 200, 'Reimbursement claims should return 200');
+        assert(Array.isArray(reimb.data.claims), 'Claims should be array');
+        console.log('  ✓ GET /api/reimbursement/claims');
+    } catch (e) {
+        console.error('  ✗ GET /api/reimbursement/claims:', e.message);
+    }
+
+    // Inventory CSV import (Inventory page button)
+    try {
+        const imp = await request('POST', '/api/inventory/import', {
+            rows: [{ product: 'Test CSV line', quantity: '1', sku: 'SKU-TEST', reference: 'TEST-CSV-' + Date.now() }]
+        }, token);
+        assert(imp.status === 200, 'Inventory import should return 200');
+        assert(imp.data.imported >= 1, 'Import should report imported count');
+        console.log('  ✓ POST /api/inventory/import');
+    } catch (e) {
+        console.error('  ✗ POST /api/inventory/import:', e.message);
+    }
+
+    // Auth profile (avatar/settings)
+    try {
+        const me = await request('GET', '/api/auth/me', null, token);
+        assert(me.status === 200, 'Auth me should return 200');
+        assert(me.data.user && me.data.user.email, 'Me should have user.email');
+        console.log('  ✓ GET /api/auth/me');
+    } catch (e) {
+        console.error('  ✗ GET /api/auth/me:', e.message);
+    }
+
     // Delete package (CRUD cleanup)
     if (packageId) {
         try {
@@ -168,6 +308,20 @@ async function runTests() {
         } catch (e) {
             console.error('  ✗ DELETE /api/packages/:id:', e.message);
         }
+    }
+
+    // Contact form (landing / marketing — no auth)
+    try {
+        const contact = await request('POST', '/api/contact', {
+            name: 'Test',
+            email: 'test-contact@returnpal.test',
+            subject: 'Smoke test',
+            message: 'Integration test message body for contact endpoint.'
+        });
+        assert(contact.status === 201, 'Contact should return 201');
+        console.log('  ✓ POST /api/contact');
+    } catch (e) {
+        console.error('  ✗ POST /api/contact:', e.message);
     }
 
     // Unauthorized access
@@ -181,6 +335,8 @@ async function runTests() {
 
     console.log('');
     console.log('Integration tests completed.');
+    console.log('Note: Dashboard buttons that only open mailto, navigate, or print were not clicked in this run.');
+    console.log('Run the app with: npm start  then open /dashboard/ for manual smoke testing if needed.');
 }
 
 runTests().catch(err => {

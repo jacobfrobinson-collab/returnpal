@@ -883,14 +883,6 @@ const Dashboard = {
                 const pend = Number(bal.pending_returns || 0);
                 $('#dash-balance-pending').text('−£' + pend.toFixed(2));
                 $('#dash-balance-pending-note').text(bal.pending_returns_count ? '(' + bal.pending_returns_count + ' open)' : '');
-                $('#dash-balance-available').text('£' + Number(bal.available_for_payout || 0).toFixed(2));
-                const br = bal.breakdown || {};
-                $('#dash-balance-sales-mtd').text('£' + Number(br.sales_this_month || 0).toFixed(2));
-                $('#dash-balance-returns-mtd').text('−£' + Number(br.returns_this_month || 0).toFixed(2));
-                $('#dash-balance-fees-mtd').text('−£' + Number(br.fees_deducted || 0).toFixed(2));
-                const pf = bal.payout_forecast || {};
-                $('#dash-forecast-no-returns').text('£' + Number(pf.if_no_more_returns != null ? pf.if_no_more_returns : bal.current_balance || 0).toFixed(2));
-                $('#dash-forecast-after-pending').text('£' + Number(pf.after_pending_returns != null ? pf.after_pending_returns : bal.available_for_payout || 0).toFixed(2));
                 const lines = ledgerData && ledgerData.lines ? ledgerData.lines : [];
                 const $prev = $('#dash-balance-ledger-preview');
                 if ($prev.length) {
