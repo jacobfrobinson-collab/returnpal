@@ -129,8 +129,20 @@
             return;
         }
 
-        // Open register form when linked with #register
-        if (window.location.hash === '#register') {
+        // Referral: ?ref=RP123 (from /register.html redirect or shared link)
+        var urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('ref')) {
+            try { sessionStorage.setItem('returnpal_pending_ref', urlParams.get('ref').trim()); } catch (e) {}
+        }
+        function getReferralCodeForRegister() {
+            var fromStorage = '';
+            try { fromStorage = sessionStorage.getItem('returnpal_pending_ref') || ''; } catch (e) {}
+            var fromUrl = urlParams.get('ref') || '';
+            return (fromUrl || fromStorage || '').trim();
+        }
+
+        // Open register when #register or ?openRegister=1 (redirect from /register.html)
+        if (window.location.hash === '#register' || urlParams.get('openRegister') === '1') {
             $('#login-form').addClass('d-none');
             $('#register-form').removeClass('d-none');
             $('#auth-toggle-text').html('Already have an account? <a href="#" id="show-login">Login.</a>');
@@ -207,7 +219,8 @@
                 const company_name = $('#reg-company').val().trim();
                 const email = $('#reg-email').val().trim();
                 const password = $('#reg-password').val();
-                await API.register(email, password, full_name, company_name);
+                await API.register(email, password, full_name, company_name, getReferralCodeForRegister());
+                try { sessionStorage.removeItem('returnpal_pending_ref'); } catch (e) {}
                 try {
                     const me = await API.getProfile();
                     if (me && me.user) API.setUser(me.user);

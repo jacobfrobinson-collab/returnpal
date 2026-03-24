@@ -64,6 +64,25 @@ const API = {
         return !!this.getToken();
     },
 
+    /**
+     * Same cleanup + redirect as a normal 401 from request() — use when using skipAuthRedirect
+     * so the user is not left with a stale token (login.html would send them back to dashboard).
+     */
+    navigateAwayOnUnauthorized() {
+        const hadSessionToken = !!this.getSessionToken();
+        if (hadSessionToken) {
+            this.clearSessionAuth();
+            sessionStorage.removeItem('returnpal_impersonating');
+            if (localStorage.getItem('returnpal_token') && this.isCurrentUserAdmin()) {
+                window.location.href = '/admin/index.html';
+                return;
+            }
+        } else {
+            this.clearToken();
+        }
+        window.location.href = '/login.html';
+    },
+
     /** Decode JWT payload (no verify — for UI routing only). */
     _decodeJwtPayload(token) {
         try {
@@ -116,22 +135,7 @@ const API = {
                 if (skipAuthRedirect) {
                     throw { status: 401, error: 'Unauthorized' };
                 }
-                // During admin impersonation, clear only tab-scoped auth.
-                const hadSessionToken = !!this.getSessionToken();
-                if (hadSessionToken) {
-                    this.clearSessionAuth();
-                    sessionStorage.removeItem('returnpal_impersonating');
-                    // Admin token is still in localStorage — do NOT send user to /login.html:
-                    // login page auto-redirects "logged in" users to the client dashboard, which looks like
-                    // "reimbursement → dashboard" after a failed client API call while impersonating.
-                    if (localStorage.getItem('returnpal_token') && this.isCurrentUserAdmin()) {
-                        window.location.href = '/admin/index.html';
-                        return null;
-                    }
-                } else {
-                    this.clearToken();
-                }
-                window.location.href = '/login.html';
+                this.navigateAwayOnUnauthorized();
                 return null;
             }
 
@@ -162,10 +166,14 @@ const API = {
         return data;
     },
 
-    async register(email, password, full_name, company_name) {
+    async register(email, password, full_name, company_name, referral_code) {
+        const body = { email, password, full_name, company_name };
+        if (referral_code != null && String(referral_code).trim() !== '') {
+            body.referral_code = String(referral_code).trim();
+        }
         const data = await this.request('/auth/register', {
             method: 'POST',
-            body: { email, password, full_name, company_name }
+            body
         });
         if (data && data.token) {
             this.setToken(data.token);

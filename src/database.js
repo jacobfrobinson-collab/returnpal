@@ -53,6 +53,18 @@ async function getDb() {
         // Column already exists
     }
 
+    // Migration: who referred this user (nullable — points to users.id)
+    try {
+        db.run('ALTER TABLE users ADD COLUMN referred_by INTEGER');
+    } catch (e) {
+        // Column already exists
+    }
+    try {
+        db.run('CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by)');
+    } catch (e) {
+        // ignore
+    }
+
     db.run(`
         CREATE TABLE IF NOT EXISTS packages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

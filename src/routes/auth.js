@@ -1,10 +1,20 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
-const { getDb, saveDb } = require('../database');
+const { getDb, saveDb, pushActivity } = require('../database');
 const { generateToken, authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
+
+/** Parse referral code like RP12 → user id 12 */
+function parseReferralCode(input) {
+    if (input == null || input === '') return null;
+    const s = String(input).trim();
+    const m = s.match(/^RP(\d+)$/i);
+    if (!m) return null;
+    const id = parseInt(m[1], 10);
+    return Number.isFinite(id) && id > 0 ? id : null;
+}
 
 // POST /api/auth/register
 router.post('/register', [
@@ -20,6 +30,15 @@ router.post('/register', [
 
         const db = await getDb();
         const { email, password, full_name, company_name } = req.body;
+        const rawRef = req.body.referral_code || req.body.ref;
+        let referredById = null;
+        const parsedRef = parseReferralCode(rawRef);
+        if (parsedRef) {
+            const refCheck = db.exec('SELECT id FROM users WHERE id = ?', [parsedRef]);
+            if (refCheck.length > 0 && refCheck[0].values && refCheck[0].values.length > 0) {
+                referredById = parsedRef;
+            }
+        }
 
         // Check if user exists
         const existing = db.exec('SELECT id FROM users WHERE email = ?', [email]);
@@ -30,8 +49,8 @@ router.post('/register', [
         const hashedPassword = await bcrypt.hash(password, 12);
 
         db.run(
-            'INSERT INTO users (email, password, full_name, company_name) VALUES (?, ?, ?, ?)',
-            [email, hashedPassword, full_name, company_name || '']
+            'INSERT INTO users (email, password, full_name, company_name, referred_by) VALUES (?, ?, ?, ?, ?)',
+            [email, hashedPassword, full_name, company_name || '', referredById]
         );
         saveDb();
 
@@ -67,6 +86,15 @@ router.post('/register', [
         if (!Number.isFinite(userId) || userId <= 0) {
             console.error('Register: invalid user id after insert', userId);
             return res.status(500).json({ error: 'Could not create account. Please try again.' });
+        }
+
+        if (referredById) {
+            pushActivity(
+                referredById,
+                'referral',
+                `Someone signed up with your referral link (${email})`,
+                '/dashboard/referrals.html'
+            );
         }
 
         const user = { id: userId, email };

@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const { getDb } = require('./database');
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR
@@ -46,6 +47,25 @@ app.get('/dashboard/reimbursement.html', (req, res) => {
 // Without .html, static may 404 and SPA fallback would serve marketing index.html (looks like "bounce to home")
 app.get('/dashboard/reimbursement', (req, res) => {
     res.redirect(302, '/dashboard/reimbursement.html');
+});
+// Marketing site has no register.html; SPA fallback was serving index.html and dropping ?ref=
+app.get('/register.html', (req, res) => {
+    const ref = req.query.ref;
+    const params = new URLSearchParams();
+    if (ref != null && String(ref).trim() !== '') params.set('ref', String(ref).trim());
+    params.set('openRegister', '1');
+    res.redirect(302, '/login.html?' + params.toString());
+});
+// Ensure dashboard HTML is never replaced by SPA index (defensive)
+app.get(/^\/dashboard\/[^/]+\.html$/, (req, res, next) => {
+    if (req.path.includes('..')) return next();
+    const rel = req.path.replace(/^\/+/, '');
+    const full = path.resolve(path.join(__dirname, '../public', rel));
+    const pub = path.resolve(path.join(__dirname, '../public'));
+    if (!full.startsWith(pub + path.sep) && full !== pub) return next();
+    if (!fs.existsSync(full)) return next();
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.sendFile(full);
 });
 
 // ─── Static Files (serve frontend) ──────────────────────────

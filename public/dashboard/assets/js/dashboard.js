@@ -54,36 +54,6 @@ const Dashboard = {
         if ($returnsClientId.length) $returnsClientId.text(clientIdFormatted ? 'ReturnPal ' + clientIdFormatted : '—');
     },
 
-    /**
-     * Reimbursement page only: same impersonation handling as init() but NEVER runs full _initRest
-     * (no overview loaders, injectTopbarExtras, etc.) — avoids any redirect / wrong-route side effects.
-     */
-    initReimbursementOnly() {
-        const params = new URLSearchParams(window.location.search);
-        const impersonateToken = params.get('impersonate');
-        if (impersonateToken) {
-            API.setSessionToken(impersonateToken);
-            API.request('/auth/me').then(me => {
-                if (me && me.user) API.setSessionUser(me.user);
-                window.history.replaceState({}, '', window.location.pathname + (window.location.hash || ''));
-                sessionStorage.setItem('returnpal_impersonating', '1');
-                this.injectImpersonationBanner();
-            }).catch(() => {}).finally(() => {
-                if (!API.isLoggedIn()) {
-                    window.location.href = '/login.html';
-                    return;
-                }
-                this._initReimbursementPage();
-            });
-            return;
-        }
-        if (!API.isLoggedIn()) {
-            window.location.href = '/login.html';
-            return;
-        }
-        this._initReimbursementPage();
-    },
-
     init() {
         const params = new URLSearchParams(window.location.search);
         const impersonateToken = params.get('impersonate');
@@ -109,12 +79,14 @@ const Dashboard = {
         const user = API.getUser();
         this.updateUserIdentityUI(user);
         const useSession = !!API.getSessionToken();
-        API.request('/auth/me').then(me => {
+        API.request('/auth/me', { skipAuthRedirect: true }).then(me => {
             if (!me || !me.user) return;
             if (useSession) API.setSessionUser(me.user);
             else API.setUser(me.user);
             this.updateUserIdentityUI(me.user);
-        }).catch(() => {});
+        }).catch((err) => {
+            if (err && err.status === 401) API.navigateAwayOnUnauthorized();
+        });
 
         $(document).on('click', 'a[href="login.html"], a[href="../login.html"], a[href="/login.html"]', function(e) {
             if ($(this).text().trim() === 'Logout') {
@@ -124,6 +96,108 @@ const Dashboard = {
         });
 
         this.injectFooter();
+        this.loadReimbursementClaims();
+    },
+
+    /** Fills #reimbursement-list — same flow as other dashboard pages (no second inline ready handler). */
+    loadReimbursementClaims() {
+        const $list = $('#reimbursement-list');
+        if (!$list.length) return;
+
+        function fmtDate(s) {
+            return s ? new Date(s).toLocaleDateString() : '-';
+        }
+        function escHtml(s) {
+            return String(s || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+        function downloadOne(url, fileName) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.setAttribute('download', fileName || '');
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+
+        API.request('/reimbursement/claims', { skipAuthRedirect: true }).then((data) => {
+            const claims = data.claims || [];
+            if (claims.length === 0) {
+                $list.html('<div class="text-muted text-center py-5"><p class="mb-2">No reimbursement items yet.</p><p class="small">When ReturnPal adds an item with photos for an Amazon claim, it will appear here so you can view the package reference and photos to use in Seller Central.</p></div>');
+                return;
+            }
+            let html = '';
+            claims.forEach((c, claimIdx) => {
+                let photoHtml = '';
+                (c.photos || []).forEach((ph, photoIdx) => {
+                    const url = '/uploads/' + (ph.file_path || '');
+                    const safeUrl = escHtml(url);
+                    const photoName = 'claim-' + (c.id || claimIdx + 1) + '-photo-' + (photoIdx + 1) + '.jpg';
+                    photoHtml += '<div>' +
+                        '<a href="' + safeUrl + '" target="_blank" rel="noopener"><img src="' + safeUrl + '" alt="Photo" /></a>' +
+                        '<button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100 download-photo-btn" data-url="' + safeUrl + '" data-name="' + escHtml(photoName) + '">Download</button>' +
+                        '</div>';
+                });
+                if (!photoHtml) photoHtml = '<span class="text-muted">No photos</span>';
+                const detailText = [
+                    'Package reference: ' + (c.package_reference || ''),
+                    'Item: ' + (c.item_description || ''),
+                    'Reimbursement type: ' + (c.reimbursement_type || ''),
+                    'Notes: ' + (c.notes || ''),
+                    'Added: ' + fmtDate(c.created_at)
+                ].join('\n');
+                html += '<div class="reimb-card card border"><div class="card-body">' +
+                    '<div class="d-flex flex-wrap align-items-center gap-2 mb-2">' +
+                    '<span class="badge bg-secondary">' + escHtml(c.package_reference || '') + '</span>' +
+                    '<span class="badge bg-info">' + escHtml(c.reimbursement_type || '') + '</span>' +
+                    '</div>' +
+                    '<h6 class="card-title">' + escHtml(c.item_description || 'Item') + '</h6>' +
+                    (c.notes ? '<p class="small text-muted mb-2">' + escHtml(c.notes) + '</p>' : '') +
+                    '<p class="small mb-1">Photos (open to view or download for your Amazon case):</p>' +
+                    '<div class="reimb-photos">' + photoHtml + '</div>' +
+                    '<div class="reimb-actions">' +
+                    '<button type="button" class="btn btn-sm btn-primary copy-claim-btn" data-claim="' + escHtml(detailText) + '"><i class="ri-file-copy-line me-1"></i>Copy claim details</button>' +
+                    '<button type="button" class="btn btn-sm btn-outline-primary download-all-photos-btn" data-claim-id="' + (c.id || '') + '"><i class="ri-download-2-line me-1"></i>Download all photos</button>' +
+                    '<a class="btn btn-sm btn-outline-success" href="https://sellercentral.amazon.co.uk/help/hub/reference/G202130860" target="_blank" rel="noopener"><i class="ri-external-link-line me-1"></i>Open case in Seller Central</a>' +
+                    '</div>' +
+                    '<p class="small text-muted mt-2 mb-0">Added ' + fmtDate(c.created_at) + '</p>' +
+                    '</div></div>';
+            });
+            $list.html(html);
+
+            $(document).off('click', '.download-photo-btn').on('click', '.download-photo-btn', function() {
+                downloadOne($(this).data('url'), $(this).data('name'));
+            });
+
+            $(document).off('click', '.download-all-photos-btn').on('click', '.download-all-photos-btn', function() {
+                const $card = $(this).closest('.reimb-card');
+                const $buttons = $card.find('.download-photo-btn');
+                if (!$buttons.length) return;
+                $buttons.each(function(i) {
+                    const $btn = $(this);
+                    setTimeout(() => {
+                        downloadOne($btn.data('url'), $btn.data('name'));
+                    }, i * 250);
+                });
+            });
+
+            $(document).off('click', '.copy-claim-btn').on('click', '.copy-claim-btn', function() {
+                const text = $(this).data('claim') || '';
+                navigator.clipboard.writeText(text).then(() => {
+                    Dashboard.showToast('Claim details copied', 'success');
+                }).catch(() => { alert('Could not copy claim details.'); });
+            });
+        }).catch((err) => {
+            if (err && err.status === 401) {
+                API.navigateAwayOnUnauthorized();
+                return;
+            }
+            $list.html('<div class="text-danger text-center py-4">Failed to load claims.</div>');
+        });
     },
 
     _initRest() {
@@ -318,7 +392,6 @@ const Dashboard = {
     injectReimbursementLink() {
         if ($('#navbar-nav a[href="reimbursement.html"], #navbar-nav a[href="/dashboard/reimbursement.html"]').length) return;
         const $settings = $('#navbar-nav a[href="settings.html"]').closest('li');
-        // Relative href matches other sidebar links (packages.html, etc.) — reliable full page navigation.
         if ($settings.length) $settings.before('<li class="nav-item"><a class="nav-link" href="reimbursement.html"><span class="nav-icon"><i class="ri-refund-line"></i></span><span class="nav-text">Reimbursement / Claims</span></a></li>');
     },
     injectConnectAmazonLink() {
@@ -2337,12 +2410,6 @@ const Dashboard = {
     }
 };
 
-// Auto-init when DOM is ready — reimbursement uses a slim bootstrap (never full _initRest)
 $(document).ready(function() {
-    const p = (window.location.pathname || '').toLowerCase();
-    if (p.indexOf('reimbursement') !== -1) {
-        Dashboard.initReimbursementOnly();
-        return;
-    }
     Dashboard.init();
 });
