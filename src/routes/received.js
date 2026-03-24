@@ -14,6 +14,85 @@ function parseResults(result) {
     });
 }
 
+function lookupPackageByRef(db, userId, reference) {
+    const ref = String(reference || '').trim();
+    if (!ref) return null;
+    const rows = parseResults(
+        db.exec('SELECT id, reference, status, notes, date_added FROM packages WHERE user_id = ? AND reference = ? LIMIT 1', [userId, ref])
+    );
+    return rows[0] || null;
+}
+
+function packageProductUnits(db, packageId) {
+    if (!packageId) return 0;
+    const sums = parseResults(
+        db.exec('SELECT COALESCE(SUM(quantity), 0) as s FROM package_products WHERE package_id = ?', [packageId])
+    );
+    return Number(sums[0]?.s) || 0;
+}
+
+/**
+ * Group flat received_items by parcel reference. Total units prefer declared package_products
+ * totals; progress uses per-line status and quantities.
+ */
+function buildPackages(db, userId, items) {
+    const byRef = new Map();
+    for (const row of items) {
+        const ref = String(row.reference || '').trim();
+        const key = ref || `__id_${row.id}`;
+        if (!byRef.has(key)) byRef.set(key, []);
+        byRef.get(key).push(row);
+    }
+    const out = [];
+    for (const [, rows] of byRef) {
+        const ref = String(rows[0].reference || '').trim();
+        const pkg = ref ? lookupPackageByRef(db, userId, ref) : null;
+        const productUnits = pkg ? packageProductUnits(db, pkg.id) : 0;
+        const receivedSum = rows.reduce((a, r) => a + (Number(r.quantity) || 0), 0);
+        let totalUnits = Math.max(productUnits, receivedSum);
+        if (totalUnits < 1) totalUnits = 1;
+
+        const processedUnits = rows
+            .filter(r => r.status === 'Processed')
+            .reduce((a, r) => a + (Number(r.quantity) || 0), 0);
+        const rejectedUnits = rows
+            .filter(r => r.status === 'Rejected')
+            .reduce((a, r) => a + (Number(r.quantity) || 0), 0);
+        const pendingUnits = Math.max(0, totalUnits - processedUnits - rejectedUnits);
+
+        const dates = rows.map(r => new Date(r.date_received || 0).getTime());
+        const maxTs = dates.length ? Math.max.apply(null, dates) : 0;
+        const dateReceived = maxTs ? new Date(maxTs).toISOString() : rows[0].date_received;
+
+        const deliveryStatus = pkg ? pkg.status : 'Received';
+
+        const notesAgg = [...new Set(rows.map(r => (r.notes || '').trim()).filter(Boolean))].join(' · ') || '';
+
+        out.push({
+            reference: ref || '(no reference)',
+            package_id: pkg ? pkg.id : null,
+            delivery_status: deliveryStatus,
+            date_received: dateReceived,
+            total_units: totalUnits,
+            processed_units: processedUnits,
+            pending_units: pendingUnits,
+            rejected_units: rejectedUnits,
+            notes: notesAgg,
+            items: rows.map(r => ({
+                id: r.id,
+                items_description: r.items_description,
+                quantity: r.quantity,
+                status: r.status,
+                sku: r.sku || '',
+                notes: r.notes || '',
+                date_received: r.date_received
+            }))
+        });
+    }
+    out.sort((a, b) => new Date(b.date_received || 0) - new Date(a.date_received || 0));
+    return out;
+}
+
 // GET /api/received
 router.get('/', authMiddleware, async (req, res) => {
     try {
@@ -21,8 +100,13 @@ router.get('/', authMiddleware, async (req, res) => {
         const items = parseResults(
             db.exec('SELECT * FROM received_items WHERE user_id = ? ORDER BY date_received DESC', [req.user.id])
         );
-        const total = items.length;
-        res.json({ items, total });
+        const packages = buildPackages(db, req.user.id, items);
+        res.json({
+            items,
+            packages,
+            total: packages.length,
+            items_total: items.length
+        });
     } catch (err) {
         console.error('Get received error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -68,9 +152,14 @@ router.post('/', authMiddleware, async (req, res) => {
 
         const qty = Math.max(1, parseInt(quantity, 10) || 1);
 
+        const pkgMatch = parseResults(
+            db.exec('SELECT id FROM packages WHERE user_id = ? AND reference = ? LIMIT 1', [targetUserId, ref.slice(0, 255)])
+        );
+        const packageId = pkgMatch[0] ? pkgMatch[0].id : null;
+
         db.run(
-            'INSERT INTO received_items (user_id, reference, items_description, quantity, notes) VALUES (?, ?, ?, ?, ?)',
-            [targetUserId, ref.slice(0, 255), desc.slice(0, 1000), qty, (notes != null ? String(notes).slice(0, 2000) : '')]
+            'INSERT INTO received_items (user_id, package_id, reference, items_description, quantity, notes) VALUES (?, ?, ?, ?, ?, ?)',
+            [targetUserId, packageId, ref.slice(0, 255), desc.slice(0, 1000), qty, (notes != null ? String(notes).slice(0, 2000) : '')]
         );
         saveDb();
 

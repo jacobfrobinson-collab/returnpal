@@ -410,22 +410,65 @@ const API = {
         const date = (d) => { const x = new Date(now); x.setDate(x.getDate() - d); return x.toISOString().slice(0, 10); };
         const items = [
             { ref: 'TRACK-RP001', desc: 'Wireless Earbuds Pro x2', qty: 2, status: 'Processing' },
-            { ref: 'TRACK-RP002', desc: 'USB-C Hub 7-in-1 x1', qty: 1, status: 'Ready for Sale' },
-            { ref: 'TRACK-RP003', desc: 'Phone Stand Desk Mount x3', qty: 3, status: 'Initial Inspection' },
-            { ref: 'TRACK-RP004', desc: 'Screen Protector Pack x1', qty: 1, status: 'Listing' },
+            { ref: 'TRACK-RP001', desc: 'USB adapter x1', qty: 1, status: 'Processed' },
+            { ref: 'TRACK-RP002', desc: 'USB-C Hub 7-in-1 x1', qty: 1, status: 'Quality Check' },
+            { ref: 'TRACK-RP003', desc: 'Phone Stand Desk Mount x3', qty: 3, status: 'Processing' },
+            { ref: 'TRACK-RP004', desc: 'Screen Protector Pack x1', qty: 1, status: 'Processed' },
             { ref: 'TRACK-RP005', desc: 'Tablet Case Folio x1', qty: 1, status: 'Quality Check' }
         ];
-        return {
-            total: 5,
-            items: items.map((it, i) => ({
-                reference: it.ref,
-                items_description: it.desc,
-                quantity: it.qty,
-                status: it.status,
-                date_received: date(1 + i),
+        const flatItems = items.map((it, i) => ({
+            id: i + 1,
+            reference: it.ref,
+            items_description: it.desc,
+            quantity: it.qty,
+            status: it.status,
+            date_received: date(1 + i),
+            notes: '',
+            photos: i < 2 ? ['https://via.placeholder.com/120x90?text=Condition+1', 'https://via.placeholder.com/120x90?text=Condition+2'] : []
+        }));
+        const byRef = new Map();
+        flatItems.forEach((row) => {
+            const k = row.reference || '';
+            if (!byRef.has(k)) byRef.set(k, []);
+            byRef.get(k).push(row);
+        });
+        const packages = [];
+        byRef.forEach((rows, ref) => {
+            const totalUnits = rows.reduce((a, r) => a + (Number(r.quantity) || 0), 0) || 1;
+            const processedUnits = rows.filter((r) => r.status === 'Processed').reduce((a, r) => a + (Number(r.quantity) || 0), 0);
+            const rejectedUnits = rows.filter((r) => r.status === 'Rejected').reduce((a, r) => a + (Number(r.quantity) || 0), 0);
+            const pendingUnits = Math.max(0, totalUnits - processedUnits - rejectedUnits);
+            const maxDate = rows.reduce((m, r) => {
+                const t = new Date(r.date_received || 0).getTime();
+                return t > m ? t : m;
+            }, 0);
+            packages.push({
+                reference: ref,
+                package_id: null,
+                delivery_status: 'Delivered',
+                date_received: maxDate ? new Date(maxDate).toISOString().slice(0, 10) : rows[0].date_received,
+                total_units: totalUnits,
+                processed_units: processedUnits,
+                pending_units: pendingUnits,
+                rejected_units: rejectedUnits,
                 notes: '',
-                photos: i < 2 ? ['https://via.placeholder.com/120x90?text=Condition+1', 'https://via.placeholder.com/120x90?text=Condition+2'] : []
-            }))
+                items: rows.map((r) => ({
+                    id: r.id,
+                    items_description: r.items_description,
+                    quantity: r.quantity,
+                    status: r.status,
+                    sku: '',
+                    notes: r.notes || '',
+                    date_received: r.date_received
+                }))
+            });
+        });
+        packages.sort((a, b) => new Date(b.date_received || 0) - new Date(a.date_received || 0));
+        return {
+            items: flatItems,
+            packages,
+            total: packages.length,
+            items_total: flatItems.length
         };
     },
 

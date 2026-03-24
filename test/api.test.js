@@ -234,6 +234,7 @@ async function runTests() {
         const rec = await request('GET', '/api/received', null, token);
         assert(rec.status === 200, 'Received should return 200');
         assert(Array.isArray(rec.data.items), 'Received should have items');
+        assert(Array.isArray(rec.data.packages), 'Received should have packages');
         console.log('  ✓ GET /api/received');
     } catch (e) {
         console.error('  ✗ GET /api/received:', e.message);

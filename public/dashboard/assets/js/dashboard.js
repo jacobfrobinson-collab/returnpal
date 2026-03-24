@@ -1530,76 +1530,166 @@ const Dashboard = {
         return products;
     },
 
-    // ─── RECEIVED PAGE ───────────────────────────────────────
+    // ─── RECEIVED PAGE (one row per parcel / package; units drill-down in modal) ─
     _receivedSort: { key: 'date_received', dir: 'desc' },
-    buildReceivedRow(item) {
-        const photos = item.photos || [];
-        const photosHtml = photos.length ? photos.slice(0, 2).map((url, idx) => '<a href="' + url + '" target="_blank" rel="noopener" class="d-inline-block me-1"><img src="' + url + '" alt="Condition ' + (idx + 1) + '" width="40" height="30" class="rounded border object-fit-cover" /></a>').join('') + (photos.length > 2 ? ' <small class="text-muted">+' + (photos.length - 2) + '</small>' : '') : '<span class="text-muted">-</span>';
-        return '<tr><td>' + (item.reference || '') + '</td><td>' + (item.items_description || '') + '</td><td>' + (item.quantity || '') + '</td><td>' + this.statusBadge(item.status) + '</td><td>' + this.formatDate(item.date_received) + '</td><td>' + photosHtml + '</td><td>' + (item.notes || '-') + '</td></tr>';
+    _receivedPackagesFiltered: [],
+    deliveryStatusBadge(status) {
+        const s = String(status || '');
+        const sl = s.toLowerCase();
+        if (sl === 'delivered' || sl === 'received') return '<span class="badge bg-success-subtle text-success py-1 px-2 fs-12">' + s + '</span>';
+        if (sl === 'processing') return '<span class="badge bg-primary-subtle text-primary py-1 px-2 fs-12">' + s + '</span>';
+        if (sl === 'in transit') return '<span class="badge bg-warning-subtle text-warning py-1 px-2 fs-12">' + s + '</span>';
+        if (sl === 'cancelled') return '<span class="badge bg-secondary-subtle text-secondary py-1 px-2 fs-12">' + s + '</span>';
+        if (sl === 'processed') return '<span class="badge bg-info-subtle text-info py-1 px-2 fs-12">' + s + '</span>';
+        return '<span class="badge bg-light text-dark py-1 px-2 fs-12">' + s + '</span>';
+    },
+    buildReceivedPackageRow(pkg) {
+        const esc = (s) => String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        const escAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        const pct = pkg.total_units > 0 ? Math.min(100, Math.round((pkg.processed_units / pkg.total_units) * 100)) : 0;
+        const progressHtml =
+            '<div class="d-flex align-items-center gap-2 flex-wrap">' +
+            '<div class="progress flex-grow-1" style="height:10px;min-width:100px;max-width:240px;">' +
+            '<div class="progress-bar bg-success" role="progressbar" style="width:' + pct + '%" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"></div></div>' +
+            '<span class="small text-nowrap"><strong>' + esc(pkg.processed_units) + '</strong>/' + esc(pkg.total_units) + ' units processed</span>' +
+            (pkg.pending_units > 0 ? ' <span class="small text-muted">(' + esc(pkg.pending_units) + ' still pending)</span>' : '') +
+            '</div>';
+        return '<tr>' +
+            '<td><strong>' + esc(pkg.reference) + '</strong></td>' +
+            '<td>' + this.deliveryStatusBadge(pkg.delivery_status) + '</td>' +
+            '<td>' + progressHtml + '</td>' +
+            '<td>' + esc(this.formatDate(pkg.date_received)) + '</td>' +
+            '<td><span class="text-muted">—</span></td>' +
+            '<td class="small">' + (pkg.notes ? esc(pkg.notes) : '—') + '</td>' +
+            '<td><button type="button" class="btn btn-sm btn-outline-primary rp-received-units-btn" data-rp-ref="' + escAttr(pkg.reference) + '">View units</button></td>' +
+            '</tr>';
+    },
+    openReceivedUnitsModal(pkg) {
+        const esc = (s) => String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        const title = document.getElementById('received-units-modal-title');
+        const body = document.getElementById('received-units-modal-body');
+        if (title) title.textContent = 'Package ' + (pkg.reference || '');
+        if (!body) return;
+        const rows = (pkg.items || []).map((it) =>
+            '<tr><td>' + esc(it.items_description) + '</td><td class="text-center">' + esc(it.quantity) + '</td><td>' + this.statusBadge(it.status) + '</td></tr>'
+        ).join('');
+        const summary =
+            '<p class="small text-muted mb-2">Processed: <strong>' + esc(pkg.processed_units) + '</strong> of <strong>' + esc(pkg.total_units) + '</strong> units · ' +
+            'Pending: <strong>' + esc(pkg.pending_units) + '</strong>' +
+            (pkg.rejected_units > 0 ? ' · Rejected: <strong>' + esc(pkg.rejected_units) + '</strong>' : '') +
+            '</p>';
+        body.innerHTML =
+            summary +
+            '<div class="table-responsive"><table class="table table-sm table-bordered mb-0">' +
+            '<thead><tr><th>Line / product</th><th class="text-center">Qty</th><th>Status</th></tr></thead>' +
+            '<tbody>' + (rows || '<tr><td colspan="3" class="text-muted text-center">No lines recorded yet.</td></tr>') + '</tbody></table></div>';
+        const el = document.getElementById('received-units-modal');
+        if (el && window.bootstrap) {
+            const inst = bootstrap.Modal.getInstance(el);
+            if (inst) inst.show();
+            else new bootstrap.Modal(el).show();
+        }
     },
     async loadReceived() {
-        const $tbody = $('table tbody');
-        if ($tbody.length) $tbody.html('<tr><td colspan="7" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        const $tbody = $('#received-table tbody');
+        if (!$tbody.length) return;
+        $tbody.html('<tr><td colspan="7" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getReceived();
             $tbody.empty();
-            $('.seco-title').text(data.total + ' Total Received');
+            const packages = Array.isArray(data.packages) ? data.packages : [];
+            const totalLabel = typeof data.total === 'number' ? data.total : packages.length;
+            $('.seco-title').text(totalLabel + ' packages');
 
-            if (!data.items || data.items.length === 0) {
-                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No received items yet. Add a package and we’ll list it here once it arrives.</p><a href="packages.html" class="btn btn-primary">Go to Packages</a></td></tr>');
+            if (!packages.length) {
+                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No received packages yet. Add a package and we’ll list it here once it arrives.</p><a href="packages.html" class="btn btn-primary">Go to Packages</a></td></tr>');
                 return;
             }
 
-            const raw = data.items || [];
-            this._receivedListFull = raw;
             const searchQ = ($('#received-search').val() || '').trim().toLowerCase();
             const searchBy = ($('#received-search-by').val() || 'all').toLowerCase();
-            let list = raw.slice();
+            let list = packages.slice();
             if (searchQ) {
-                if (searchBy === 'reference') list = list.filter(i => String(i.reference || '').toLowerCase().includes(searchQ));
-                else if (searchBy === 'items_description') list = list.filter(i => String(i.items_description || '').toLowerCase().includes(searchQ));
-                else if (searchBy === 'status') list = list.filter(i => String(i.status || '').toLowerCase().includes(searchQ));
-                else if (searchBy === 'notes') list = list.filter(i => String(i.notes || '').toLowerCase().includes(searchQ));
-                else list = list.filter(i => (String(i.reference || '').toLowerCase() + ' ' + (i.items_description || '').toLowerCase() + ' ' + (i.status || '').toLowerCase() + ' ' + (i.notes || '').toLowerCase()).includes(searchQ));
+                if (searchBy === 'reference') list = list.filter((p) => String(p.reference || '').toLowerCase().includes(searchQ));
+                else if (searchBy === 'delivery_status') list = list.filter((p) => String(p.delivery_status || '').toLowerCase().includes(searchQ));
+                else if (searchBy === 'items_description') {
+                    list = list.filter((p) => (p.items || []).some((i) => String(i.items_description || '').toLowerCase().includes(searchQ)));
+                } else if (searchBy === 'notes') list = list.filter((p) => String(p.notes || '').toLowerCase().includes(searchQ));
+                else {
+                    list = list.filter((p) => {
+                        const blob = [
+                            p.reference,
+                            p.delivery_status,
+                            p.notes,
+                            ...(p.items || []).map((i) => (i.items_description || '') + ' ' + (i.notes || ''))
+                        ].join(' ').toLowerCase();
+                        return blob.includes(searchQ);
+                    });
+                }
             }
             const { key, dir } = this._receivedSort;
             const mult = dir === 'asc' ? 1 : -1;
             list.sort((a, b) => {
-                let va = a[key], vb = b[key];
-                if (key === 'date_received') { va = new Date(va || 0).getTime(); vb = new Date(vb || 0).getTime(); }
-                else if (key === 'reference' || key === 'status') { va = String(va || '').toLowerCase(); vb = String(vb || '').toLowerCase(); }
-                else if (key === 'quantity') { va = Number(va) || 0; vb = Number(vb) || 0; }
-                if (va < vb) return -1 * mult; if (va > vb) return 1 * mult; return 0;
+                let va;
+                let vb;
+                if (key === 'date_received') {
+                    va = new Date(a.date_received || 0).getTime();
+                    vb = new Date(b.date_received || 0).getTime();
+                } else if (key === 'reference' || key === 'delivery_status') {
+                    va = String(a[key] || '').toLowerCase();
+                    vb = String(b[key] || '').toLowerCase();
+                } else if (key === 'progress') {
+                    va = a.total_units > 0 ? a.processed_units / a.total_units : 0;
+                    vb = b.total_units > 0 ? b.processed_units / b.total_units : 0;
+                } else {
+                    va = 0;
+                    vb = 0;
+                }
+                if (va < vb) return -1 * mult;
+                if (va > vb) return 1 * mult;
+                return 0;
             });
-            this._receivedListFiltered = list;
+            this._receivedPackagesFiltered = list;
             const pageSize = 20;
             this._receivedVisible = Math.min(pageSize, list.length);
             const toShow = list.slice(0, this._receivedVisible);
-            toShow.forEach(item => $tbody.append(this.buildReceivedRow(item)));
+            toShow.forEach((pkg) => $tbody.append(this.buildReceivedPackageRow(pkg)));
             const $loadMore = $('#received-load-more');
             if ($loadMore.length) {
                 if (list.length > this._receivedVisible) {
                     $loadMore.removeClass('d-none');
                     $('#received-load-more-btn').off('click').on('click', () => {
-                        this._receivedVisible = Math.min(this._receivedVisible + pageSize, this._receivedListFiltered.length);
+                        this._receivedVisible = Math.min(this._receivedVisible + pageSize, this._receivedPackagesFiltered.length);
                         $tbody.empty();
-                        this._receivedListFiltered.slice(0, this._receivedVisible).forEach(item => $tbody.append(this.buildReceivedRow(item)));
-                        if (this._receivedVisible >= this._receivedListFiltered.length) $loadMore.addClass('d-none');
+                        this._receivedPackagesFiltered.slice(0, this._receivedVisible).forEach((pkg) => $tbody.append(this.buildReceivedPackageRow(pkg)));
+                        if (this._receivedVisible >= this._receivedPackagesFiltered.length) $loadMore.addClass('d-none');
                         this.renderReceivedSortIcons();
                     });
                 } else $loadMore.addClass('d-none');
             }
-            $('.seco-title').text(list.length + ' Total Received' + (searchQ ? ' (filtered)' : ''));
+            $('.seco-title').text(list.length + ' packages' + (searchQ ? ' (filtered)' : ''));
             this.renderReceivedSortIcons();
             $(document).off('input', '#received-search').on('input', '#received-search', () => this.loadReceived());
             $(document).off('click', '#received-table .rp-sortable').on('click', '#received-table .rp-sortable', (e) => {
-                const key = $(e.currentTarget).data('sort');
-                if (!key) return;
-                if (this._receivedSort.key === key) this._receivedSort.dir = this._receivedSort.dir === 'asc' ? 'desc' : 'asc';
-                else this._receivedSort = { key, dir: 'asc' };
+                const sortKey = $(e.currentTarget).data('sort');
+                if (!sortKey) return;
+                if (this._receivedSort.key === sortKey) this._receivedSort.dir = this._receivedSort.dir === 'asc' ? 'desc' : 'asc';
+                else this._receivedSort = { key: sortKey, dir: 'asc' };
                 this.loadReceived();
             });
-        } catch(err) {
+            const self = this;
+            $(document).off('click.rprecv', '.rp-received-units-btn').on('click.rprecv', '.rp-received-units-btn', function() {
+                const ref = $(this).attr('data-rp-ref');
+                const pkg = (self._receivedPackagesFiltered || []).find((p) => p.reference === ref);
+                if (pkg) self.openReceivedUnitsModal(pkg);
+            });
+        } catch (err) {
             console.error('Load received error:', err);
             const msg = err.error || 'Unable to load received items.';
             $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');

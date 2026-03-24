@@ -155,42 +155,30 @@
                             <div class="d-flex align-items-center gap-2 flex-wrap">
                                 <select id="received-search-by" class="form-select form-select-sm w-auto" aria-label="Search by">
                                     <option value="all">Search by: All</option>
-                                    <option value="reference">Reference</option>
-                                    <option value="items_description">Items</option>
-                                    <option value="status">Status</option>
+                                    <option value="reference">Package reference</option>
+                                    <option value="delivery_status">Delivery status</option>
+                                    <option value="items_description">Line items</option>
                                     <option value="notes">Notes</option>
                                 </select>
                                 <input type="text" class="form-control form-control-sm" id="received-search" placeholder="Search…" style="max-width: 220px;" aria-label="Search received" />
                             </div>
-                            <div class="seco-title">0 Total Received</div>
+                            <div class="seco-title">0 packages</div>
                         </div>
                         <div class="card-body p-0">
                             <div class="table-responsive">
                                 <table class="table align-middle text-nowrap table-hover table-centered mb-0" id="received-table">
                                     <thead class="bg-light-subtle">
                                         <tr>
-                                            <th class="py-55 rp-sortable" data-sort="reference" scope="col">Reference <i class="ri-arrow-up-down-line ms-1 opacity-50 rp-sort-icon"></i></th>
-                                            <th class="py-55">Items</th>
-                                            <th class="py-55 rp-sortable" data-sort="quantity" scope="col">Qty <i class="ri-arrow-up-down-line ms-1 opacity-50 rp-sort-icon"></i></th>
-                                            <th class="py-55 rp-sortable" data-sort="status" scope="col">Status <i class="ri-arrow-up-down-line ms-1 opacity-50 rp-sort-icon"></i></th>
-                                            <th class="py-55 rp-sortable rp-sort-active" data-sort="date_received" scope="col">Date Received <i class="ri-arrow-down-line ms-1 rp-sort-icon"></i></th>
+                                            <th class="py-55 rp-sortable" data-sort="reference" scope="col">Package <i class="ri-arrow-up-down-line ms-1 opacity-50 rp-sort-icon"></i></th>
+                                            <th class="py-55 rp-sortable" data-sort="delivery_status" scope="col">Delivery <i class="ri-arrow-up-down-line ms-1 opacity-50 rp-sort-icon"></i></th>
+                                            <th class="py-55 rp-sortable" data-sort="progress" scope="col">Units processed <i class="ri-arrow-up-down-line ms-1 opacity-50 rp-sort-icon"></i></th>
+                                            <th class="py-55 rp-sortable rp-sort-active" data-sort="date_received" scope="col">Date received <i class="ri-arrow-down-line ms-1 rp-sort-icon"></i></th>
                                             <th class="py-55">Photos</th>
                                             <th class="py-55">Notes</th>
+                                            <th class="py-55 text-end" scope="col">Details</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>RCV-001</td>
-                                            <td>iPad Pro 11 inch (x2), MacBook Air M1 (x1)</td>
-                                            <td>2</td>
-                                            <td>
-                                                <span class="badge bg-success-subtle text-success py-1 px-2 fs-12">Processed</span>
-                                            </td>
-                                            <td>2/1/2026</td>
-                                            <td>-</td>
-                                            <td>Quality check completed</td>
-                                        </tr>
-                                    </tbody>
+                                    <tbody></tbody>
                                 </table>
                             </div>
                             <div id="received-load-more" class="p-3 text-center border-top d-none"><button type="button" class="btn btn-outline-primary btn-sm" id="received-load-more-btn">Load more</button></div>
@@ -219,6 +207,21 @@
             <!-- ==================================================== -->
         </div>
         <!-- END Wrapper -->
+
+        <div class="modal fade" id="received-units-modal" tabindex="-1" aria-labelledby="received-units-modal-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-scrollable modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="received-units-modal-title">Units in this package</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="received-units-modal-body"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Vendor Javascript -->
         <script src="assets/js/vendor.js"></script>

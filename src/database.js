@@ -247,9 +247,27 @@ async function getDb() {
         // Column already exists
     }
 
+    try {
+        db.run('ALTER TABLE received_items ADD COLUMN package_id INTEGER');
+    } catch (e) {
+        // Column already exists
+    }
+    try {
+        db.run(
+            `UPDATE received_items SET package_id = (
+                SELECT p.id FROM packages p
+                WHERE p.user_id = received_items.user_id AND p.reference = received_items.reference
+                LIMIT 1
+            ) WHERE package_id IS NULL`
+        );
+    } catch (e) {
+        // ignore migration errors on empty DB
+    }
+
     // Create indexes
     db.run('CREATE INDEX IF NOT EXISTS idx_packages_user ON packages(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_received_user ON received_items(user_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_received_package ON received_items(package_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_sold_user ON sold_items(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_pending_user ON pending_items(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id)');

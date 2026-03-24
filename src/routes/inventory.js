@@ -99,10 +99,15 @@ router.post('/import', authMiddleware, async (req, res) => {
             const desc = sku ? `${product} [SKU: ${sku}]` : product;
             const notes = sku ? `csv_sku:${sku}` : 'csv_import';
 
+            const pkgMatch = parseResults(
+                db.exec('SELECT id FROM packages WHERE user_id = ? AND reference = ? LIMIT 1', [userId, reference])
+            );
+            const packageId = pkgMatch[0] ? pkgMatch[0].id : null;
+
             db.run(
-                `INSERT INTO received_items (user_id, reference, items_description, quantity, status, notes, sku)
-                 VALUES (?, ?, ?, ?, 'Processing', ?, ?)`,
-                [userId, reference, desc, qty, notes, sku]
+                `INSERT INTO received_items (user_id, package_id, reference, items_description, quantity, status, notes, sku)
+                 VALUES (?, ?, ?, ?, ?, 'Processing', ?, ?)`,
+                [userId, packageId, reference, desc, qty, notes, sku]
             );
             imported++;
         }
