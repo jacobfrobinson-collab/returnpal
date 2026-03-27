@@ -7,7 +7,16 @@
  */
 
 const API = {
-    baseUrl: '/api',
+    /** API root: default `/api` on same origin. For static site + separate API host set `window.RETURNPAL_CONFIG.apiBase = 'https://your-api.example.com/api'`. */
+    getApiBase() {
+        try {
+            const c = window.RETURNPAL_CONFIG;
+            if (c && typeof c.apiBase === 'string' && c.apiBase.trim()) {
+                return c.apiBase.replace(/\/$/, '');
+            }
+        } catch (e) { /* ignore */ }
+        return '/api';
+    },
 
     // ─── Token Management ────────────────────────────────────
     getSessionToken() {
@@ -80,7 +89,8 @@ const API = {
         } else {
             this.clearToken();
         }
-        window.location.href = '/login.html';
+        const o = typeof window !== 'undefined' && window.location && window.location.origin ? window.location.origin : '';
+        window.location.assign(o + '/login.html');
     },
 
     /** Decode JWT payload (no verify — for UI routing only). */
@@ -106,7 +116,7 @@ const API = {
 
     // ─── Core Request Method ─────────────────────────────────
     async request(endpoint, options = {}) {
-        const url = this.baseUrl + endpoint;
+        const url = this.getApiBase() + endpoint;
         const { skipAuthRedirect, ...fetchOptions } = options;
         const config = {
             headers: { 'Content-Type': 'application/json' },
@@ -197,7 +207,7 @@ const API = {
         const fd = new FormData();
         fd.append('photo', file);
         const token = this.getToken();
-        const res = await fetch(this.baseUrl + '/auth/avatar', {
+        const res = await fetch(this.getApiBase() + '/auth/avatar', {
             method: 'POST',
             headers: token ? { Authorization: 'Bearer ' + token } : {},
             body: fd
@@ -227,7 +237,8 @@ const API = {
 
     logout() {
         this.clearToken();
-        window.location.href = '/login.html';
+        const o = typeof window !== 'undefined' && window.location && window.location.origin ? window.location.origin : '';
+        window.location.assign(o + '/login.html');
     },
 
     // ─── Packages ────────────────────────────────────────────

@@ -206,7 +206,7 @@ const Dashboard = {
         if (impersonateToken) {
             // Use tab-scoped auth for impersonation so admin auth remains intact in other tabs.
             API.setSessionToken(impersonateToken);
-            API.request('/auth/me').then(me => {
+            API.request('/auth/me', { skipAuthRedirect: true }).then(me => {
                 if (me && me.user) API.setSessionUser(me.user);
                 window.history.replaceState({}, '', window.location.pathname + (window.location.hash || ''));
                 sessionStorage.setItem('returnpal_impersonating', '1');
@@ -347,14 +347,12 @@ const Dashboard = {
     },
 
     _initRest() {
-        // Auth guard - redirect to login if not authenticated
         if (!API.isLoggedIn()) {
-            window.location.href = '/login.html';
+            window.location.assign((window.location.origin || '') + '/login.html');
             return;
         }
 
         const pathLower = (window.location.pathname || '').toLowerCase();
-        // Reimbursement page: has its own claims loader; skip heavy init (topbar summary API, overview detection, etc.)
         if (pathLower.includes('reimbursement')) {
             this._initReimbursementPage();
             return;
@@ -364,17 +362,29 @@ const Dashboard = {
             this.injectImpersonationBanner();
         }
 
-        // Render from cached user first, then refresh from DB (/auth/me) to avoid stale IDs.
         const user = API.getUser();
         this.updateUserIdentityUI(user);
         const useSession = !!API.getSessionToken();
-        API.request('/auth/me').then(me => {
-            if (!me || !me.user) return;
-            if (useSession) API.setSessionUser(me.user);
-            else API.setUser(me.user);
-            this.updateUserIdentityUI(me.user);
-        }).catch(() => {});
+        const self = this;
+        // Verify session first with skipAuthRedirect so a 401 here does not race loadOverview / other calls
+        // (which would also 401 and double-clear storage). Only then load data.
+        API.request('/auth/me', { skipAuthRedirect: true }).then((me) => {
+            if (me && me.user) {
+                if (useSession) API.setSessionUser(me.user);
+                else API.setUser(me.user);
+                self.updateUserIdentityUI(me.user);
+            }
+            self._finishDashboardInit();
+        }).catch((err) => {
+            if (err && err.status === 401) {
+                API.navigateAwayOnUnauthorized();
+                return;
+            }
+            self._finishDashboardInit();
+        });
+    },
 
+    _finishDashboardInit() {
         this.loadDashboardNotifications();
         $(document).off('click', '.rp-query-item-btn').on('click', '.rp-query-item-btn', function() {
             const $b = $(this);
