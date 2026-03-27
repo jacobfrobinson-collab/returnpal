@@ -125,7 +125,8 @@
     $(document).ready(function() {
         // Redirect if already logged in (admins → admin panel, clients → dashboard)
         if (API.isLoggedIn()) {
-            window.location.href = API.isCurrentUserAdmin() ? '/admin/index.html' : '/dashboard/index.html';
+            const o = window.location.origin || '';
+            window.location.assign(API.isCurrentUserAdmin() ? o + '/admin/index.html' : o + '/dashboard/index.html');
             return;
         }
 
@@ -196,11 +197,12 @@
                 const password = $('#login-password').val();
                 await API.login(email, password);
                 try {
-                    const me = await API.getProfile();
+                    const me = await API.getProfile({ skipAuthRedirect: true });
                     if (me && me.user) API.setUser(me.user);
-                } catch (e) { /* non-fatal */ }
+                } catch (e) { /* non-fatal — do not clear token; /auth/me can fail transiently */ }
                 showSuccess('Login successful! Redirecting...');
-                setTimeout(() => { window.location.href = '/dashboard/index.html'; }, 500);
+                const dash = (window.location.origin || '') + '/dashboard/index.html';
+                setTimeout(() => { window.location.assign(dash); }, 500);
             } catch (err) {
                 showError(err.error || 'Login failed. Please check your credentials.');
                 btn.prop('disabled', false).html('<span class="far fa-sign-in"></span> Login');
@@ -222,11 +224,12 @@
                 await API.register(email, password, full_name, company_name, getReferralCodeForRegister());
                 try { sessionStorage.removeItem('returnpal_pending_ref'); } catch (e) {}
                 try {
-                    const me = await API.getProfile();
+                    const me = await API.getProfile({ skipAuthRedirect: true });
                     if (me && me.user) API.setUser(me.user);
                 } catch (e) { /* non-fatal */ }
                 showSuccess('Account created! Redirecting...');
-                setTimeout(() => { window.location.href = '/dashboard/index.html'; }, 500);
+                const dashReg = (window.location.origin || '') + '/dashboard/index.html';
+                setTimeout(() => { window.location.assign(dashReg); }, 500);
             } catch (err) {
                 const msg = err.errors ? err.errors.map(e => e.msg).join(', ') : (err.error || 'Registration failed.');
                 showError(msg);

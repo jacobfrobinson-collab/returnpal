@@ -182,8 +182,8 @@ const API = {
         return data;
     },
 
-    async getProfile() {
-        return this.request('/auth/me');
+    async getProfile(options) {
+        return this.request('/auth/me', options || {});
     },
 
     async updateProfile(profile) {
@@ -825,8 +825,11 @@ const API = {
     // ─── Activity ──────────────────────────────────────────────
     async getActivity(params = {}) {
         if (window.RETURNPAL_CONFIG && window.RETURNPAL_CONFIG.useMock) return this._getActivityMock();
+        const limit = params.limit;
+        const q = limit ? '?limit=' + encodeURIComponent(limit) : '';
+        const reqOpts = params.skipAuthRedirect ? { skipAuthRedirect: true } : {};
         try {
-            return await this.request('/activity' + (params.limit ? '?limit=' + params.limit : ''));
+            return await this.request('/activity' + q, reqOpts);
         } catch (err) {
             if (err.status === 404 || err.status === 501) return this._getActivityMock();
             throw err;

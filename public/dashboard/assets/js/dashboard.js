@@ -83,8 +83,8 @@ const Dashboard = {
     loadDashboardNotifications() {
         const $dd = $('#dashboard-notifications-dropdown');
         if (!$dd.length) return;
-        API.getActivity({ limit: 12 }).then((data) => {
-            const events = data.events || [];
+        API.getActivity({ limit: 12, skipAuthRedirect: true }).then((data) => {
+            const events = (data && data.events) || [];
             const $badge = $('#dashboard-notifications-badge');
             if (events.length === 0) {
                 $badge.addClass('d-none').text('');
