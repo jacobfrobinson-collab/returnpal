@@ -28,12 +28,13 @@
         </div>
     </div>
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
-    <script src="/assets/js/api.js"></script>
+    <script src="/assets/js/api.js?v=rp9"></script>
     <script>
     $(function() {
-        var u = API.getUser();
-        if (!API.isLoggedIn() || !u || !u.is_admin) { window.location.href = '/admin/login.html'; return; }
-        $('#logout').on('click', function(e) { e.preventDefault(); API.clearToken(); window.location.href = '/admin/login.html'; });
+        var ao = window.location.origin || '';
+        if (!API.isLoggedIn()) { window.location.assign(ao + '/admin/login.html'); return; }
+        if (!API.isCurrentUserAdmin()) { API.clearToken(); window.location.assign(ao + '/admin/login.html'); return; }
+        $('#logout').on('click', function(e) { e.preventDefault(); API.clearToken(); window.location.assign(ao + '/admin/login.html'); });
         API.request('/admin/queries').then(function(d) {
             $('#msg').addClass('d-none');
             var q = d.queries || [];

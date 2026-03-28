@@ -38,15 +38,15 @@
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
-    <script src="/assets/js/api.js"></script>
+    <script src="/assets/js/api.js?v=rp9"></script>
     <script>
     $(function() {
-        if (API.isLoggedIn()) {
-            var user = API.getUser();
-            if (user && user.is_admin) {
-                window.location.href = '/admin/index.html';
-                return;
-            }
+        var origin = window.location.origin || '';
+        if (API.isLoggedIn() && API.isCurrentUserAdmin()) {
+            window.location.assign(origin + '/admin/index.html');
+            return;
+        }
+        if (API.isLoggedIn() && !API.isCurrentUserAdmin()) {
             API.clearToken();
         }
 
@@ -63,13 +63,17 @@
             btn.prop('disabled', true).text('Signing in...');
 
             try {
-                var data = await API.login($('#admin-email').val().trim(), $('#admin-password').val());
-                if (data && data.user && data.user.is_admin) {
+                await API.login($('#admin-email').val().trim(), $('#admin-password').val());
+                try {
+                    var me = await API.getProfile({ skipAuthRedirect: true });
+                    if (me && me.user) API.setUser(me.user);
+                } catch (e2) { /* keep login payload */ }
+                if (API.isCurrentUserAdmin()) {
                     showSuccess('Redirecting...');
-                    window.location.href = '/admin/index.html';
+                    window.location.assign(origin + '/admin/index.html');
                 } else {
                     API.clearToken();
-                    showError('Admin access required. Use the main site to log in as a client.');
+                    showError('Not an admin account. On the server: node src/set-admin.js your@email.com then log in again.');
                     btn.prop('disabled', false).text('Login');
                 }
             } catch (err) {

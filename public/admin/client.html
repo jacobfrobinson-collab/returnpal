@@ -251,12 +251,12 @@
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
-    <script src="/assets/js/api.js"></script>
+    <script src="/assets/js/api.js?v=rp9"></script>
     <script>
     $(function() {
-        if (!API.isLoggedIn()) { window.location.href = '/admin/login.html'; return; }
-        var user = API.getUser();
-        if (!user || !user.is_admin) { API.clearToken(); window.location.href = '/admin/login.html'; return; }
+        var ao = window.location.origin || '';
+        if (!API.isLoggedIn()) { window.location.assign(ao + '/admin/login.html'); return; }
+        if (!API.isCurrentUserAdmin()) { API.clearToken(); window.location.assign(ao + '/admin/login.html'); return; }
 
         var clientId = new URLSearchParams(window.location.search).get('id');
         if (!clientId) { window.location.href = '/admin/index.html'; return; }

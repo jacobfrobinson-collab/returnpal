@@ -61,6 +61,9 @@ const API = {
             const n = parseInt(u.id, 10);
             if (Number.isFinite(n) && n > 0) u.id = n;
         }
+        if ('is_admin' in u) {
+            u.is_admin = !!(u.is_admin === true || u.is_admin === 1 || u.is_admin === '1');
+        }
         return u;
     },
     setUser(user) {
@@ -78,19 +81,23 @@ const API = {
      * so the user is not left with a stale token (login.html would send them back to dashboard).
      */
     navigateAwayOnUnauthorized() {
+        const o = typeof window !== 'undefined' && window.location && window.location.origin ? window.location.origin : '';
+        const onAdminPath = typeof window !== 'undefined' && window.location && window.location.pathname
+            && window.location.pathname.indexOf('/admin') === 0;
+        const loginPath = onAdminPath ? '/admin/login.html' : '/login.html';
+
         const hadSessionToken = !!this.getSessionToken();
         if (hadSessionToken) {
             this.clearSessionAuth();
             sessionStorage.removeItem('returnpal_impersonating');
             if (localStorage.getItem('returnpal_token') && this.isCurrentUserAdmin()) {
-                window.location.href = '/admin/index.html';
+                window.location.assign(o + '/admin/index.html');
                 return;
             }
         } else {
             this.clearToken();
         }
-        const o = typeof window !== 'undefined' && window.location && window.location.origin ? window.location.origin : '';
-        window.location.assign(o + '/login.html');
+        window.location.assign(o + loginPath);
     },
 
     /** Decode JWT payload (no verify — for UI routing only). */
