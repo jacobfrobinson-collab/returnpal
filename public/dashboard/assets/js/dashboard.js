@@ -1,8 +1,10 @@
 /**
  * ReturnPal Dashboard Controller
  * Handles all dashboard pages: packages, received, sold, pending, invoices, settings
- * Include AFTER api.js and jQuery on every dashboard page.
+ * Include AFTER api.js, dateUk.js, and jQuery on every dashboard page.
  */
+
+/* global RP_DATE */
 
 const Dashboard = {
     getClientIdFromToken() {
@@ -251,7 +253,7 @@ const Dashboard = {
         if (!$list.length) return;
 
         function fmtDate(s) {
-            return s ? new Date(s).toLocaleDateString() : '-';
+            return s ? RP_DATE.format(s) : '-';
         }
         function escHtml(s) {
             return String(s || '')
@@ -716,11 +718,10 @@ const Dashboard = {
         }
     },
 
-    // ─── Helper: format date ─────────────────────────────────
+    // ─── Helper: format date (dd/mm/yyyy, UK day-first parsing for ambiguous strings) ──
     formatDate(dateStr) {
         if (!dateStr) return '-';
-        const d = new Date(dateStr);
-        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' });
+        return RP_DATE.format(dateStr);
     },
 
     // ─── Helper: status badge (design token colors) ───────────
@@ -1002,7 +1003,7 @@ const Dashboard = {
                     $annWidget.html('<span class="text-muted small">No announcements</span>');
                 } else {
                     const html = announcements.map(a => {
-                        const dateStr = a.date ? new Date(a.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+                        const dateStr = a.date ? RP_DATE.formatShortMonth(a.date) : '';
                         const sum = (a.summary || '').slice(0, 60) + ((a.summary || '').length > 60 ? '…' : '');
                         return '<div class="mb-2"><a href="announcements.html" class="text-body small fw-medium">' + (a.title || '') + '</a><br><small class="text-muted">' + dateStr + ' – ' + sum + '</small></div>';
                     }).join('');
@@ -2139,7 +2140,7 @@ const Dashboard = {
                 $tbody.html('<tr><td colspan="4" class="text-center py-5 text-muted">No referrals yet. Use "Refer a seller" or share your referral link.</td></tr>');
             } else {
                 list.forEach(r => {
-                    const date = r.referred_at ? new Date(r.referred_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
+                    const date = r.referred_at ? RP_DATE.formatShortMonth(r.referred_at) : '-';
                     const statusClass = r.status === 'Active' ? 'success' : r.status === 'Signed up' ? 'info' : 'secondary';
                     const earned = r.earned != null ? '£' + Number(r.earned).toFixed(2) : '-';
                     $tbody.append(
@@ -2187,8 +2188,8 @@ const Dashboard = {
         try {
             const data = await API.getRoiReport(params);
             const fmt = (n) => '£' + Number(n).toFixed(2);
-            const periodStart = data.period_start ? new Date(data.period_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-            const periodEnd = data.period_end ? new Date(data.period_end).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+            const periodStart = data.period_start ? RP_DATE.formatLongMonth(data.period_start) : '';
+            const periodEnd = data.period_end ? RP_DATE.formatLongMonth(data.period_end) : '';
             $('#roi-period-text').text(periodStart && periodEnd ? periodStart + ' – ' + periodEnd : (data.period_start || '') + ' – ' + (data.period_end || ''));
             $('#roi-cost-sent').text(fmt(data.cost_value_sent || 0));
             $('#roi-recovered').text(fmt(data.recovered || 0));
@@ -2251,7 +2252,7 @@ const Dashboard = {
             return;
         }
         announcements.forEach(a => {
-            const dateStr = a.date ? new Date(a.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+            const dateStr = a.date ? RP_DATE.formatShortMonth(a.date) : '';
             const fullId = 'announcement-full-' + a.id;
             $feed.append(
                 '<div class="list-group-item border-0 border-bottom py-3" data-announcement-id="' + a.id + '">' +
@@ -2660,11 +2661,7 @@ const Dashboard = {
     },
     formatDateUK(d) {
         if (!d) return '';
-        const x = d instanceof Date ? d : new Date(d);
-        const day = String(x.getDate()).padStart(2, '0');
-        const month = String(x.getMonth() + 1).padStart(2, '0');
-        const year = x.getFullYear();
-        return day + '/' + month + '/' + year;
+        return RP_DATE.format(d);
     },
 
     // ─── ITEM DETAIL PAGE ─────────────────────────────────────

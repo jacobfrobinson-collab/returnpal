@@ -279,6 +279,7 @@
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp11"></script>
+    <script src="/assets/js/dateUk.js"></script>
     <script>
     $(function() {
         var ao = window.location.origin || '';
@@ -291,7 +292,7 @@
         $('#admin-client-id-badge').text('ID ' + String(parseInt(clientId, 10) || 0).padStart(4, '0'));
         $('#link-view-dashboard').attr('href', '#');
 
-        function fmtDate(s) { return s ? new Date(s).toLocaleDateString() : '-'; }
+        function fmtDate(s) { return s ? RP_DATE.format(s) : '-'; }
 
         function loadClientName() {
             API.request('/admin/users').then(function(data) {

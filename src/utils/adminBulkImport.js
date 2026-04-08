@@ -64,7 +64,7 @@ function aliasKey(k) {
  * @returns {Array<Record<string, unknown>>}
  */
 function parseSpreadsheetBuffer(buffer) {
-    const wb = XLSX.read(buffer, { type: 'buffer' });
+    const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const arr = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
     if (!arr.length) return [];
@@ -96,13 +96,48 @@ function str(v) {
     return v == null ? '' : String(v).trim();
 }
 
+function pad2(n) {
+    return n < 10 ? '0' + n : String(n);
+}
+
+/**
+ * Normalize sold_date from spreadsheet to YYYY-MM-DD (UK dd/mm/yyyy first).
+ * @param {unknown} v
+ * @returns {string|null}
+ */
+function normalizeSoldDateForDb(v) {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number' && Number.isFinite(v) && v > 20000 && v < 120000) {
+        const epochMs = Date.UTC(1899, 11, 30) + Math.round(v) * 86400000;
+        const d = new Date(epochMs);
+        if (!isNaN(d.getTime())) {
+            return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+        }
+    }
+    if (v instanceof Date && !isNaN(v.getTime())) {
+        return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate());
+    }
+    const s0 = str(v).split(/[T ]/)[0];
+    const iso = s0.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (iso) return s0;
+    const uk = s0.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
+    if (uk) {
+        const day = parseInt(uk[1], 10);
+        const mo = parseInt(uk[2], 10);
+        const y = parseInt(uk[3], 10);
+        if (mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
+            return y + '-' + pad2(mo) + '-' + pad2(day);
+        }
+    }
+    return null;
+}
+
 function importSoldRow(db, userId, row) {
     const product = str(row.product);
     if (!product) throw new Error('item name (product) is required');
     const reference = str(row.reference);
     const qty = Math.max(1, parseInt(row.quantity, 10) || 1);
-    const soldDateRaw = str(row.sold_date);
-    const soldDateParam = soldDateRaw || null;
+    const soldDateParam = normalizeSoldDateForDb(row.sold_date);
 
     const hasEarningsCol = Object.prototype.hasOwnProperty.call(row, 'earnings');
     const earningsStr = hasEarningsCol ? str(row.earnings) : '';

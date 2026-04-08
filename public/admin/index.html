@@ -62,6 +62,7 @@
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp10"></script>
+    <script src="/assets/js/dateUk.js"></script>
     <script>
     $(function() {
         var ao = window.location.origin || '';
@@ -102,7 +103,7 @@
                 $tbody.html('<tr><td colspan="7" class="text-center py-4 text-muted">No clients yet.</td></tr>');
             } else {
                 users.forEach(function(u) {
-                    var date = u.created_at ? new Date(u.created_at).toLocaleDateString() : '-';
+                    var date = u.created_at ? RP_DATE.format(u.created_at) : '-';
                     var idPadded = u.id != null ? String(u.id).padStart(4, '0') : '';
                     var isAdmin = u.is_admin === true || u.is_admin === 1 || u.is_admin === '1';
                     var emailAttr = String(u.email || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
