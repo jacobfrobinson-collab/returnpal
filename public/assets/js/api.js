@@ -813,6 +813,11 @@ const API = {
         return this.request('/queries', { method: 'POST', body });
     },
 
+    /** Admin: permanently delete a client account (non-admin users only). */
+    async adminDeleteUser(userId) {
+        return this.request('/admin/users/' + encodeURIComponent(userId), { method: 'DELETE' });
+    },
+
     async importInventoryRows(rows) {
         return this.request('/inventory/import', { method: 'POST', body: { rows } });
     },

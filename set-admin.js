@@ -1,15 +1,21 @@
 /**
  * Promote a user to admin by email.
- * Run from repo root (same folder as package.json), e.g. Render shell ~/project/src:
- *   node set-admin.js you@gmail.com
+ * Run from the folder that contains package.json:
+ *   Repo root:  node set-admin.js you@gmail.com
+ *   Render:     cd ~/project/src && node set-admin.js you@gmail.com
  *   npm run set-admin -- you@gmail.com
  *
  * Uses the same email normalisation as login/register so the row is found.
  */
 
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const validator = require('validator');
-const { getDb, saveDb, DB_PATH } = require('./src/database');
+const dbRel = fs.existsSync(path.join(__dirname, 'database.js'))
+    ? './database'
+    : './src/database';
+const { getDb, saveDb, DB_PATH } = require(dbRel);
 
 function parseResults(result) {
     if (!result || result.length === 0) return [];

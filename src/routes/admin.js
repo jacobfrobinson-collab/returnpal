@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware, requireAdmin, generateToken } = require('../middleware/auth');
+const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
 
 const router = express.Router();
@@ -39,12 +40,68 @@ router.get('/users', async (req, res) => {
         const db = await getDb();
         const rows = parseResults(
             db.exec(
-                'SELECT id, email, full_name, company_name, created_at FROM users ORDER BY created_at DESC'
+                'SELECT id, email, full_name, company_name, created_at, COALESCE(is_admin, 0) AS is_admin FROM users ORDER BY created_at DESC'
             )
         );
         res.json({ users: rows });
     } catch (err) {
         console.error('Admin list users error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+function unlinkAvatarFile(avatarUrl) {
+    if (!avatarUrl || typeof avatarUrl !== 'string') return;
+    if (!avatarUrl.startsWith('/uploads/')) return;
+    const rel = avatarUrl.replace(/^\/uploads\/?/, '').replace(/^\/+/, '');
+    if (!rel.startsWith('avatars/')) return;
+    const full = path.join(uploadsBaseDir, rel);
+    const resolved = path.resolve(full);
+    const rootResolved = path.resolve(uploadsBaseDir);
+    if (!resolved.startsWith(rootResolved + path.sep) && resolved !== rootResolved) return;
+    fs.unlink(resolved, () => {});
+}
+
+// DELETE /api/admin/users/:id — remove client account and related data (cannot delete self or admins)
+router.delete('/users/:id', async (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id, 10);
+        if (isNaN(targetId)) return res.status(400).json({ error: 'Invalid user id' });
+        if (targetId === req.user.id) {
+            return res.status(400).json({ error: 'You cannot delete your own account from here' });
+        }
+
+        const db = await getDb();
+        const urows = parseResults(
+            db.exec('SELECT id, email, is_admin, avatar_url FROM users WHERE id = ?', [targetId])
+        );
+        if (!urows.length) return res.status(404).json({ error: 'User not found' });
+        const target = urows[0];
+        if (coerceIsAdmin(target.is_admin)) {
+            return res.status(400).json({ error: 'Cannot delete an admin account' });
+        }
+
+        const claims = parseResults(db.exec('SELECT id FROM reimbursement_claims WHERE user_id = ?', [targetId]));
+        for (const c of claims) {
+            const dir = path.join(reimbursementUploadDir, String(c.id));
+            if (fs.existsSync(dir)) {
+                try {
+                    fs.rmSync(dir, { recursive: true, force: true });
+                } catch (e) {
+                    console.error('Admin delete user: could not remove reimbursement dir', dir, e);
+                }
+            }
+        }
+
+        unlinkAvatarFile(target.avatar_url);
+
+        db.run('UPDATE users SET referred_by = NULL WHERE referred_by = ?', [targetId]);
+        db.run('DELETE FROM users WHERE id = ?', [targetId]);
+        saveDb();
+
+        res.json({ message: 'Account deleted' });
+    } catch (err) {
+        console.error('Admin delete user error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

@@ -60,7 +60,7 @@
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
-    <script src="/assets/js/api.js?v=rp9"></script>
+    <script src="/assets/js/api.js?v=rp10"></script>
     <script>
     $(function() {
         var ao = window.location.origin || '';
@@ -103,13 +103,19 @@
                 users.forEach(function(u) {
                     var date = u.created_at ? new Date(u.created_at).toLocaleDateString() : '-';
                     var idPadded = u.id != null ? String(u.id).padStart(4, '0') : '';
+                    var isAdmin = u.is_admin === true || u.is_admin === 1 || u.is_admin === '1';
+                    var emailAttr = String(u.email || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                    var deleteBtn = isAdmin
+                        ? '<span class="text-muted small me-1" title="Admin accounts cannot be deleted here">—</span>'
+                        : '<button type="button" class="btn btn-sm btn-outline-danger delete-user-btn me-1" data-id="' + u.id + '" data-email="' + emailAttr + '">Delete</button>';
                     var row = '<tr>' +
                         '<td>' + idPadded + '</td>' +
-                        '<td>' + (u.full_name || '-') + '</td>' +
+                        '<td>' + (u.full_name || '-') + (isAdmin ? ' <span class="badge bg-secondary">Admin</span>' : '') + '</td>' +
                         '<td>' + (u.email || '') + '</td>' +
                         '<td>' + (u.company_name || '-') + '</td>' +
                         '<td>' + date + '</td>' +
                         '<td class="text-nowrap">' +
+                        deleteBtn +
                         '<a href="client.html?id=' + u.id + '" class="btn btn-sm btn-outline-secondary me-1">Update data</a>' +
                         '<button type="button" class="btn btn-sm btn-outline-primary view-dashboard-btn" data-id="' + u.id + '" data-name="' + (u.full_name || u.email) + '">View dashboard</button>' +
                         '</td>' +
@@ -135,6 +141,24 @@
                     showError(err && err.error ? err.error : 'Failed to load clients.');
                 });
         }
+
+        $(document).on('click', '.delete-user-btn', function() {
+            var btn = $(this);
+            var id = btn.data('id');
+            var email = btn.data('email') || '';
+            if (!confirm('Permanently delete this account?\n\n' + email + '\n\nAll packages, inventory, and history for this client will be removed. This cannot be undone.')) {
+                return;
+            }
+            btn.prop('disabled', true).text('Deleting…');
+            API.adminDeleteUser(id)
+                .then(function() {
+                    loadUsers();
+                })
+                .catch(function(err) {
+                    alert(err && err.error ? err.error : 'Delete failed.');
+                    btn.prop('disabled', false).text('Delete');
+                });
+        });
 
         $(document).on('click', '.view-dashboard-btn', function() {
             var id = $(this).data('id');
