@@ -73,7 +73,7 @@
                     window.location.assign(origin + '/admin/index.html');
                 } else {
                     API.clearToken();
-                    showError('Not an admin account. On the server: node src/set-admin.js your@email.com then log in again.');
+                    showError('Not an admin account. On the server run: node set-admin.js your@email.com then sign in again (or use npm run create-admin for a new admin).');
                     btn.prop('disabled', false).text('Login');
                 }
             } catch (err) {

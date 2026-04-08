@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { generateToken, authMiddleware } = require('../middleware/auth');
+const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 
 const router = express.Router();
 
@@ -187,7 +188,7 @@ router.post('/login', [
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
-        const isAdmin = !!(user.is_admin || user.is_admin === 1);
+        const isAdmin = coerceIsAdmin(user.is_admin);
         const token = generateToken({ id: user.id, email: user.email, is_admin: isAdmin });
 
         const uid = parseInt(user.id, 10);
@@ -231,6 +232,8 @@ router.get('/me', authMiddleware, async (req, res) => {
             const nid = parseInt(user.id, 10);
             if (Number.isFinite(nid) && nid > 0) user.id = nid;
         }
+
+        user.is_admin = coerceIsAdmin(user.is_admin);
 
         res.json({ user });
     } catch (err) {

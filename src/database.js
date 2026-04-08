@@ -356,4 +356,4 @@ process.on('exit', saveDb);
 process.on('SIGINT', () => { saveDb(); process.exit(); });
 process.on('SIGTERM', () => { saveDb(); process.exit(); });
 
-module.exports = { getDb, saveDb, pushActivity };
+module.exports = { getDb, saveDb, pushActivity, DB_PATH };
