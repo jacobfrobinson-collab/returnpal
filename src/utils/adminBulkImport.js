@@ -92,6 +92,34 @@ function num(v, def = 0) {
     return Number.isFinite(n) ? n : def;
 }
 
+/**
+ * Parse currency cells: £1.79, -£6.43, –£7.09 (unicode minus), 36.31, bare Excel numbers.
+ * @param {unknown} v
+ * @returns {number} NaN if not parseable
+ */
+function parseMoney(v) {
+    if (v == null || v === '') return NaN;
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    let s = String(v).trim();
+    if (!s) return NaN;
+    // Unicode minus / dashes used by Excel & locales → ASCII minus (before and after strip)
+    s = s.replace(/[\u2212\u2013\u2014\u2012]/g, '-');
+    // Strip currency symbols and spaces (keep digits, dot, comma, minus)
+    s = s.replace(/[£$€\s]/gi, '');
+    s = s.replace(/[\u2212\u2013\u2014\u2012]/g, '-');
+    // UK-style thousands: 1,234.56 → remove commas
+    if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s) || /^-?\d+,\d{3}/.test(s)) {
+        s = s.replace(/,/g, '');
+    } else {
+        // lone comma as decimal (1,79) rare in UK exports; if one comma and no dot, treat as decimal
+        const commaDec = /^-?\d+,\d{1,2}$/.test(s);
+        if (commaDec) s = s.replace(',', '.');
+        else s = s.replace(/,/g, '');
+    }
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : NaN;
+}
+
 function str(v) {
     return v == null ? '' : String(v).trim();
 }
@@ -141,7 +169,7 @@ function importSoldRow(db, userId, row) {
 
     const hasEarningsCol = Object.prototype.hasOwnProperty.call(row, 'earnings');
     const earningsStr = hasEarningsCol ? str(row.earnings) : '';
-    const earningsNum = hasEarningsCol && earningsStr !== '' ? num(row.earnings, NaN) : NaN;
+    const earningsNum = hasEarningsCol && earningsStr !== '' ? parseMoney(row.earnings) : NaN;
 
     let unit;
     let total;
