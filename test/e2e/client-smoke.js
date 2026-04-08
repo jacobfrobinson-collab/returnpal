@@ -27,6 +27,15 @@ async function waitForHealth(timeoutMs = 45000) {
     throw new Error(`Server not reachable at ${BASE} (start with: npm start)`);
 }
 
+async function healthOkOnce() {
+    try {
+        const res = await fetch(`${BASE}/api/health`);
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
 async function registerUser() {
     const email = `e2e-${Date.now()}@returnpal.test`;
     const password = 'e2epass123';
@@ -50,11 +59,14 @@ async function registerUser() {
 async function main() {
     let serverProc = null;
     if (process.env.E2E_START_SERVER === '1') {
-        serverProc = spawn(process.execPath, ['src/server.js'], {
-            cwd: ROOT,
-            stdio: 'ignore',
-            env: { ...process.env, PORT: process.env.PORT || '3000' }
-        });
+        const alreadyUp = await healthOkOnce();
+        if (!alreadyUp) {
+            serverProc = spawn(process.execPath, ['src/server.js'], {
+                cwd: ROOT,
+                stdio: 'ignore',
+                env: { ...process.env, PORT: process.env.PORT || '3000' }
+            });
+        }
     }
 
     try {

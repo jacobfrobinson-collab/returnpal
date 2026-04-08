@@ -663,31 +663,43 @@ const API = {
             { min_active: 11, max_active: null, reward_per_referral: 20, label: 'Tier 3' }
         ];
         const referrals = [
-            { email: 'jane@example.com', referred_at: daysAgo(2), status: 'Pending' },
+            { email: 'jane@example.com', referred_at: daysAgo(2), status: 'Signed up' },
             { email: 'mike@example.com', referred_at: daysAgo(5), status: 'Signed up' },
             { email: 'sarah@example.com', referred_at: daysAgo(14), status: 'Active', earned: 10 },
             { email: 'alex@example.com', referred_at: daysAgo(21), status: 'Active', earned: 10 }
         ];
         const activeCount = referrals.filter(r => r.status === 'Active').length;
-        let currentTier = tiers[0];
+        function tierForActiveCount(n) {
+            for (const t of tiers) {
+                if (n >= t.min_active && (t.max_active == null || n <= t.max_active)) return t;
+            }
+            return null;
+        }
+        const currentTier = tierForActiveCount(activeCount);
+        const rewardEach = currentTier ? Number(currentTier.reward_per_referral) || 0 : 0;
+        referrals.forEach((r) => {
+            r.earned = r.status === 'Active' ? rewardEach : 0;
+        });
         let nextTier = null;
-        for (let i = 0; i < tiers.length; i++) {
-            const t = tiers[i];
-            if (activeCount >= t.min_active && (t.max_active == null || activeCount <= t.max_active)) {
-                currentTier = t;
-                nextTier = tiers[i + 1] || null;
-                break;
+        let activeRequired = 0;
+        if (activeCount === 0) {
+            nextTier = tiers[0];
+            activeRequired = 1;
+        } else if (currentTier) {
+            const idx = tiers.indexOf(currentTier);
+            if (idx >= 0 && idx < tiers.length - 1) {
+                nextTier = tiers[idx + 1];
+                activeRequired = Math.max(0, nextTier.min_active - activeCount);
             }
         }
-        if (!nextTier && tiers[tiers.indexOf(currentTier) + 1]) nextTier = tiers[tiers.indexOf(currentTier) + 1];
-        const activeRequired = nextTier ? nextTier.min_active - activeCount : 0;
         return {
             referral_code: 'DEMO12',
             referral_link: 'https://returnpal.co/ref/DEMO12',
             total_earned: referrals.reduce((s, r) => s + (Number(r.earned) || 0), 0),
+            active_count: activeCount,
             tiers,
             current_tier: currentTier,
-            next_tier: nextTier ? { ...nextTier, active_required: Math.max(0, activeRequired) } : null,
+            next_tier: nextTier ? { ...nextTier, active_required: activeRequired } : null,
             referrals
         };
     },

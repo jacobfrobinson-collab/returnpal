@@ -152,6 +152,16 @@
                         <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
                             <span class="badge bg-primary fs-6 px-3 py-2" id="referrals-tier-label">-</span>
                             <span class="text-muted small" id="referrals-tier-reward">£0 per active referral</span>
+                            <span class="text-muted small" id="referrals-active-count-wrap"><span id="referrals-active-count">0</span> active referral(s)</span>
+                        </div>
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span>Progress to next tier</span>
+                                <span id="referrals-tier-progress-label">—</span>
+                            </div>
+                            <div class="progress" style="height: 10px" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                                <div class="progress-bar bg-primary" id="referrals-tier-progress" style="width: 0%"></div>
+                            </div>
                         </div>
                         <p class="small text-muted mb-0" id="referrals-tier-next"></p>
                     </div>
@@ -161,7 +171,7 @@
                 <div class="rp-card card border-0 mb-4">
                     <div class="card-body">
                         <h6 class="mb-2"><i class="ri-gift-line me-1"></i>How referral rewards work</h6>
-                        <p class="text-muted small mb-2">Use your <strong>unique referral link</strong> (or share by email). When someone signs up via your link, they’re attributed to you and appear here as <span class="badge bg-secondary-subtle text-secondary">Pending</span>. After they <strong>sign up</strong> they move to <span class="badge bg-info-subtle text-info">Signed up</span>. When they <strong>send their first package</strong>, they become <span class="badge bg-success-subtle text-success">Active</span> and you earn a reward based on your current tier.</p>
+                        <p class="text-muted small mb-2">Use your <strong>unique referral link</strong> (or share by email). When someone signs up via your link, they appear here as <span class="badge bg-info-subtle text-info">Signed up</span> until they send their first package. When they <strong>send their first package</strong>, they become <span class="badge bg-success-subtle text-success">Active</span> and count toward your tier. Rewards use your <strong>current tier</strong> (based on how many active referrals you have).</p>
                         <p class="text-muted small mb-2">Rewards are <strong>tiered</strong>: the more active referrals you have, the more you earn per referral. No limit on how many people you refer. Full terms apply.</p>
                         <div class="small text-muted" id="referrals-tier-breakdown">
                             <span class="d-inline-block me-3">Tier 1 (1–5 active): £10 each</span>

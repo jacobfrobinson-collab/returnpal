@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware, requireAdmin, generateToken } = require('../middleware/auth');
+const { adminRateLimitMiddleware } = require('../middleware/adminRateLimit');
 const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
 const { runBulkImport, buildTemplateBuffer, KINDS: BULK_IMPORT_KINDS } = require('../utils/adminBulkImport');
@@ -43,6 +44,7 @@ function parseResults(result) {
 // All admin routes require auth + admin
 router.use(authMiddleware);
 router.use(requireAdmin);
+router.use(adminRateLimitMiddleware);
 
 // GET /api/admin/users – list all clients
 router.get('/users', async (req, res) => {

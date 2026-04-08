@@ -2057,52 +2057,88 @@ const Dashboard = {
             const data = await API.getReferrals();
             const list = data.referrals || [];
             const totalEarned = data.total_earned != null ? data.total_earned : list.reduce((s, r) => s + (Number(r.earned) || 0), 0);
-            const signedUp = list.filter(r => r.status === 'Signed up' || r.status === 'Active').length;
-            const active = list.filter(r => r.status === 'Active').length;
+            const active = data.active_count != null ? Number(data.active_count) : list.filter(r => r.status === 'Active').length;
+            const signedUpOnly = list.filter(r => r.status === 'Signed up').length;
 
             $('#referrals-total').text(list.length);
-            $('#referrals-signed-up').text(signedUp);
+            $('#referrals-signed-up').text(signedUpOnly);
             $('#referrals-active').text(active);
             $('#referrals-earned').text('£' + Number(totalEarned).toFixed(2));
             const link = data.referral_link || '';
             const $input = $('#referral-link-input');
             if ($input.length && link) $input.val(link);
 
-            // Tiered rewards: show current tier, reward per referral, next tier hint
             const tiers = data.tiers || [
                 { min_active: 1, max_active: 5, reward_per_referral: 10, label: 'Tier 1' },
                 { min_active: 6, max_active: 10, reward_per_referral: 15, label: 'Tier 2' },
                 { min_active: 11, max_active: null, reward_per_referral: 20, label: 'Tier 3' }
             ];
-            let currentTier = data.current_tier || null;
-            if (!currentTier && tiers.length) {
-                for (let i = tiers.length - 1; i >= 0; i--) {
-                    if (active >= tiers[i].min_active && (tiers[i].max_active == null || active <= tiers[i].max_active)) {
-                        currentTier = tiers[i];
-                        break;
-                    }
-                }
-                if (!currentTier) currentTier = tiers[0];
-            }
-            const tierIdx = currentTier ? tiers.findIndex(t => t.label === currentTier.label) : 0;
-            const nextTier = data.next_tier || (tierIdx >= 0 && tierIdx < tiers.length - 1 ? tiers[tierIdx + 1] : null);
-            const activeRequired = nextTier ? (nextTier.active_required != null ? nextTier.active_required : Math.max(0, (nextTier.min_active || 0) - active)) : 0;
+            const currentTier = data.current_tier || null;
+            const nextTier = data.next_tier || null;
+            const activeRequired = nextTier && nextTier.active_required != null ? Number(nextTier.active_required) : 0;
 
-            $('#referrals-tier-label').text(currentTier ? currentTier.label : '-');
-            $('#referrals-tier-reward').text(currentTier ? '£' + (currentTier.reward_per_referral || 0) + ' per active referral' : '£0 per active referral');
+            $('#referrals-active-count').text(active);
+            if (currentTier) {
+                $('#referrals-tier-label').text(currentTier.label || '-');
+                $('#referrals-tier-reward').text('£' + (currentTier.reward_per_referral || 0) + ' per active referral');
+            } else {
+                $('#referrals-tier-label').text('Unlock rewards');
+                $('#referrals-tier-reward').text('Get your first active referral to earn (Tier 1: £' + (tiers[0] && tiers[0].reward_per_referral != null ? tiers[0].reward_per_referral : 10) + ' each)');
+            }
+
+            let pct = 100;
+            let progLabel = 'Top tier';
+            if (nextTier && nextTier.min_active != null) {
+                const goal = Number(nextTier.min_active) || 1;
+                pct = Math.min(100, Math.round((active / goal) * 100));
+                progLabel = active + ' / ' + goal + ' active toward ' + (nextTier.label || 'next tier');
+            }
+            if (!nextTier && currentTier) {
+                progLabel = 'Top tier — £' + (currentTier.reward_per_referral || 0) + ' per active referral';
+            }
+            $('#referrals-tier-progress').css('width', pct + '%').attr('aria-valuenow', pct);
+            $('#referrals-tier-progress-label').text(progLabel);
+
             if (nextTier && activeRequired > 0) {
-                $('#referrals-tier-next').text(activeRequired + ' more active referral' + (activeRequired !== 1 ? 's' : '') + ' to reach ' + (nextTier.label || 'next tier') + ' (£' + (nextTier.reward_per_referral || 0) + ' per referral).').removeClass('d-none');
-            } else if (currentTier && tierIdx >= tiers.length - 1) {
-                $('#referrals-tier-next').text('You’re in the top tier. Keep referring to earn £' + (currentTier.reward_per_referral || 0) + ' per active referral.').removeClass('d-none');
+                $('#referrals-tier-next')
+                    .text(
+                        'Next: ' +
+                            activeRequired +
+                            ' more active referral' +
+                            (activeRequired !== 1 ? 's' : '') +
+                            ' to unlock ' +
+                            (nextTier.label || 'the next tier') +
+                            ' (£' +
+                            (nextTier.reward_per_referral || 0) +
+                            ' per active referral).'
+                    )
+                    .removeClass('d-none');
+            } else if (currentTier && !nextTier) {
+                $('#referrals-tier-next')
+                    .text('You’re in the top tier. Each active referral earns £' + (currentTier.reward_per_referral || 0) + '.')
+                    .removeClass('d-none');
             } else {
                 $('#referrals-tier-next').addClass('d-none').text('');
             }
+
             const $breakdown = $('#referrals-tier-breakdown');
             if ($breakdown.length && tiers.length) {
-                $breakdown.html(tiers.map(t => {
-                    const range = t.max_active != null ? (t.min_active + '–' + t.max_active) : (t.min_active + '+');
-                    return '<span class="d-inline-block me-3">' + (t.label || '') + ' (' + range + ' active): £' + (t.reward_per_referral || 0) + ' each</span>';
-                }).join(''));
+                $breakdown.html(
+                    tiers
+                        .map((t) => {
+                            const range = t.max_active != null ? t.min_active + '–' + t.max_active : t.min_active + '+';
+                            return (
+                                '<span class="d-inline-block me-3">' +
+                                (t.label || '') +
+                                ' (' +
+                                range +
+                                ' active): £' +
+                                (t.reward_per_referral || 0) +
+                                ' each</span>'
+                            );
+                        })
+                        .join('')
+                );
             }
 
             $tbody.empty();

@@ -10,7 +10,8 @@
     "create-admin": "node create-admin-user.js",
     "set-admin": "node set-admin.js",
     "test": "node test/api.test.js",
-    "test:e2e": "node test/e2e/client-smoke.js"
+    "test:e2e": "node test/e2e/client-smoke.js",
+    "test:e2e:admin": "node test/e2e/admin-bulk-import.js"
   },
   "keywords": [
     "returnpal",
@@ -25,6 +26,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.3.2",
     "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",

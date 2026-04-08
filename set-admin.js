@@ -94,6 +94,8 @@ async function setAdmin() {
     console.log('OK — is_admin =', verify.is_admin, 'for', verify.email, '(id ' + verify.id + ')');
     console.log('Open /admin/login.html and sign in (or sign out in the browser first so a fresh JWT is issued).');
     console.log('The live server reloads the DB file when it changes; if login still fails, restart the web service once.');
+    // database.js registers setInterval(saveDb); without exit the process would never finish (breaks execFileSync / CI).
+    process.exit(0);
 }
 
 setAdmin().catch((err) => {

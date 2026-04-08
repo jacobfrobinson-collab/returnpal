@@ -60,32 +60,45 @@ router.get('/', authMiddleware, async (req, res) => {
 
         const activeCount = referrals.filter(r => r.status === 'Active').length;
 
-        let currentTier = TIERS[0];
-        let nextTier = TIERS[1] || null;
-        for (let i = 0; i < TIERS.length; i++) {
-            const t = TIERS[i];
-            if (activeCount >= t.min_active && (t.max_active == null || activeCount <= t.max_active)) {
-                currentTier = t;
-                nextTier = TIERS[i + 1] || null;
-                break;
+        /** Which reward band applies given number of active referrals (1–5, 6–10, 11+). None if zero actives. */
+        function tierForActiveCount(n) {
+            for (const t of TIERS) {
+                if (n >= t.min_active && (t.max_active == null || n <= t.max_active)) return t;
             }
+            return null;
         }
 
-        const rewardEach = Number(currentTier.reward_per_referral) || 0;
+        const currentTier = tierForActiveCount(activeCount);
+        const rewardEach = currentTier ? Number(currentTier.reward_per_referral) || 0 : 0;
         referrals.forEach((r) => {
             r.earned = r.status === 'Active' ? rewardEach : 0;
         });
 
         const total_earned = referrals.reduce((s, r) => s + (Number(r.earned) || 0), 0);
 
-        const activeRequired = nextTier ? Math.max(0, (nextTier.min_active || 0) - activeCount) : 0;
-        const nextTierWithRequired = nextTier ? { ...nextTier, active_required: activeRequired } : null;
+        let nextTier = null;
+        let activeRequired = 0;
+        if (activeCount === 0) {
+            nextTier = TIERS[0];
+            activeRequired = 1;
+        } else if (currentTier) {
+            const idx = TIERS.indexOf(currentTier);
+            if (idx >= 0 && idx < TIERS.length - 1) {
+                nextTier = TIERS[idx + 1];
+                activeRequired = Math.max(0, nextTier.min_active - activeCount);
+            }
+        }
+
+        const nextTierWithRequired = nextTier
+            ? { ...nextTier, active_required: activeRequired }
+            : null;
 
         res.json({
             referral_code: referralCode,
             referral_link: referralLink,
             referrals,
             total_earned,
+            active_count: activeCount,
             tiers: TIERS,
             current_tier: currentTier,
             next_tier: nextTierWithRequired
