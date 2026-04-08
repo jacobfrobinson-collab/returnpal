@@ -6,8 +6,38 @@ const DB_PATH = path.resolve(process.env.DB_PATH || './data/returnpal.db');
 const DB_DIR = path.dirname(DB_PATH);
 
 let db = null;
+/** Resolved sql.js module (for sync reload inside saveDb). */
+let sqlJsModule = null;
+/** mtime of DB file after our last load or save — detects external writes (e.g. set-admin.js). */
+let dbFileMtimeMs = 0;
+let sqlInitPromise = null;
+
+/** If the DB file was modified by another process, replace in-memory db so we do not clobber it on save. */
+function reloadDbFromDiskIfStaleSync(reason) {
+    if (!db || !sqlJsModule || !fs.existsSync(DB_PATH)) return;
+    try {
+        const st = fs.statSync(DB_PATH);
+        if (st.mtimeMs <= dbFileMtimeMs) return;
+        db.close();
+        db = new sqlJsModule.Database(fs.readFileSync(DB_PATH));
+        db.run('PRAGMA foreign_keys = ON;');
+        dbFileMtimeMs = st.mtimeMs;
+        console.log('[db] Reloaded from disk (' + reason + ')');
+    } catch (e) {
+        console.error('[db] Reload failed (' + reason + '):', e);
+    }
+}
 
 async function getDb() {
+    if (!sqlInitPromise) sqlInitPromise = initSqlJs();
+    const SQL = await sqlInitPromise;
+    sqlJsModule = SQL;
+
+    if (db && fs.existsSync(DB_PATH)) {
+        reloadDbFromDiskIfStaleSync('getDb');
+        return db;
+    }
+
     if (db) return db;
 
     // Ensure data directory exists
@@ -15,12 +45,13 @@ async function getDb() {
         fs.mkdirSync(DB_DIR, { recursive: true });
     }
 
-    const SQL = await initSqlJs();
-
     // Load existing database or create new one
     if (fs.existsSync(DB_PATH)) {
         const buffer = fs.readFileSync(DB_PATH);
         db = new SQL.Database(buffer);
+        try {
+            dbFileMtimeMs = fs.statSync(DB_PATH).mtimeMs;
+        } catch (e) { /* ignore */ }
     } else {
         db = new SQL.Database();
     }
@@ -342,9 +373,13 @@ async function pushActivity(userId, type, message, link) {
 
 function saveDb() {
     if (db) {
+        reloadDbFromDiskIfStaleSync('before save');
         const data = db.export();
         const buffer = Buffer.from(data);
         fs.writeFileSync(DB_PATH, buffer);
+        try {
+            if (fs.existsSync(DB_PATH)) dbFileMtimeMs = fs.statSync(DB_PATH).mtimeMs;
+        } catch (e) { /* ignore */ }
     }
 }
 

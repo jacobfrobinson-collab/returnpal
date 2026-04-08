@@ -86,7 +86,8 @@ async function setAdmin() {
 
     const verify = parseResults(db.exec('SELECT id, email, is_admin FROM users WHERE id = ?', [found.id]))[0];
     console.log('OK — is_admin =', verify.is_admin, 'for', verify.email, '(id ' + verify.id + ')');
-    console.log('Sign out everywhere, then open /admin/login.html and log in again (JWT must be reissued).');
+    console.log('Open /admin/login.html and sign in (or sign out in the browser first so a fresh JWT is issued).');
+    console.log('The live server reloads the DB file when it changes; if login still fails, restart the web service once.');
 }
 
 setAdmin().catch((err) => {

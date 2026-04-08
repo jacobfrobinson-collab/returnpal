@@ -71,6 +71,24 @@ app.get(/^\/dashboard\/[^/]+\.html$/, (req, res, next) => {
     res.sendFile(full);
 });
 
+// Admin UI: /admin and /admin.html would otherwise miss static and hit SPA → marketing home
+app.get('/admin.html', (req, res) => {
+    res.redirect(302, '/admin/index.html');
+});
+app.get(['/admin', '/admin/'], (req, res) => {
+    res.redirect(302, '/admin/index.html');
+});
+app.get(/^\/admin\/[^/]+\.html$/, (req, res, next) => {
+    if (req.path.includes('..')) return next();
+    const rel = req.path.replace(/^\/+/, '');
+    const full = path.resolve(path.join(__dirname, '../public', rel));
+    const pub = path.resolve(path.join(__dirname, '../public'));
+    if (!full.startsWith(pub + path.sep) && full !== pub) return next();
+    if (!fs.existsSync(full)) return next();
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.sendFile(full);
+});
+
 // ─── Static Files (serve frontend) ──────────────────────────
 // Serve the main frontend
 app.use(express.static(path.join(__dirname, '../public')));
@@ -108,6 +126,10 @@ app.get('/api/health', (req, res) => {
 app.get('/{*splat}', (req, res) => {
     if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    // Do not serve marketing SPA for admin paths (static missed → send to admin login)
+    if (req.path.startsWith('/admin')) {
+        return res.redirect(302, '/admin/login.html');
     }
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
