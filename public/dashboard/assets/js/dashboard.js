@@ -1739,7 +1739,7 @@ const Dashboard = {
     },
     async loadSold() {
         const $tbody = $('table tbody');
-        if ($tbody.length) $tbody.html('<tr><td colspan="11" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        if ($tbody.length) $tbody.html('<tr><td colspan="4" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getSold();
 
@@ -1767,17 +1767,10 @@ const Dashboard = {
             };
             const soldRowHtml = (item) => (
                 '<tr>' +
-                '<td>' + esc(item.reference) + '</td>' +
+                '<td>' + this.formatDate(item.sold_date) + '</td>' +
                 '<td>' + productCell(item) + '</td>' +
                 '<td>' + esc(String(item.quantity)) + '</td>' +
-                '<td>£' + Number(item.unit_price).toFixed(2) + '</td>' +
-                '<td class="text-success">£' + Number(item.total_revenue).toFixed(2) + '</td>' +
-                '<td class="text-success">£' + Number(item.profit).toFixed(2) + '</td>' +
-                '<td class="text-primary">' + Number(item.margin).toFixed(0) + '%</td>' +
-                '<td>' + this.recoveryRouteBadge(item.recovery_route, item.recovery_status, item.damage_note) + '</td>' +
-                '<td>' + this.formatDate(item.sold_date) + '</td>' +
-                '<td>' + this.statusBadge(item.status) + '</td>' +
-                '<td class="text-end"><button type="button" class="btn btn-link btn-sm p-0 rp-query-item-btn" data-ctx-type="sold" data-ctx-id="' + esc(String(item.id != null ? item.id : '')) + '" data-ctx-label="' + escAttr((item.product || '') + ' · ref ' + (item.reference || '')) + '">Query</button></td>' +
+                '<td class="text-success">£' + Number(item.profit != null ? item.profit : 0).toFixed(2) + '</td>' +
                 '</tr>'
             );
 
@@ -1837,7 +1830,7 @@ const Dashboard = {
             $('.seco-title').text(items.length + ' Total Sold' + (filter || soldSearch ? ' (filtered)' : ''));
 
             if (items.length === 0) {
-                $tbody.html('<tr><td colspan="11" class="text-center py-5"><p class="text-muted mb-3">No sold items match this filter. Change the recovery route filter or send more packages.</p><a href="packages.html" class="btn btn-primary">Send packages</a></td></tr>');
+                $tbody.html('<tr><td colspan="4" class="text-center py-5"><p class="text-muted mb-3">No sold items match this filter. Change the recovery route filter or send more packages.</p><a href="packages.html" class="btn btn-primary">Send packages</a></td></tr>');
                 return;
             }
 
@@ -1863,7 +1856,7 @@ const Dashboard = {
         } catch(err) {
             console.error('Load sold error:', err);
             const msg = err.error || 'Unable to load sold items.';
-            $tbody.html('<tr><td colspan="11" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
+            $tbody.html('<tr><td colspan="4" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
             $tbody.find('.btn').on('click', () => this.loadSold());
         }
     },

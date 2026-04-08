@@ -99,7 +99,7 @@
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Product</th><th>Qty</th><th>Revenue</th><th>Profit</th><th>Date</th></tr></thead>
+                                <thead><tr><th>Sold Date</th><th>Item name</th><th>Quantity</th><th>Earnings</th></tr></thead>
                                 <tbody id="sold-tbody"></tbody>
                             </table>
                         </div>
@@ -367,10 +367,10 @@
                 var $tb = $('#sold-tbody');
                 $tb.empty();
                 list.forEach(function(s) {
-                    $tb.append('<tr><td>' + (s.product || '') + '</td><td>' + (s.quantity || '') + '</td><td>£' + Number(s.total_revenue || 0).toFixed(2) + '</td><td>£' + Number(s.profit || 0).toFixed(2) + '</td><td>' + fmtDate(s.sold_date) + '</td></tr>');
+                    $tb.append('<tr><td>' + fmtDate(s.sold_date) + '</td><td>' + (s.product || '') + '</td><td>' + (s.quantity || '') + '</td><td>£' + Number(s.profit != null ? s.profit : 0).toFixed(2) + '</td></tr>');
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">None</td></tr>');
-            }).catch(function() { $('#sold-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="4" class="text-muted">None</td></tr>');
+            }).catch(function() { $('#sold-tbody').html('<tr><td colspan="4" class="text-danger">Failed to load</td></tr>'); });
         }
 
         function loadPending() {
