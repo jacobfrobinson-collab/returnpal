@@ -55,6 +55,7 @@ function aliasKey(k) {
         pid: 'package_id',
         pkg_id: 'package_id',
         amount: 'amount',
+        item_name: 'product',
     };
     return m[k] || k;
 }
@@ -97,18 +98,40 @@ function str(v) {
 
 function importSoldRow(db, userId, row) {
     const product = str(row.product);
-    if (!product) throw new Error('product is required');
+    if (!product) throw new Error('item name (product) is required');
     const reference = str(row.reference);
     const qty = Math.max(1, parseInt(row.quantity, 10) || 1);
-    const unit = num(row.unit_price, 0);
-    let total = num(row.total_revenue, 0);
-    if (!total && unit) total = unit * qty;
-    const profit = num(row.profit, 0);
-    const margin = num(row.margin, 0);
+    const soldDateRaw = str(row.sold_date);
+    const soldDateParam = soldDateRaw || null;
+
+    const hasEarningsCol = Object.prototype.hasOwnProperty.call(row, 'earnings');
+    const earningsStr = hasEarningsCol ? str(row.earnings) : '';
+    const earningsNum = hasEarningsCol && earningsStr !== '' ? num(row.earnings, NaN) : NaN;
+
+    let unit;
+    let total;
+    let profit;
+    let margin;
+    if (hasEarningsCol) {
+        if (!Number.isFinite(earningsNum)) {
+            throw new Error('earnings must be a number');
+        }
+        profit = earningsNum;
+        total = earningsNum;
+        unit = qty ? earningsNum / qty : 0;
+        margin = 0;
+    } else {
+        unit = num(row.unit_price, 0);
+        total = num(row.total_revenue, 0);
+        if (!total && unit) total = unit * qty;
+        profit = num(row.profit, 0);
+        margin = num(row.margin, 0);
+    }
+
     db.run(
-        `INSERT INTO sold_items (user_id, reference, product, quantity, unit_price, total_revenue, profit, margin)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, reference, product, qty, unit, total, profit, margin]
+        `INSERT INTO sold_items (user_id, reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
+        [userId, reference, product, qty, unit, total, profit, margin, soldDateParam]
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     const amount = total || unit * qty;
@@ -296,8 +319,8 @@ async function runBulkImport(db, kind, userId, buffer) {
 function templateSheetAoA(kind) {
     const T = {
         sold: [
-            ['reference', 'product', 'quantity', 'unit_price', 'total_revenue', 'profit', 'margin'],
-            ['TRACK-001', 'Widget A', 1, 29.99, 29.99, 25.49, 85],
+            ['sold_date', 'item_name', 'quantity', 'earnings'],
+            ['2026-03-01', 'Widget A', 1, 29.99],
         ],
         received: [
             ['reference', 'items_description', 'quantity', 'notes'],

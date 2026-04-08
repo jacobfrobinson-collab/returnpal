@@ -70,7 +70,7 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
-        const { reference, product, quantity, unit_price, total_revenue, profit, margin, user_id } = req.body;
+        const { reference, product, quantity, unit_price, total_revenue, profit, margin, user_id, sold_date, earnings } = req.body;
 
         let targetUserId = user_id != null ? parseInt(user_id, 10) : req.user.id;
         if (targetUserId !== req.user.id && !req.user.is_admin) {
@@ -78,18 +78,44 @@ router.post('/', authMiddleware, async (req, res) => {
         }
         if (isNaN(targetUserId)) targetUserId = req.user.id;
 
+        if (product == null || String(product).trim() === '') {
+            return res.status(400).json({ error: 'Product is required' });
+        }
+
+        const qty = quantity || 1;
+        const earningsNum = earnings !== undefined && earnings !== null && String(earnings).trim() !== '' ? Number(earnings) : NaN;
+        let ref = reference != null ? String(reference).trim() : '';
+        let u = unit_price != null ? Number(unit_price) : 0;
+        let total = total_revenue != null ? Number(total_revenue) : 0;
+        let p = profit != null ? Number(profit) : 0;
+        let m = margin != null ? Number(margin) : 0;
+        if (Number.isFinite(earningsNum)) {
+            p = earningsNum;
+            total = earningsNum;
+            u = qty ? earningsNum / qty : 0;
+            m = 0;
+        }
+        const soldDateStr =
+            sold_date != null && String(sold_date).trim() !== '' ? String(sold_date).trim() : null;
+
         db.run(
-            `INSERT INTO sold_items (user_id, reference, product, quantity, unit_price, total_revenue, profit, margin)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [targetUserId, reference, product, quantity || 1, unit_price || 0,
-             total_revenue || 0, profit || 0, margin || 0]
+            `INSERT INTO sold_items (user_id, reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
+            [targetUserId, ref, product, qty, u || 0, total || 0, p || 0, m || 0, soldDateStr]
         );
         saveDb();
 
         const result = db.exec('SELECT last_insert_rowid() as id');
         const id = result[0].values[0][0];
 
-        const amount = total_revenue != null ? Number(total_revenue) : (unit_price != null ? Number(unit_price) * (quantity || 1) : 0);
+        const amount =
+            Number.isFinite(earningsNum)
+                ? earningsNum
+                : total_revenue != null
+                  ? Number(total_revenue)
+                  : unit_price != null
+                    ? Number(unit_price) * (quantity || 1)
+                    : 0;
         const msg = 'Item "' + (product || '') + '" sold for £' + amount.toFixed(2);
         await pushActivity(targetUserId, 'item_sold', msg, '/dashboard/sold-items.html');
 

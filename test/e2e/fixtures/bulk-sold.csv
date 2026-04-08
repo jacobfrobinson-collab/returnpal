@@ -1,2 +1,2 @@
-reference,product,quantity,unit_price,total_revenue,profit,margin
-E2E-BULK-REF-1,E2E-Bulk-Widget,1,10,10,8,80
+sold_date,item_name,quantity,earnings
+2026-03-27,E2E-Bulk-Widget,1,10
