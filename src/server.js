@@ -56,6 +56,9 @@ app.get('/register.html', (req, res) => {
     params.set('openRegister', '1');
     res.redirect(302, '/login.html?' + params.toString());
 });
+app.get('/wanted', (req, res) => {
+    res.redirect(302, '/wanted/index.html');
+});
 // Ensure dashboard HTML is never replaced by SPA index (defensive)
 app.get(/^\/dashboard\/[^/]+\.html$/, (req, res, next) => {
     if (req.path.includes('..')) return next();
@@ -94,6 +97,7 @@ app.use('/api/balance', require('./routes/balance'));
 app.use('/api/queries', require('./routes/queries'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/reimbursement', require('./routes/reimbursement'));
+app.use('/api/wanted', require('./routes/wanted'));
 
 // ─── Health Check ────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

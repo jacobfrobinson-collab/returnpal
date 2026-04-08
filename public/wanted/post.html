@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Post a want | ReturnPal Wanted</title>
+    <meta name="description" content="Describe the item, set your budget, add a photo. Sellers can respond with offers." />
+    <link rel="icon" type="image/x-icon" href="../assets/img/logo/favicon.png" />
+    <link rel="stylesheet" href="../assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="../assets/css/all-fontawesome.min.css" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script>
+        (function() { document.documentElement.setAttribute('data-bs-theme', 'light'); })();
+    </script>
+</head>
+<body>
+    <header class="header">
+        <div class="main-navigation">
+            <nav class="navbar navbar-expand-lg">
+                <div class="container">
+                    <a class="navbar-brand" href="../index.html">
+                        <span class="navbar-brand-icon"><img src="../assets/img/logo/logo-icon.png" alt="" /></span>
+                        <span class="navbar-brand-text">ReturnPal</span>
+                    </a>
+                    <ul class="navbar-nav ms-auto d-none d-md-flex">
+                        <li class="nav-item"><a class="nav-link" href="index.html">Browse</a></li>
+                        <li class="nav-item"><a class="nav-link" href="mine.html">My posts</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main py-5">
+        <div class="container col-lg-7">
+            <p class="mb-1"><a href="index.html" class="text-decoration-none small">&larr; Back to Wanted</a></p>
+            <h1 class="mb-3">Post what you want</h1>
+            <p class="text-muted">Log in with your ReturnPal account. Add a clear photo and description so sellers know exactly what you’re after.</p>
+
+            <div id="need-login" class="alert alert-warning d-none">
+                Please <a href="../login.html">log in</a> or <a href="../login.html#register">register</a> to post a wanted listing.
+            </div>
+
+            <form id="wanted-form" class="d-none">
+                <div class="mb-3">
+                    <label class="form-label" for="title">Title</label>
+                    <input type="text" class="form-control" id="title" name="title" required minlength="3" maxlength="200" placeholder="e.g. Original 1997 Polly Pocket compact" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="category">Category <span class="text-muted fw-normal">(optional)</span></label>
+                    <input type="text" class="form-control" id="category" name="category" maxlength="120" placeholder="Toys, Fashion, Furniture…" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="description">Description</label>
+                    <textarea class="form-control" id="description" name="description" rows="5" required minlength="10" maxlength="8000" placeholder="Brand, era, condition, size, colour — anything that helps a seller match your ask."></textarea>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="budget_min">Budget from (£)</label>
+                        <input type="number" class="form-control" id="budget_min" name="budget_min" required min="0" step="0.01" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="budget_max">Budget to (£)</label>
+                        <input type="number" class="form-control" id="budget_max" name="budget_max" required min="0" step="0.01" />
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label" for="photo">Photo <span class="text-muted fw-normal">(optional)</span></label>
+                    <input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" />
+                </div>
+                <div id="form-alert" class="alert alert-danger d-none" role="alert"></div>
+                <div id="form-success" class="alert alert-success d-none" role="alert"></div>
+                <button type="submit" class="theme-btn" id="submit-btn">Publish wanted post</button>
+            </form>
+        </div>
+    </main>
+
+    <footer class="footer py-4 border-top">
+        <div class="container text-center text-muted small">
+            <a href="../privacy.html">Privacy</a> · <a href="../terms.html">Terms</a>
+        </div>
+    </footer>
+
+    <script src="../assets/js/api.js"></script>
+    <script>
+        (function () {
+            var form = document.getElementById('wanted-form');
+            var needLogin = document.getElementById('need-login');
+            if (!API.isLoggedIn()) {
+                needLogin.classList.remove('d-none');
+                return;
+            }
+            form.classList.remove('d-none');
+
+            form.addEventListener('submit', async function (ev) {
+                ev.preventDefault();
+                var btn = document.getElementById('submit-btn');
+                var alertEl = document.getElementById('form-alert');
+                var okEl = document.getElementById('form-success');
+                alertEl.classList.add('d-none');
+                okEl.classList.add('d-none');
+                btn.disabled = true;
+
+                var fd = new FormData();
+                fd.append('title', document.getElementById('title').value.trim());
+                fd.append('description', document.getElementById('description').value.trim());
+                fd.append('category', document.getElementById('category').value.trim());
+                fd.append('budget_min', document.getElementById('budget_min').value);
+                fd.append('budget_max', document.getElementById('budget_max').value);
+                var fileInput = document.getElementById('photo');
+                if (fileInput.files && fileInput.files[0]) {
+                    fd.append('photo', fileInput.files[0]);
+                }
+
+                try {
+                    var data = await API.request('/wanted', { method: 'POST', body: fd });
+                    okEl.textContent = 'Posted! Redirecting…';
+                    okEl.classList.remove('d-none');
+                    var id = data && data.id;
+                    window.location.href = id ? 'detail.html?id=' + encodeURIComponent(id) : 'index.html';
+                } catch (e) {
+                    var msg = (e && e.error) || (e && e.errors && e.errors[0] && e.errors[0].msg) || 'Could not save.';
+                    if (typeof msg !== 'string') msg = 'Could not save.';
+                    alertEl.textContent = msg;
+                    alertEl.classList.remove('d-none');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

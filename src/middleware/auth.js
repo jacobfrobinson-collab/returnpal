@@ -37,4 +37,20 @@ function requireAdmin(req, res, next) {
     next();
 }
 
-module.exports = { generateToken, authMiddleware, requireAdmin };
+/** Sets req.user when a valid Bearer token is present; otherwise continues without auth. */
+function optionalAuth(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return next();
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
+    } catch (err) {
+        // Invalid token: treat as anonymous for public routes
+    }
+    next();
+}
+
+module.exports = { generateToken, authMiddleware, requireAdmin, optionalAuth };

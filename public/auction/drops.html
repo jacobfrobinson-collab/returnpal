@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drop Culture — Northgate Auction House</title>
+    <link rel="stylesheet" href="css/auction.css" />
+</head>
+<body class="auction-site">
+    <header class="auction-topbar">
+        <div class="auction-wrap auction-header-inner">
+            <a class="auction-brand" href="index.html">
+                <span class="brand-title">Northgate</span>
+                <span class="brand-subtitle">Auction House</span>
+            </a>
+            <nav class="auction-nav"><a href="browse.html">Browse</a></nav>
+        </div>
+    </header>
+
+    <main class="auction-wrap auction-static" style="max-width: 720px">
+        <h1>Drop Culture — themed auctions</h1>
+        <p class="ng-muted">Scheduled drops with themes. VIPs see lots early when enabled in Hub.</p>
+        <div id="drops-list" style="margin-top: 1.5rem"></div>
+    </main>
+
+    <footer class="auction-footer">
+        <div class="auction-wrap auction-footer-bottom"><a href="index.html">Home</a></div>
+    </footer>
+
+    <script src="js/auction-data.js"></script>
+    <script>
+        (function () {
+            var D = window.AuctionData;
+            var el = document.getElementById('drops-list');
+            if (!D || !el) return;
+            el.innerHTML = D.dropSchedule
+                .map(function (d) {
+                    var when = new Date(d.opensAt);
+                    return (
+                        '<section class="ng-hub-card" style="margin-bottom: 1rem"><h2 style="margin-top:0">' +
+                        d.name +
+                        '</h2><p><strong>' +
+                        d.theme +
+                        '</strong></p><p>' +
+                        when.toLocaleString('en-GB') +
+                        '</p><p class="ng-muted">' +
+                        d.blurb +
+                        '</p></section>'
+                    );
+                })
+                .join('');
+        })();
+    </script>
+</body>
+</html>

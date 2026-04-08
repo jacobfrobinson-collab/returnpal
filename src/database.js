@@ -277,6 +277,50 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_return_adjustments_user ON return_adjustments(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_item_queries_user ON item_queries(user_id)');
 
+    // Demand-led marketplace: buyers post what they want; sellers respond with offers
+    db.run(`
+        CREATE TABLE IF NOT EXISTS wanted_listings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            category TEXT DEFAULT '',
+            budget_min REAL NOT NULL,
+            budget_max REAL NOT NULL,
+            currency TEXT DEFAULT 'GBP',
+            image_path TEXT DEFAULT '',
+            status TEXT DEFAULT 'open' CHECK(status IN ('open', 'closed', 'filled')),
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    db.run(`
+        CREATE TABLE IF NOT EXISTS wanted_responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            listing_id INTEGER NOT NULL,
+            seller_id INTEGER NOT NULL,
+            description TEXT NOT NULL,
+            price_offer REAL NOT NULL,
+            image_path TEXT DEFAULT '',
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'declined')),
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (listing_id) REFERENCES wanted_listings(id) ON DELETE CASCADE,
+            FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_wanted_listings_user ON wanted_listings(user_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_wanted_listings_status ON wanted_listings(status)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_wanted_responses_listing ON wanted_responses(listing_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_wanted_responses_seller ON wanted_responses(seller_id)');
+    try {
+        db.run(
+            'CREATE UNIQUE INDEX IF NOT EXISTS idx_wanted_one_offer_per_seller ON wanted_responses(listing_id, seller_id)'
+        );
+    } catch (e) {
+        // ignore
+    }
+
     // Save to disk
     saveDb();
 

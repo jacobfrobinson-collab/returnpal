@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fast checkout demo — Northgate Auction House</title>
+    <link rel="stylesheet" href="css/auction.css" />
+</head>
+<body class="auction-site">
+    <header class="auction-topbar">
+        <div class="auction-wrap auction-header-inner">
+            <a class="auction-brand" href="index.html">
+                <span class="brand-title">Northgate</span>
+                <span class="brand-subtitle">Auction House</span>
+            </a>
+        </div>
+    </header>
+
+    <main class="auction-wrap auction-static" style="max-width: 520px">
+        <h1>Checkout (demo)</h1>
+        <p class="ng-muted">Feature #30 — free shipping threshold · #40 — wallet + express pay.</p>
+
+        <section class="ng-hub-card" style="margin-top: 1rem">
+            <h2 style="margin-top: 0">Cart (illustrative)</h2>
+            <p>Subtotal: <strong id="co-sub">£42.00</strong></p>
+            <div class="ng-confidence-bar" style="margin: 1rem 0; height: 12px">
+                <span id="co-ship-bar" style="width: 56%"></span>
+            </div>
+            <p id="co-ship-msg" class="ng-muted"></p>
+            <p style="margin-top: 1rem">
+                <button type="button" class="ng-btn-buy" id="co-apple">Apple Pay</button>
+                <button type="button" class="ng-btn-secondary" id="co-google" style="margin-left: 0.5rem">Google Pay</button>
+            </p>
+        </section>
+    </main>
+
+    <footer class="auction-footer">
+        <div class="auction-wrap auction-footer-bottom"><a href="hub.html">Back to Hub</a></div>
+    </footer>
+
+    <script src="js/auction-data.js"></script>
+    <script src="js/auction-store.js"></script>
+    <script src="js/auction-boot.js"></script>
+    <script>
+        (function () {
+            var FREE = 75;
+            var sub = 42;
+            var pct = Math.min(100, Math.round((sub / FREE) * 100));
+            var bar = document.getElementById('co-ship-bar');
+            var msg = document.getElementById('co-ship-msg');
+            if (bar) bar.style.width = pct + '%';
+            if (msg) {
+                msg.textContent =
+                    sub >= FREE
+                        ? 'You qualify for free shipping (demo threshold £' + FREE + ').'
+                        : 'Add ' + window.AuctionData.formatMoney(FREE - sub) + ' more for free shipping.';
+            }
+            function toast(m) {
+                window.NgBoot && window.NgBoot.toast(m, 'ok');
+            }
+            document.getElementById('co-apple')?.addEventListener('click', function () {
+                toast('Apple Pay — would open sheet (demo)');
+            });
+            document.getElementById('co-google')?.addEventListener('click', function () {
+                toast('Google Pay — would open sheet (demo)');
+            });
+        })();
+    </script>
+</body>
+</html>

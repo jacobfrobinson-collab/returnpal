@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lot — Northgate Auction House</title>
+    <link rel="stylesheet" href="css/auction.css" />
+</head>
+<body class="auction-site">
+    <header class="auction-topbar">
+        <div class="auction-wrap auction-header-inner">
+            <a class="auction-brand" href="index.html">
+                <span class="brand-title">Northgate</span>
+                <span class="brand-subtitle">Auction House</span>
+            </a>
+            <form class="auction-search-form" action="browse.html" method="get">
+                <input type="search" name="q" placeholder="Search lots…" aria-label="Search lots" />
+                <input type="hidden" name="order" value="endingsoon" />
+                <button type="submit">Search</button>
+            </form>
+            <nav class="auction-nav">
+                <a href="browse.html">Browse</a>
+                <a href="hub.html">Hub</a>
+                <a href="login.html">Login</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="auction-wrap auction-lot-page" id="lot-root">
+        <p class="ng-back"><a href="browse.html">← Back to browse</a> · <a href="features.html">50 features</a></p>
+
+        <div id="ng-trade-gate" class="ng-gate-banner" hidden>
+            <p><strong>Trade-only auction.</strong> Unlock in <a href="hub.html#trade">Buyer Hub</a> with the demo trade password.</p>
+        </div>
+        <div id="ng-vip-gate" class="ng-gate-banner ng-gate-vip" hidden>
+            <p><strong>VIP early access.</strong> Enable <a href="hub.html#vip">VIP Buyer Club</a> to bid on this lot.</p>
+        </div>
+
+        <div class="auction-lot-grid">
+            <div>
+                <div class="ng-live-ribbon" id="ng-live-banner" hidden>🔴 Live auction floor — bidding is real-time (demo)</div>
+                <div class="auction-lot-gallery">
+                    <button type="button" class="ng-zoom-hit" id="lot-zoom-trigger" aria-label="Zoom photos">
+                        <img id="lot-image" src="" alt="" width="900" height="675" />
+                    </button>
+                </div>
+                <div id="lot-video-wrap" class="ng-video-wrap" hidden>
+                    <h3 class="ng-h3">Video preview</h3>
+                    <div class="ng-video-frame"><iframe id="lot-video" title="Lot video" loading="lazy"></iframe></div>
+                </div>
+                <div id="ng-cross-sell" class="ng-cross-sell"></div>
+            </div>
+            <div class="auction-lot-panel">
+                <div id="lot-badges" class="ng-lot-badges"></div>
+                <p class="auction-lot-id" id="lot-id"></p>
+                <h1 id="lot-title"></h1>
+                <div class="ng-trust-strip" id="lot-trust"></div>
+                <div class="auction-countdown" id="lot-countdown" role="timer" aria-live="polite"></div>
+                <p id="ng-soft-hint" class="ng-hint" hidden>Soft close enabled — last-minute bids extend the timer.</p>
+                <div class="auction-price-row">
+                    <span>Current bid</span>
+                    <span id="lot-current"></span>
+                </div>
+                <div class="auction-price-row" id="row-rrp" hidden>
+                    <span>RRP (where known)</span>
+                    <span id="lot-rrp"></span>
+                </div>
+                <div class="auction-price-row" id="row-reserve" hidden>
+                    <span>Reserve</span>
+                    <span id="lot-reserve"></span>
+                </div>
+                <div class="auction-price-row">
+                    <span>Starting price</span>
+                    <span id="lot-start"></span>
+                </div>
+                <div class="auction-price-row">
+                    <span>Bids</span>
+                    <span id="lot-bids"></span>
+                </div>
+                <div class="auction-price-row" id="row-mystery" hidden>
+                    <span>Guaranteed floor value</span>
+                    <span id="lot-mystery"></span>
+                </div>
+                <div class="ng-confidence-meter" id="ng-confidence" hidden>
+                    <span>Condition confidence</span>
+                    <div class="ng-confidence-bar"><span id="ng-confidence-fill"></span></div>
+                </div>
+
+                <div class="ng-lot-actions">
+                    <button type="button" class="ng-btn-secondary" id="btn-watch">♥ Watchlist</button>
+                    <button type="button" class="ng-btn-secondary" id="btn-oneclick" title="One-click next bid">1-tap bid</button>
+                </div>
+
+                <form class="auction-bid-form" id="bid-form">
+                    <label for="bid-amount">Your bid (GBP)</label>
+                    <div class="bid-input-row">
+                        <input type="number" id="bid-amount" name="amount" min="0" step="0.5" required />
+                    </div>
+                    <label class="ng-proxy-label" for="max-proxy">Auto-bid / proxy — max you’re willing to pay (optional)</label>
+                    <input type="number" id="max-proxy" class="ng-proxy-input" min="0" step="0.5" placeholder="e.g. 75.00" />
+                    <button type="submit" id="bid-submit">Place bid</button>
+                    <button type="button" class="ng-btn-buy" id="btn-buy-now" hidden>Buy now</button>
+                    <p class="auction-demo-note">
+                        Demo: bids &amp; wallet are in this browser only. Multi-lot &amp; proxy are simulated for UX review.
+                    </p>
+                </form>
+
+                <div class="ng-cart-row">
+                    <button type="button" class="ng-btn-secondary" id="btn-add-cart">Add to multi-lot bid list</button>
+                    <a href="hub.html#cart">View list in Hub →</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="auction-lot-description">
+            <h2>Description</h2>
+            <p id="lot-description"></p>
+            <div id="lot-faults" class="ng-faults" hidden></div>
+            <div id="lot-inspector" class="ng-inspector" hidden>
+                <h3>Inspector notes</h3>
+                <p id="lot-inspector-text"></p>
+            </div>
+            <div class="ng-return-rate" id="ng-return-rate"></div>
+        </div>
+    </main>
+
+    <div id="ng-lightbox" class="ng-lightbox" hidden>
+        <button type="button" class="ng-lightbox-close" aria-label="Close">&times;</button>
+        <img id="ng-lightbox-img" src="" alt="" />
+    </div>
+
+    <footer class="auction-footer">
+        <div class="auction-wrap auction-footer-bottom">
+            <a href="index.html">Home</a>
+            &nbsp;·&nbsp;
+            <a href="browse.html">Browse</a>
+            &nbsp;·&nbsp;
+            <a href="hub.html">Hub</a>
+        </div>
+    </footer>
+
+    <script src="js/auction-data.js"></script>
+    <script src="js/auction-store.js"></script>
+    <script src="js/auction-utils.js"></script>
+    <script src="js/auction-components.js"></script>
+    <script src="js/auction-boot.js"></script>
+    <script src="js/auction-lot.js"></script>
+</body>
+</html>

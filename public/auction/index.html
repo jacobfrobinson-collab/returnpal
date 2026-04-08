@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Northgate Auction House — Live timed auctions &amp; liquidation-style lots</title>
+    <meta name="description" content="Northgate Auction House — 50+ auction features demo: timed &amp; live, proxy bids, mystery lots, VIP drops, and more." />
+    <link rel="stylesheet" href="css/auction.css" />
+</head>
+<body class="auction-site">
+    <header class="auction-topbar">
+        <div class="auction-wrap auction-header-inner">
+            <a class="auction-brand" href="index.html">
+                <span class="brand-title">Northgate</span>
+                <span class="brand-subtitle">Auction House</span>
+            </a>
+            <form class="auction-search-form" action="browse.html" method="get" role="search">
+                <input type="search" name="q" placeholder="Search lots…" aria-label="Search lots" />
+                <input type="hidden" name="order" value="endingsoon" />
+                <button type="submit">Search</button>
+            </form>
+            <span class="ng-wallet-pill" id="ng-wallet-pill" title="Demo wallet">Wallet</span>
+            <button type="button" id="ng-dark-toggle" title="Dark mode (premium)">🌙</button>
+            <nav class="auction-nav" aria-label="Main">
+                <a href="browse.html">Browse</a>
+                <a href="drops.html">Drops</a>
+                <a href="mystery.html">Mystery</a>
+                <a href="hub.html">Hub</a>
+                <a href="features.html">50 features</a>
+                <a href="login.html">Login</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="ng-urgency-ticker" id="ng-urgency-ticker" role="status" aria-live="polite">
+        Loading deals…
+    </div>
+
+    <main>
+        <section class="auction-hero">
+            <div class="auction-wrap">
+                <div class="auction-hero-inner">
+                    <p class="auction-hero-badge">Live timed auctions · bid from anywhere</p>
+                    <h1>Deals land daily at <span class="hero-gradient">Northgate Auction House</span></h1>
+                    <p>
+                        Full-featured demo: timed &amp; live floors, reserve &amp; Buy Now, mystery boxes, VIP drops,
+                        trade pallets, and a buyer hub — all wired in your browser.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section class="auction-section" aria-labelledby="sec-steal-heading" id="anchor-steal">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2 id="sec-steal-heading">
+                        <span class="section-bar" aria-hidden="true"></span>
+                        <span class="section-emoji" aria-hidden="true">🏆</span>
+                        Steal of the Week
+                    </h2>
+                </div>
+                <div id="section-steal"></div>
+            </div>
+        </section>
+
+        <section class="auction-section" aria-labelledby="sec-featured">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2 id="sec-featured">
+                        <span class="section-bar" aria-hidden="true"></span>
+                        <span class="section-emoji" aria-hidden="true">⭐</span>
+                        Featured auctions
+                    </h2>
+                    <a class="view-all" href="browse.html?order=featured">View featured</a>
+                </div>
+                <div id="section-featured"></div>
+            </div>
+        </section>
+
+        <section class="auction-section" aria-labelledby="sec-picks">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2 id="sec-picks">
+                        <span class="section-bar" aria-hidden="true"></span>
+                        <span class="section-emoji" aria-hidden="true">💎</span>
+                        Auction House Picks
+                    </h2>
+                </div>
+                <div id="section-picks"></div>
+            </div>
+        </section>
+
+        <section class="auction-section">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2>
+                        <span class="section-bar" aria-hidden="true"></span>
+                        Drop Culture — themed auctions
+                    </h2>
+                    <a class="view-all" href="drops.html">Calendar</a>
+                </div>
+                <div id="section-drops-teaser"></div>
+            </div>
+        </section>
+
+        <section class="auction-section">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2>
+                        <span class="section-bar" aria-hidden="true"></span>
+                        Bundle savings
+                    </h2>
+                </div>
+                <div id="section-bundle"></div>
+            </div>
+        </section>
+
+        <section class="auction-section">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2>
+                        <span class="section-bar" aria-hidden="true"></span>
+                        Recently sold (social proof)
+                    </h2>
+                </div>
+                <div id="section-sold"></div>
+            </div>
+        </section>
+
+        <section class="auction-section" aria-labelledby="sec-ending">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2 id="sec-ending">
+                        <span class="section-bar" aria-hidden="true"></span>
+                        <span class="section-emoji" aria-hidden="true">⏱️</span>
+                        Ending soon
+                    </h2>
+                    <a class="view-all" href="browse.html?order=endingsoon">View all</a>
+                </div>
+                <div id="section-ending"></div>
+            </div>
+        </section>
+
+        <section class="auction-section" aria-labelledby="sec-popular">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2 id="sec-popular">
+                        <span class="section-bar" aria-hidden="true"></span>
+                        <span class="section-emoji" aria-hidden="true">🔥</span>
+                        Hot right now
+                    </h2>
+                    <a class="view-all" href="browse.html?order=mostpopular">View all</a>
+                </div>
+                <div id="section-popular"></div>
+            </div>
+        </section>
+
+        <section class="auction-section" aria-labelledby="sec-new">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2 id="sec-new">
+                        <span class="section-bar" aria-hidden="true"></span>
+                        <span class="section-emoji" aria-hidden="true">✨</span>
+                        Fresh on the block
+                    </h2>
+                    <a class="view-all" href="browse.html?order=newlylisted">View all</a>
+                </div>
+                <div id="section-new"></div>
+            </div>
+        </section>
+
+        <section class="auction-section">
+            <div class="auction-wrap">
+                <div class="auction-section-head">
+                    <h2>
+                        <span class="section-bar" aria-hidden="true"></span>
+                        Personalised picks (electronics)
+                    </h2>
+                </div>
+                <div id="section-recs"></div>
+            </div>
+        </section>
+    </main>
+
+    <div id="ng-exit-modal" class="ng-exit-modal" hidden>
+        <div class="ng-exit-inner">
+            <h3>Leaving already?</h3>
+            <p>Grab a one-time <strong>£5 demo credit</strong> to your wallet (exit-intent offer — feature #29).</p>
+            <div class="ng-exit-actions">
+                <button type="button" class="ng-btn-buy" data-exit-cta>Claim £5 credit</button>
+                <button type="button" class="ng-btn-secondary" data-close-exit>No thanks</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="auction-footer">
+        <div class="auction-wrap auction-footer-grid">
+            <div>
+                <h4>Platform</h4>
+                <ul>
+                    <li><a href="browse.html">Browse</a></li>
+                    <li><a href="hub.html">Buyer Hub</a></li>
+                    <li><a href="checkout-demo.html">Fast checkout demo</a></li>
+                    <li><a href="supplier.html">Supplier dashboard</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Programs</h4>
+                <ul>
+                    <li><a href="drops.html">Drop Culture</a></li>
+                    <li><a href="mystery.html">Mystery lots</a></li>
+                    <li><a href="trade.html">Trade-only floor</a></li>
+                    <li><a href="live-host.html">Live host</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Help &amp; info</h4>
+                <ul>
+                    <li><a href="features.html">50 features map</a></li>
+                    <li><a href="login.html">Login</a></li>
+                    <li><a href="about.html">About</a></li>
+                    <li><a href="/privacy.html">Privacy</a></li>
+                    <li><a href="/terms.html">Terms</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="auction-wrap auction-footer-bottom">
+            &copy; 2026 Northgate Auction House — client-side demo; connect APIs for production.
+        </div>
+    </footer>
+
+    <script src="js/auction-data.js"></script>
+    <script src="js/auction-store.js"></script>
+    <script src="js/auction-utils.js"></script>
+    <script src="js/auction-components.js"></script>
+    <script src="js/auction-boot.js"></script>
+    <script src="js/auction-home.js"></script>
+</body>
+</html>

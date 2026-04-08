@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node src/seed.js",
+    "create-admin": "node create-admin-user.js",
     "test": "node test/api.test.js",
     "test:e2e": "node test/e2e/client-smoke.js"
   },

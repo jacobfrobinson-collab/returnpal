@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wanted listing | ReturnPal</title>
+    <link rel="icon" type="image/x-icon" href="../assets/img/logo/favicon.png" />
+    <link rel="stylesheet" href="../assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="../assets/css/all-fontawesome.min.css" />
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <script>
+        (function() { document.documentElement.setAttribute('data-bs-theme', 'light'); })();
+    </script>
+</head>
+<body>
+    <header class="header">
+        <div class="main-navigation">
+            <nav class="navbar navbar-expand-lg">
+                <div class="container">
+                    <a class="navbar-brand" href="../index.html">
+                        <span class="navbar-brand-icon"><img src="../assets/img/logo/logo-icon.png" alt="" /></span>
+                        <span class="navbar-brand-text">ReturnPal</span>
+                    </a>
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item"><a class="nav-link" href="index.html">Browse</a></li>
+                        <li class="nav-item"><a class="nav-link" href="post.html">Post a want</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main py-4">
+        <div class="container py-3">
+            <p class="mb-2"><a href="index.html" class="text-decoration-none small">&larr; All wanted posts</a></p>
+            <div id="page-alert" class="alert alert-danger d-none"></div>
+            <div id="detail-main" class="d-none">
+                <div class="row g-4">
+                    <div class="col-lg-5">
+                        <div id="detail-image-wrap" class="rounded overflow-hidden bg-light border" style="min-height:240px;"></div>
+                    </div>
+                    <div class="col-lg-7">
+                        <p class="text-muted small mb-1" id="detail-meta"></p>
+                        <h1 class="h2 mb-3" id="detail-title"></h1>
+                        <p class="lead mb-2" id="detail-budget"></p>
+                        <p id="detail-desc" class="text-muted" style="white-space:pre-wrap;"></p>
+                    </div>
+                </div>
+
+                <hr class="my-5" />
+
+                <div id="respond-block" class="d-none">
+                    <h2 class="h4 mb-3">Respond with an offer</h2>
+                    <p class="text-muted small">You have something that matches? Upload a photo, name your price, and the buyer can review your offer.</p>
+                    <form id="respond-form" class="col-lg-8">
+                        <div class="mb-3">
+                            <label class="form-label" for="offer-desc">Your item &amp; condition</label>
+                            <textarea class="form-control" id="offer-desc" name="description" rows="4" required minlength="5" maxlength="4000"></textarea>
+                        </div>
+                        <div class="mb-3" style="max-width:12rem;">
+                            <label class="form-label" for="price_offer">Your price (£)</label>
+                            <input type="number" class="form-control" id="price_offer" name="price_offer" required min="0.01" step="0.01" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="offer-photo">Photo <span class="text-muted fw-normal">(optional)</span></label>
+                            <input type="file" class="form-control" id="offer-photo" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" />
+                        </div>
+                        <div id="respond-alert" class="alert alert-danger d-none"></div>
+                        <div id="respond-success" class="alert alert-success d-none"></div>
+                        <button type="submit" class="theme-btn" id="respond-btn">Submit offer</button>
+                    </form>
+                </div>
+
+                <div id="login-to-respond" class="alert alert-light border d-none">
+                    <a href="../login.html">Log in</a> to respond with an offer.
+                </div>
+
+                <div id="owner-note" class="alert alert-info d-none">
+                    This is your wanted post. Offers from sellers appear below.
+                </div>
+
+                <h2 class="h4 mt-5 mb-3" id="offers-heading">Offers</h2>
+                <div id="offers-empty" class="text-muted d-none">No offers yet.</div>
+                <div id="offers-list" class="vstack gap-3"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer py-4 border-top">
+        <div class="container text-center text-muted small">
+            <a href="../privacy.html">Privacy</a> · <a href="../terms.html">Terms</a>
+        </div>
+    </footer>
+
+    <script src="../assets/js/api.js"></script>
+    <script>
+        (function () {
+            function qs(name) {
+                var m = new URLSearchParams(window.location.search).get(name);
+                return m ? parseInt(m, 10) : NaN;
+            }
+
+            function esc(s) {
+                if (s == null) return '';
+                var d = document.createElement('div');
+                d.textContent = s;
+                return d.innerHTML;
+            }
+
+            function fmtMoney(n, cur) {
+                try {
+                    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: cur || 'GBP' }).format(Number(n));
+                } catch (e) {
+                    return '£' + Number(n).toFixed(2);
+                }
+            }
+
+            var id = qs('id');
+            if (!id || id < 1) {
+                document.getElementById('page-alert').textContent = 'Missing listing.';
+                document.getElementById('page-alert').classList.remove('d-none');
+                return;
+            }
+
+            var listing = null;
+
+            async function loadListing() {
+                var data = await API.request('/wanted/' + id, { method: 'GET', skipAuthRedirect: true });
+                listing = data && data.listing;
+                if (!listing) throw new Error('Not found');
+                document.getElementById('detail-title').textContent = listing.title;
+                document.getElementById('detail-desc').textContent = listing.description;
+                var meta = [];
+                if (listing.category) meta.push(listing.category);
+                meta.push('Posted ' + (listing.created_at || '').replace('T', ' ').slice(0, 16));
+                meta.push(listing.buyer_display || 'Buyer');
+                document.getElementById('detail-meta').textContent = meta.join(' · ');
+                document.getElementById('detail-budget').textContent =
+                    fmtMoney(listing.budget_min, listing.currency) + ' – ' + fmtMoney(listing.budget_max, listing.currency);
+                var wrap = document.getElementById('detail-image-wrap');
+                if (listing.image_url) {
+                    wrap.innerHTML = '<img src="' + esc(listing.image_url) + '" class="w-100" style="object-fit:contain;max-height:420px;" alt="" />';
+                } else {
+                    wrap.innerHTML = '<div class="d-flex align-items-center justify-content-center text-muted py-5">No photo</div>';
+                }
+                document.getElementById('detail-main').classList.remove('d-none');
+
+                var logged = API.isLoggedIn();
+                var owner = !!listing.viewer_is_owner;
+
+                document.getElementById('respond-block').classList.add('d-none');
+                document.getElementById('login-to-respond').classList.add('d-none');
+                document.getElementById('owner-note').classList.add('d-none');
+
+                if (owner) {
+                    document.getElementById('owner-note').classList.remove('d-none');
+                } else if (logged) {
+                    document.getElementById('respond-block').classList.remove('d-none');
+                } else {
+                    document.getElementById('login-to-respond').classList.remove('d-none');
+                }
+
+                await loadOffers();
+            }
+
+            async function loadOffers() {
+                var offersList = document.getElementById('offers-list');
+                var offersEmpty = document.getElementById('offers-empty');
+                offersList.innerHTML = '';
+                var logged = API.isLoggedIn();
+                if (!logged) {
+                    offersEmpty.textContent = 'Log in to see offer details if you are the buyer or have submitted an offer.';
+                    offersEmpty.classList.remove('d-none');
+                    return;
+                }
+                try {
+                    var data = await API.request('/wanted/' + id + '/responses', { method: 'GET' });
+                    var rows = (data && data.responses) || [];
+                    if (!rows.length) {
+                        offersEmpty.classList.remove('d-none');
+                        return;
+                    }
+                    offersEmpty.classList.add('d-none');
+                    offersList.innerHTML = rows.map(function (r) {
+                        var img = r.image_url
+                            ? '<div class="flex-shrink-0" style="width:100px;"><img src="' + esc(r.image_url) + '" class="img-fluid rounded border" alt="" /></div>'
+                            : '';
+                        return (
+                            '<div class="card border-0 shadow-sm"><div class="card-body d-flex gap-3">' +
+                            img +
+                            '<div><p class="mb-1 fw-semibold">' + esc(fmtMoney(r.price_offer, listing.currency)) + ' · ' + esc(r.seller_display || 'Seller') + '</p>' +
+                            '<p class="mb-0 small text-muted" style="white-space:pre-wrap;">' + esc(r.description) + '</p>' +
+                            '<p class="mb-0 small mt-2 text-muted">' + esc(r.status) + ' · ' + esc((r.created_at || '').replace('T', ' ').slice(0, 16)) + '</p></div></div></div>'
+                        );
+                    }).join('');
+                } catch (e) {
+                    offersEmpty.textContent = (e && e.error) || 'Could not load offers.';
+                    offersEmpty.classList.remove('d-none');
+                }
+            }
+
+            document.getElementById('respond-form').addEventListener('submit', async function (ev) {
+                ev.preventDefault();
+                var btn = document.getElementById('respond-btn');
+                var alertEl = document.getElementById('respond-alert');
+                var okEl = document.getElementById('respond-success');
+                alertEl.classList.add('d-none');
+                okEl.classList.add('d-none');
+                btn.disabled = true;
+                var fd = new FormData();
+                fd.append('description', document.getElementById('offer-desc').value.trim());
+                fd.append('price_offer', document.getElementById('price_offer').value);
+                var fi = document.getElementById('offer-photo');
+                if (fi.files && fi.files[0]) fd.append('photo', fi.files[0]);
+                try {
+                    await API.request('/wanted/' + id + '/responses', { method: 'POST', body: fd });
+                    okEl.textContent = 'Offer sent.';
+                    okEl.classList.remove('d-none');
+                    document.getElementById('offer-desc').value = '';
+                    document.getElementById('price_offer').value = '';
+                    fi.value = '';
+                    await loadOffers();
+                } catch (e) {
+                    var msg = (e && e.error) || (e && e.errors && e.errors[0] && e.errors[0].msg) || 'Could not submit.';
+                    alertEl.textContent = typeof msg === 'string' ? msg : 'Could not submit.';
+                    alertEl.classList.remove('d-none');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+
+            loadListing().catch(function (e) {
+                document.getElementById('page-alert').textContent = (e && e.error) || 'Listing not found.';
+                document.getElementById('page-alert').classList.remove('d-none');
+            });
+        })();
+    </script>
+</body>
+</html>

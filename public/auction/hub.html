@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Buyer Hub — Northgate Auction House</title>
+    <link rel="stylesheet" href="css/auction.css" />
+</head>
+<body class="auction-site">
+    <header class="auction-topbar">
+        <div class="auction-wrap auction-header-inner">
+            <a class="auction-brand" href="index.html">
+                <span class="brand-title">Northgate</span>
+                <span class="brand-subtitle">Auction House</span>
+            </a>
+            <nav class="auction-nav">
+                <a href="browse.html">Browse</a>
+                <a href="features.html">Features</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="auction-wrap" style="padding: 2rem 0 3rem">
+        <h1 style="margin-top: 0">Buyer Hub</h1>
+        <p class="ng-muted">Wallet, VIP, trade gate, saved searches, multi-lot cart, streak stats — demo state in localStorage.</p>
+
+        <div class="ng-hub-grid" style="margin-top: 1.5rem">
+            <section class="ng-hub-card" id="wallet">
+                <h2>Wallet / credits</h2>
+                <p style="font-size: 1.5rem; font-weight: 800" id="hub-wallet">—</p>
+                <button type="button" class="ng-btn-secondary" id="hub-add-credit">+£25 demo top-up</button>
+            </section>
+
+            <section class="ng-hub-card">
+                <h2>Win / loss &amp; streak</h2>
+                <ul id="hub-stats" style="list-style: none; padding: 0; margin: 0"></ul>
+            </section>
+
+            <section class="ng-hub-card" id="vip">
+                <h2>VIP Buyer Club</h2>
+                <label><input type="checkbox" id="hub-vip-toggle" /> Early access + exclusive lots (demo toggle)</label>
+            </section>
+
+            <section class="ng-hub-card" id="trade">
+                <h2>Trade-only floor</h2>
+                <p>Status: <strong id="hub-trade-status">—</strong></p>
+                <form id="hub-trade-unlock">
+                    <label for="hub-trade-pw">Demo password</label>
+                    <input type="password" id="hub-trade-pw" placeholder="try: demo" style="width: 100%; max-width: 280px; padding: 0.5rem" />
+                    <button type="submit" class="ng-btn-buy" style="margin-top: 0.5rem">Unlock trade auctions</button>
+                </form>
+            </section>
+
+            <section class="ng-hub-card" id="cart">
+                <h2>Multi-lot bid list</h2>
+                <ul id="hub-cart" style="list-style: none; padding: 0"></ul>
+            </section>
+
+            <section class="ng-hub-card">
+                <h2>Saved searches</h2>
+                <input type="text" id="hub-search-q" placeholder="Search query" style="width: 100%; max-width: 320px; padding: 0.5rem" />
+                <button type="button" class="ng-btn-secondary" id="hub-save-search" style="margin-top: 0.5rem">Save search</button>
+                <ul id="hub-saved" style="margin-top: 0.75rem"></ul>
+            </section>
+
+            <section class="ng-hub-card">
+                <h2>Notifications</h2>
+                <button type="button" class="ng-btn-secondary" id="hub-mark-read">Mark all read</button>
+                <ul id="hub-notifications" style="margin-top: 0.75rem"></ul>
+            </section>
+
+            <section class="ng-hub-card">
+                <h2>Price drop alerts</h2>
+                <p class="ng-muted">Set per-lot targets from lot pages (store hook ready — use Hub wallet flow in production).</p>
+            </section>
+
+            <section class="ng-hub-card">
+                <h2>Fast checkout</h2>
+                <p><a href="checkout-demo.html">Open checkout demo</a> (Apple Pay / Google Pay placeholders).</p>
+            </section>
+        </div>
+    </main>
+
+    <footer class="auction-footer">
+        <div class="auction-wrap auction-footer-bottom"><a href="index.html">Home</a></div>
+    </footer>
+
+    <script src="js/auction-data.js"></script>
+    <script src="js/auction-store.js"></script>
+    <script src="js/auction-utils.js"></script>
+    <script src="js/auction-hub.js"></script>
+</body>
+</html>

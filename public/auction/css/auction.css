@@ -1,0 +1,1220 @@
+/* Northgate Auction House — vibrant marketplace microsite */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&display=swap');
+
+:root {
+    --ng-cream: #fffdf8;
+    --ng-sky: #e0f2fe;
+    --ng-peach: #ffedd5;
+    --ng-lilac: #f3e8ff;
+    --ng-surface: #ffffff;
+    --ng-surface2: #f8fafc;
+    --ng-border: rgba(15, 23, 42, 0.08);
+    --ng-text: #0f172a;
+    --ng-muted: #64748b;
+    --ng-orange: #ea580c;
+    --ng-orange-deep: #c2410c;
+    --ng-magenta: #db2777;
+    --ng-blue: #2563eb;
+    --ng-blue-deep: #1d4ed8;
+    --ng-lime: #84cc16;
+    --ng-yellow: #facc15;
+    --ng-success: #16a34a;
+    --ng-danger: #dc2626;
+    --ng-max: 1200px;
+    --ng-radius: 16px;
+    --ng-radius-sm: 12px;
+    --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --ng-shadow: 0 4px 24px rgba(234, 88, 12, 0.12);
+    --ng-shadow-hover: 0 16px 40px rgba(234, 88, 12, 0.2);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body.auction-site {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font);
+    font-size: 1rem;
+    line-height: 1.55;
+    color: var(--ng-text);
+    background: var(--ng-cream);
+    background-image:
+        radial-gradient(ellipse 100% 80% at 0% 0%, rgba(254, 215, 170, 0.55) 0%, transparent 50%),
+        radial-gradient(ellipse 80% 60% at 100% 10%, rgba(224, 242, 254, 0.9) 0%, transparent 45%),
+        radial-gradient(ellipse 60% 50% at 50% 100%, rgba(243, 232, 255, 0.7) 0%, transparent 50%);
+    background-attachment: fixed;
+}
+
+a {
+    color: var(--ng-blue);
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+    color: var(--ng-blue-deep);
+}
+
+.auction-wrap {
+    max-width: var(--ng-max);
+    margin: 0 auto;
+    padding: 0 1.25rem;
+}
+
+/* Header */
+.auction-topbar {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 3px solid transparent;
+    border-image: linear-gradient(90deg, var(--ng-yellow), var(--ng-orange), var(--ng-magenta), var(--ng-blue)) 1;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+.auction-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    flex-wrap: wrap;
+}
+
+.auction-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.05;
+    text-decoration: none;
+}
+.auction-brand:hover {
+    text-decoration: none;
+}
+.auction-brand .brand-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(120deg, var(--ng-orange) 0%, var(--ng-magenta) 45%, var(--ng-blue-deep) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.auction-brand .brand-subtitle {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ng-blue);
+    margin-top: 0.2rem;
+}
+
+.auction-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    flex-wrap: wrap;
+}
+.auction-nav a {
+    color: var(--ng-text);
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+}
+.auction-nav a:hover {
+    background: var(--ng-peach);
+    text-decoration: none;
+    color: var(--ng-orange-deep);
+}
+
+.auction-search-form {
+    display: flex;
+    flex: 1;
+    min-width: 200px;
+    max-width: 380px;
+    margin: 0 0.5rem;
+}
+.auction-search-form input {
+    flex: 1;
+    border: 2px solid var(--ng-border);
+    background: var(--ng-surface);
+    color: var(--ng-text);
+    padding: 0.55rem 0.95rem;
+    border-radius: 999px 0 0 999px;
+    font: inherit;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.auction-search-form input::placeholder {
+    color: var(--ng-muted);
+}
+.auction-search-form input:focus {
+    outline: none;
+    border-color: var(--ng-orange);
+}
+.auction-search-form button {
+    border: 2px solid var(--ng-orange-deep);
+    background: linear-gradient(145deg, var(--ng-yellow) 0%, var(--ng-orange) 55%, var(--ng-orange-deep) 100%);
+    color: #fff;
+    font-weight: 800;
+    padding: 0.55rem 1.15rem;
+    border-radius: 0 999px 999px 0;
+    cursor: pointer;
+    font: inherit;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+}
+.auction-search-form button:hover {
+    filter: brightness(1.06);
+    transform: scale(1.02);
+}
+
+/* Hero */
+.auction-hero {
+    padding: 2.5rem 0 2rem;
+    text-align: center;
+    position: relative;
+}
+.auction-hero-inner {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 237, 213, 0.85) 40%, rgba(224, 242, 254, 0.9) 100%);
+    border-radius: var(--ng-radius);
+    padding: 2rem 1.5rem 2.25rem;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: var(--ng-shadow);
+}
+.auction-hero-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ng-magenta);
+    background: linear-gradient(90deg, #fce7f3, #ffedd5);
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    margin-bottom: 0.75rem;
+}
+.auction-hero h1 {
+    font-size: clamp(1.85rem, 5vw, 2.75rem);
+    font-weight: 800;
+    margin: 0 0 0.65rem;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: var(--ng-text);
+}
+.auction-hero h1 .hero-gradient {
+    background: linear-gradient(105deg, var(--ng-orange), var(--ng-magenta), var(--ng-blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.auction-hero p {
+    margin: 0 auto;
+    max-width: 38rem;
+    color: var(--ng-muted);
+    font-size: 1.08rem;
+    font-weight: 500;
+}
+
+/* Section */
+.auction-section {
+    padding: 1.75rem 0 2.25rem;
+}
+.auction-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.35rem;
+    flex-wrap: wrap;
+}
+.auction-section-head h2 {
+    font-size: clamp(1.35rem, 3vw, 1.65rem);
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.auction-section-head h2 .section-emoji {
+    font-size: 1.4em;
+    line-height: 1;
+}
+.auction-section-head h2 .section-bar {
+    flex-shrink: 0;
+    width: 5px;
+    height: 1.35em;
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--ng-yellow), var(--ng-orange), var(--ng-magenta));
+}
+.auction-section-head a.view-all {
+    color: var(--ng-orange);
+    font-weight: 800;
+    font-size: 0.95rem;
+    text-decoration: none;
+    padding: 0.4rem 0.9rem;
+    background: #fff;
+    border-radius: 999px;
+    border: 2px solid var(--ng-peach);
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.1);
+}
+.auction-section-head a.view-all:hover {
+    background: var(--ng-peach);
+    text-decoration: none;
+}
+
+/* Lot grid */
+.auction-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.25rem;
+}
+
+.auction-card {
+    background: var(--ng-surface);
+    border: 2px solid var(--ng-border);
+    border-radius: var(--ng-radius);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+.auction-card:hover {
+    transform: translateY(-5px) rotate(-0.3deg);
+    box-shadow: var(--ng-shadow-hover);
+    border-color: rgba(234, 88, 12, 0.35);
+}
+.auction-card a.card-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+.auction-card-img {
+    aspect-ratio: 4 / 3;
+    background: linear-gradient(145deg, var(--ng-sky), var(--ng-lilac));
+    overflow: hidden;
+}
+.auction-card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.auction-card-body {
+    padding: 1rem 1rem 1.15rem;
+}
+.auction-card-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 0 0 0.75rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--ng-text);
+}
+.auction-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: var(--ng-muted);
+    font-weight: 500;
+}
+.auction-card-meta strong {
+    color: var(--ng-success);
+    font-weight: 800;
+}
+.auction-card-meta .time-left {
+    color: var(--ng-text);
+    font-weight: 700;
+}
+
+/* Browse layout */
+.auction-browse-layout {
+    display: grid;
+    grid-template-columns: 230px 1fr;
+    gap: 2rem;
+    padding: 2rem 0 3rem;
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .auction-browse-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.auction-sidebar {
+    background: var(--ng-surface);
+    border: 2px solid var(--ng-border);
+    border-radius: var(--ng-radius);
+    padding: 1.25rem;
+    position: sticky;
+    top: 5.5rem;
+    box-shadow: var(--ng-shadow);
+}
+.auction-sidebar h3 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin: 0 0 1rem;
+    color: var(--ng-text);
+}
+.auction-cat-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.auction-cat-list li {
+    margin-bottom: 0.35rem;
+}
+.auction-cat-list a {
+    display: block;
+    padding: 0.45rem 0.65rem;
+    border-radius: 10px;
+    color: var(--ng-muted);
+    text-decoration: none;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+.auction-cat-list a:hover,
+.auction-cat-list a.active {
+    background: linear-gradient(90deg, var(--ng-peach), transparent);
+    color: var(--ng-orange-deep);
+}
+
+.auction-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.auction-toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--ng-muted);
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+.auction-toolbar select {
+    background: var(--ng-surface);
+    border: 2px solid var(--ng-border);
+    color: var(--ng-text);
+    padding: 0.5rem 0.85rem;
+    border-radius: 10px;
+    font: inherit;
+    font-weight: 600;
+}
+.auction-result-count {
+    color: var(--ng-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* Lot detail */
+.auction-lot-page {
+    padding: 2rem 0 4rem;
+}
+.auction-lot-grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 2rem;
+    align-items: start;
+}
+@media (max-width: 960px) {
+    .auction-lot-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.auction-lot-gallery {
+    background: var(--ng-surface);
+    border: 2px solid var(--ng-border);
+    border-radius: var(--ng-radius);
+    overflow: hidden;
+    box-shadow: var(--ng-shadow);
+}
+.auction-lot-gallery img {
+    width: 100%;
+    display: block;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+}
+.auction-lot-panel {
+    background: linear-gradient(165deg, #ffffff 0%, #fff7ed 100%);
+    border: 2px solid var(--ng-border);
+    border-radius: var(--ng-radius);
+    padding: 1.5rem;
+    box-shadow: var(--ng-shadow);
+}
+.auction-lot-panel h1 {
+    font-size: 1.65rem;
+    font-weight: 800;
+    margin: 0 0 0.5rem;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+}
+.auction-lot-id {
+    font-size: 0.85rem;
+    color: var(--ng-muted);
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+.auction-countdown {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--ng-orange);
+    margin-bottom: 1rem;
+    letter-spacing: 0.02em;
+    padding: 0.65rem 0.85rem;
+    background: linear-gradient(90deg, #fff7ed, #ffedd5);
+    border-radius: 10px;
+    border-left: 4px solid var(--ng-orange);
+}
+.auction-countdown.ended {
+    color: var(--ng-danger);
+    background: #fef2f2;
+    border-left-color: var(--ng-danger);
+}
+.auction-price-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.65rem 0;
+    border-bottom: 1px dashed var(--ng-border);
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+.auction-price-row:last-of-type {
+    border-bottom: none;
+}
+.auction-price-row span:first-child {
+    color: var(--ng-muted);
+    font-weight: 600;
+}
+.auction-bid-form {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 2px dashed var(--ng-border);
+}
+.auction-bid-form label {
+    display: block;
+    font-size: 0.875rem;
+    color: var(--ng-muted);
+    margin-bottom: 0.35rem;
+    font-weight: 700;
+}
+.auction-bid-form .bid-input-row {
+    display: flex;
+    gap: 0.5rem;
+}
+.auction-bid-form input[type='number'] {
+    flex: 1;
+    background: #fff;
+    border: 2px solid var(--ng-border);
+    color: var(--ng-text);
+    padding: 0.65rem 0.85rem;
+    border-radius: 10px;
+    font: inherit;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+.auction-bid-form input:focus {
+    outline: none;
+    border-color: var(--ng-orange);
+}
+.auction-bid-form button[type='submit'] {
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.85rem 1rem;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(145deg, var(--ng-yellow) 0%, var(--ng-orange) 45%, var(--ng-magenta) 100%);
+    color: #fff;
+    font-weight: 800;
+    font-size: 1.05rem;
+    cursor: pointer;
+    font: inherit;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 16px rgba(234, 88, 12, 0.35);
+}
+.auction-bid-form button[type='submit']:hover:not(:disabled) {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+}
+.auction-bid-form button[type='submit']:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    filter: grayscale(0.3);
+}
+.auction-demo-note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--ng-muted);
+    font-weight: 500;
+}
+
+.auction-lot-description {
+    margin-top: 2rem;
+    max-width: 720px;
+}
+.auction-lot-description h2 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    margin: 0 0 0.75rem;
+    color: var(--ng-text);
+}
+.auction-lot-description p {
+    color: var(--ng-muted);
+    margin: 0;
+    font-weight: 500;
+}
+
+/* Footer */
+.auction-footer {
+    border-top: 3px solid transparent;
+    border-image: linear-gradient(90deg, var(--ng-blue), var(--ng-magenta), var(--ng-orange), var(--ng-yellow)) 1;
+    margin-top: 2.5rem;
+    padding: 2.5rem 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(224, 242, 254, 0.5) 100%);
+}
+.auction-footer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2rem;
+}
+.auction-footer h4 {
+    font-size: 1rem;
+    font-weight: 800;
+    margin: 0 0 0.75rem;
+    color: var(--ng-text);
+}
+.auction-footer ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.auction-footer li {
+    margin-bottom: 0.4rem;
+}
+.auction-footer a {
+    color: var(--ng-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.auction-footer a:hover {
+    color: var(--ng-orange);
+}
+
+.auction-footer-bottom {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--ng-border);
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--ng-muted);
+    font-weight: 600;
+}
+
+/* Static pages */
+.auction-static {
+    padding: 2.5rem 0 4rem;
+    max-width: 640px;
+}
+.auction-static h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin: 0 0 1rem;
+    letter-spacing: -0.02em;
+}
+.auction-static p {
+    color: var(--ng-muted);
+    font-weight: 500;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--ng-muted);
+    font-weight: 600;
+}
+
+/* ─── Feature UI: badges, ticker, hub, modals, dark mode ─── */
+.ng-urgency-ticker {
+    background: linear-gradient(90deg, #fef08a, #fed7aa, #fbcfe8);
+    color: var(--ng-text);
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    border-bottom: 2px solid rgba(234, 88, 12, 0.25);
+}
+.ng-wallet-pill {
+    font-size: 0.8rem;
+    font-weight: 800;
+    background: #e0f2fe;
+    color: var(--ng-blue-deep);
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+}
+#ng-dark-toggle {
+    border: 2px solid var(--ng-border);
+    background: #fff;
+    border-radius: 999px;
+    padding: 0.35rem 0.65rem;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+}
+.auction-card {
+    position: relative;
+}
+.ng-card-badges {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    right: 3rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    z-index: 2;
+    pointer-events: none;
+}
+.ng-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.2rem 0.45rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--ng-text);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.ng-badge-live {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+.ng-badge-steal {
+    background: #fef08a;
+    color: #854d0e;
+}
+.ng-badge-featured {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+.ng-badge-pick {
+    background: #fce7f3;
+    color: #9d174d;
+}
+.ng-badge-refined {
+    background: #d1fae5;
+    color: #065f46;
+}
+.ng-badge-mystery {
+    background: #e9d5ff;
+    color: #6b21a8;
+}
+.ng-badge-trade {
+    background: #334155;
+    color: #fff;
+}
+.ng-badge-tested {
+    background: #bbf7d0;
+    color: #14532d;
+}
+.ng-badge-auth {
+    background: #fef3c7;
+    color: #92400e;
+}
+.ng-badge-flash {
+    background: #f97316;
+    color: #fff;
+}
+.ng-badge-source {
+    font-size: 0.6rem;
+    max-width: 100%;
+}
+.ng-grade-a {
+    background: #d1fae5;
+    color: #065f46;
+}
+.ng-grade-b {
+    background: #fef9c3;
+    color: #854d0e;
+}
+.ng-grade-c {
+    background: #ffedd5;
+    color: #9a3412;
+}
+.ng-card-actions {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    z-index: 3;
+}
+.ng-watch {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    border: 2px solid #fff;
+    background: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.ng-watch.is-on {
+    background: #fce7f3;
+    color: #db2777;
+}
+.ng-card-extra {
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+}
+.ng-reserve.ok {
+    color: var(--ng-success);
+    font-weight: 700;
+}
+.ng-reserve.no {
+    color: #c2410c;
+    font-weight: 700;
+}
+.ng-rrp {
+    color: var(--ng-muted);
+    font-weight: 600;
+}
+.ng-confidence {
+    font-weight: 700;
+    color: var(--ng-blue);
+}
+
+.ng-steal-banner {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 1.5rem;
+    align-items: center;
+    background: linear-gradient(135deg, #fff7ed, #ffedd5, #fce7f3);
+    border-radius: var(--ng-radius);
+    padding: 1.25rem;
+    margin-bottom: 0.5rem;
+    border: 2px solid rgba(234, 88, 12, 0.2);
+}
+@media (max-width: 800px) {
+    .ng-steal-banner {
+        grid-template-columns: 1fr;
+    }
+}
+.ng-steal-copy h3 {
+    margin: 0 0 0.35rem;
+    font-size: 1.35rem;
+}
+.ng-steal-card .auction-card {
+    max-width: 280px;
+}
+
+.ng-sold-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.ng-sold-list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px dashed var(--ng-border);
+    font-weight: 600;
+}
+.ng-sold-price {
+    color: var(--ng-success);
+}
+.ng-sold-meta {
+    color: var(--ng-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.ng-bundle-banner,
+.ng-drop-teaser {
+    background: #fff;
+    border: 2px dashed var(--ng-border);
+    border-radius: var(--ng-radius);
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+}
+.ng-drop-chip {
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background: var(--ng-surface2);
+    border-radius: 10px;
+}
+.ng-drop-more {
+    display: inline-block;
+    margin-top: 0.5rem;
+    font-weight: 800;
+}
+
+.ng-browse-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+}
+.ng-browse-filters a {
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: #fff;
+    border: 2px solid var(--ng-border);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--ng-text);
+    text-decoration: none;
+}
+.ng-browse-filters a.active {
+    border-color: var(--ng-orange);
+    background: var(--ng-peach);
+}
+
+.ng-gate-banner {
+    background: #fef3c7;
+    border: 2px solid #f59e0b;
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+.ng-gate-vip {
+    background: #fce7f3;
+    border-color: #db2777;
+}
+.ng-live-ribbon {
+    background: linear-gradient(90deg, #fee2e2, #fff);
+    color: #b91c1c;
+    font-weight: 800;
+    padding: 0.5rem 0.85rem;
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+}
+.ng-zoom-hit {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    cursor: zoom-in;
+}
+.ng-video-wrap {
+    margin-top: 1rem;
+}
+.ng-video-frame {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    border-radius: 12px;
+    overflow: hidden;
+}
+.ng-video-frame iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+.ng-h3 {
+    font-size: 1.05rem;
+    margin: 0 0 0.5rem;
+}
+.ng-cross-grid {
+    margin-top: 0.5rem;
+}
+.ng-lot-badges {
+    margin-bottom: 0.75rem;
+    position: relative;
+}
+.ng-lot-badges .ng-card-badges {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+.ng-trust-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+}
+.ng-trust-pill {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    background: var(--ng-surface2);
+}
+.ng-trust-pill.tested {
+    background: #d1fae5;
+    color: #065f46;
+}
+.ng-confidence-meter {
+    margin: 0.75rem 0;
+}
+.ng-confidence-bar {
+    height: 8px;
+    background: var(--ng-border);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.ng-confidence-bar span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--ng-orange), var(--ng-lime));
+    border-radius: 999px;
+    width: 50%;
+}
+.ng-lot-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+    flex-wrap: wrap;
+}
+.ng-btn-secondary {
+    border: 2px solid var(--ng-border);
+    background: #fff;
+    border-radius: 10px;
+    padding: 0.45rem 0.85rem;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.ng-btn-secondary.is-on {
+    border-color: #db2777;
+    background: #fce7f3;
+}
+.ng-btn-buy {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+.ng-proxy-label {
+    margin-top: 0.75rem;
+}
+.ng-proxy-input {
+    width: 100%;
+    margin-top: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
+    border: 2px solid var(--ng-border);
+    font: inherit;
+}
+.ng-cart-row {
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    font-weight: 600;
+}
+.ng-hint {
+    font-size: 0.85rem;
+    color: #c2410c;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+}
+.ng-faults ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.2rem;
+}
+.ng-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.9);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    cursor: zoom-out;
+}
+.ng-lightbox img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 8px;
+}
+.ng-lightbox-close {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    font-size: 2rem;
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+}
+
+.ng-toast-host {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 320px;
+}
+.ng-toast {
+    background: var(--ng-text);
+    color: #fff;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    box-shadow: var(--ng-shadow-hover);
+    animation: ngToastIn 0.25s ease;
+}
+.ng-toast-ok {
+    background: #15803d;
+}
+.ng-toast-warn {
+    background: #c2410c;
+}
+@keyframes ngToastIn {
+    from {
+        transform: translateY(12px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+.ng-toast-out {
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.ng-exit-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 1500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.ng-exit-inner {
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.5rem;
+    max-width: 400px;
+    border: 3px solid var(--ng-orange);
+    box-shadow: var(--ng-shadow-hover);
+}
+.ng-exit-inner h3 {
+    margin: 0 0 0.5rem;
+}
+.ng-exit-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Hub & features */
+.ng-hub-grid {
+    display: grid;
+    gap: 1.25rem;
+}
+.ng-hub-card {
+    background: #fff;
+    border: 2px solid var(--ng-border);
+    border-radius: var(--ng-radius);
+    padding: 1.25rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+.ng-hub-card h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.15rem;
+}
+.ng-features-grid {
+    display: grid;
+    gap: 1.5rem;
+}
+.ng-feature-group h3 {
+    margin: 0 0 0.5rem;
+    color: var(--ng-orange);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.ng-feature-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.92rem;
+}
+.ng-feature-list li {
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--ng-border);
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.ng-feature-list a {
+    font-weight: 700;
+}
+
+[data-theme='dark'] body.auction-site {
+    --ng-cream: #0f172a;
+    --ng-text: #f1f5f9;
+    --ng-muted: #94a3b8;
+    --ng-surface: #1e293b;
+    --ng-surface2: #334155;
+    --ng-border: rgba(255, 255, 255, 0.1);
+    background: #0f172a;
+    color: var(--ng-text);
+}
+[data-theme='dark'] .auction-topbar {
+    background: rgba(15, 23, 42, 0.95);
+}
+[data-theme='dark'] .auction-card,
+[data-theme='dark'] .ng-hub-card,
+[data-theme='dark'] .auction-sidebar {
+    background: var(--ng-surface);
+    border-color: var(--ng-border);
+}
+[data-theme='dark'] .auction-search-form input {
+    background: var(--ng-surface2);
+    color: var(--ng-text);
+}
+[data-theme='dark'] #ng-dark-toggle {
+    background: var(--ng-surface2);
+    color: var(--ng-text);
+}
+
+.ng-muted {
+    color: var(--ng-muted);
+    font-weight: 500;
+}

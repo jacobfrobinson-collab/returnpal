@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Browse lots — Northgate Auction House</title>
+    <link rel="stylesheet" href="css/auction.css" />
+</head>
+<body class="auction-site">
+    <header class="auction-topbar">
+        <div class="auction-wrap auction-header-inner">
+            <a class="auction-brand" href="index.html">
+                <span class="brand-title">Northgate</span>
+                <span class="brand-subtitle">Auction House</span>
+            </a>
+            <form class="auction-search-form" action="browse.html" method="get" role="search" id="browse-search-form">
+                <input type="search" name="q" id="browse-q" placeholder="Search lots…" aria-label="Search lots" />
+                <input type="hidden" name="order" id="browse-order-hidden" value="endingsoon" />
+                <input type="hidden" name="category" id="browse-cat-hidden" value="" />
+                <button type="submit">Search</button>
+            </form>
+            <nav class="auction-nav">
+                <a href="index.html">Home</a>
+                <a href="hub.html">Hub</a>
+                <a href="features.html">Features</a>
+                <a href="login.html">Login</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="auction-wrap auction-browse-layout">
+        <aside class="auction-sidebar" aria-label="Filters">
+            <h3>Categories</h3>
+            <ul class="auction-cat-list">
+                <li><a href="browse.html" data-cat-link="all">All categories</a></li>
+                <li><a href="browse.html" data-cat-link="Toys &amp; Games">Toys &amp; Games</a></li>
+                <li><a href="browse.html" data-cat-link="Home &amp; Garden">Home &amp; Garden</a></li>
+                <li><a href="browse.html" data-cat-link="Health &amp; Beauty">Health &amp; Beauty</a></li>
+                <li><a href="browse.html" data-cat-link="Clothing &amp; Accessories">Clothing &amp; Accessories</a></li>
+                <li><a href="browse.html" data-cat-link="Electronics">Electronics</a></li>
+                <li><a href="browse.html" data-cat-link="Office Supplies">Office Supplies</a></li>
+                <li><a href="browse.html" data-cat-link="Arts &amp; Entertainment">Arts &amp; Entertainment</a></li>
+                <li><a href="browse.html" data-cat-link="Collectibles">Collectibles</a></li>
+            </ul>
+        </aside>
+        <div>
+            <div class="ng-browse-filters" aria-label="Quick filters">
+                <a href="#" data-quick-filter="all">All</a>
+                <a href="#" data-quick-filter="timed">Timed</a>
+                <a href="#" data-quick-filter="live">Live</a>
+                <a href="#" data-quick-filter="mystery">Mystery</a>
+                <a href="#" data-quick-filter="trade">Trade</a>
+                <a href="#" data-quick-filter="refined">Refined</a>
+            </div>
+            <div class="auction-toolbar">
+                <label>
+                    Sort by
+                    <select id="sort-select" aria-label="Sort order">
+                        <option value="endingsoon">Ending soon</option>
+                        <option value="mostpopular">Most popular</option>
+                        <option value="newlylisted">Newly listed</option>
+                        <option value="featured">Featured</option>
+                    </select>
+                </label>
+                <label>
+                    Grade
+                    <select id="grade-select" aria-label="Condition grade">
+                        <option value="all">All grades</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                    </select>
+                </label>
+                <span class="auction-result-count" id="result-count"></span>
+            </div>
+            <p class="ng-muted" style="font-size: 0.85rem; margin: 0 0 1rem">
+                VIP-only lots appear after you enable VIP in <a href="hub.html#vip">Hub</a>. Enable “Trade” unlock for trade pallets.
+            </p>
+            <div id="browse-grid"></div>
+        </div>
+    </main>
+
+    <footer class="auction-footer">
+        <div class="auction-wrap auction-footer-bottom">
+            <a href="index.html">Home</a>
+            &nbsp;·&nbsp;
+            <a href="/privacy.html">Privacy</a>
+            &nbsp;·&nbsp;
+            <a href="/terms.html">Terms</a>
+        </div>
+    </footer>
+
+    <script>
+        (function () {
+            var p = new URLSearchParams(window.location.search);
+            var q = p.get('q') || '';
+            var order = p.get('order') || 'endingsoon';
+            var category = p.get('category') || '';
+            var grade = p.get('grade') || 'all';
+            var el = document.getElementById('browse-q');
+            if (el) el.value = q;
+            var hid = document.getElementById('browse-order-hidden');
+            if (hid) hid.value = order;
+            var cat = document.getElementById('browse-cat-hidden');
+            if (cat) cat.value = category;
+            var g = document.getElementById('grade-select');
+            if (g) g.value = grade;
+        })();
+    </script>
+    <script src="js/auction-data.js"></script>
+    <script src="js/auction-store.js"></script>
+    <script src="js/auction-utils.js"></script>
+    <script src="js/auction-components.js"></script>
+    <script src="js/auction-browse.js"></script>
+</body>
+</html>
