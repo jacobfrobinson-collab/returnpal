@@ -818,6 +818,17 @@ const API = {
         return this.request('/admin/users/' + encodeURIComponent(userId), { method: 'DELETE' });
     },
 
+    /** Admin: bulk import rows from .xlsx / .xls / .csv for a client (see /api/admin/bulk-import-template/:kind). */
+    async adminBulkImportUser(userId, kind, file) {
+        if (!file || !(file instanceof Blob)) {
+            throw Object.assign(new Error('Choose a spreadsheet file'), { error: 'Choose a spreadsheet file' });
+        }
+        const fd = new FormData();
+        fd.append('kind', kind);
+        fd.append('file', file, file.name || 'import.xlsx');
+        return this.request('/admin/users/' + encodeURIComponent(userId) + '/bulk-import', { method: 'POST', body: fd });
+    },
+
     async importInventoryRows(rows) {
         return this.request('/inventory/import', { method: 'POST', body: { rows } });
     },

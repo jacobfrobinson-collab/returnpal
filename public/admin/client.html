@@ -28,6 +28,36 @@
         <input type="hidden" id="client-id" />
         <div class="row">
             <div class="col-lg-8">
+                <div class="section-card card border-primary">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <span>Bulk spreadsheet import</span>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="bulk-import-template-btn">Download template</button>
+                    </div>
+                    <div class="card-body">
+                        <p class="small text-muted mb-2">Upload an Excel (.xlsx, .xls) or CSV file with one row per item. Use the template so column names match. Reimbursement imports are text-only (no photos).</p>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-5">
+                                <label class="form-label small mb-0">Import type</label>
+                                <select class="form-select form-select-sm" id="bulk-import-kind">
+                                    <option value="sold">Record sales</option>
+                                    <option value="received">Check in (received items)</option>
+                                    <option value="pending">Pending items</option>
+                                    <option value="mark_delivered">Mark packages delivered</option>
+                                    <option value="reimbursement">Reimbursement claims</option>
+                                    <option value="return_adjustment">Return / refund adjustments</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small mb-0">File</label>
+                                <input type="file" class="form-control form-control-sm" id="bulk-import-file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" />
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-primary btn-sm w-100" id="bulk-import-run">Import</button>
+                            </div>
+                        </div>
+                        <pre class="small mt-2 mb-0 bg-light p-2 rounded text-wrap d-none" id="bulk-import-result" style="white-space:pre-wrap;max-height:220px;overflow:auto"></pre>
+                    </div>
+                </div>
                 <div class="section-card card">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <span>Packages</span>
@@ -251,7 +281,7 @@
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
-    <script src="/assets/js/api.js?v=rp9"></script>
+    <script src="/assets/js/api.js?v=rp11"></script>
     <script>
     $(function() {
         var ao = window.location.origin || '';
@@ -439,6 +469,51 @@
             API.request('/admin/impersonate/' + clientId, { method: 'POST' }).then(function(data) {
                 if (data.token) window.open('/dashboard/index.html?impersonate=' + encodeURIComponent(data.token), '_blank');
             }).catch(function() { alert('Could not open dashboard'); });
+        });
+
+        $('#bulk-import-template-btn').on('click', async function() {
+            var kind = $('#bulk-import-kind').val();
+            var token = API.getToken();
+            if (!token) return alert('Not logged in');
+            try {
+                var res = await fetch(API.getApiBase() + '/admin/bulk-import-template/' + encodeURIComponent(kind), {
+                    headers: { Authorization: 'Bearer ' + token }
+                });
+                if (!res.ok) {
+                    var err = await res.json().catch(function() { return {}; });
+                    throw new Error(err.error || res.statusText);
+                }
+                var blob = await res.blob();
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'returnpal-import-' + kind + '.xlsx';
+                a.click();
+                URL.revokeObjectURL(a.href);
+            } catch (e) {
+                alert(e.message || 'Could not download template');
+            }
+        });
+
+        $('#bulk-import-run').on('click', async function() {
+            var f = document.getElementById('bulk-import-file').files[0];
+            if (!f) return alert('Choose a spreadsheet file');
+            var kind = $('#bulk-import-kind').val();
+            var $btn = $(this).prop('disabled', true);
+            var $out = $('#bulk-import-result').addClass('d-none').text('');
+            try {
+                var data = await API.adminBulkImportUser(clientId, kind, f);
+                var txt = 'Imported ' + (data.imported || 0) + ' row(s).';
+                if (data.errors && data.errors.length) {
+                    txt += '\n\nRow errors:\n' + data.errors.map(function(e) { return 'Line ' + e.line + ': ' + e.error; }).join('\n');
+                }
+                $out.text(txt).removeClass('d-none');
+                document.getElementById('bulk-import-file').value = '';
+                refreshAll();
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Import failed');
+            } finally {
+                $btn.prop('disabled', false);
+            }
         });
 
         loadClientName();
