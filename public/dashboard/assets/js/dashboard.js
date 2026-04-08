@@ -2719,9 +2719,11 @@ const Dashboard = {
             const profileName = localStorage.getItem('returnpal_profile_name') || (user && user.full_name) || '';
             const profileEmail = (user && user.email) || '';
             const profileCompany = localStorage.getItem('returnpal_profile_company') || localStorage.getItem('returnpal_billing_company') || '';
+            const legacyId = (user && user.legacy_client_id) || (data.settings && data.settings.legacy_client_id) || '';
             $('#settings-profile-name').val(profileName);
             $('#settings-profile-email').val(profileEmail);
             $('#settings-profile-company').val(profileCompany);
+            $('#settings-legacy-client-id').val(legacyId);
             this.updateAvatarWidgets(user);
 
             $(document).off('change', '#settings-avatar-input').on('change', '#settings-avatar-input', async function() {
@@ -2746,13 +2748,35 @@ const Dashboard = {
                 }
             });
 
-            $(document).off('click', '#settings-profile-save').on('click', '#settings-profile-save', function() {
-                localStorage.setItem('returnpal_profile_name', $('#settings-profile-name').val().trim());
-                localStorage.setItem('returnpal_profile_company', $('#settings-profile-company').val().trim());
+            $(document).off('click', '#settings-profile-save').on('click', '#settings-profile-save', async function() {
                 const $btn = $(this);
-                $btn.text('Saved!');
-                Dashboard.showToast('Profile saved');
-                setTimeout(() => $btn.text('Save'), 1500);
+                const name = $('#settings-profile-name').val().trim();
+                const company = $('#settings-profile-company').val().trim();
+                const legacy = $('#settings-legacy-client-id').val().trim();
+                try {
+                    $btn.prop('disabled', true).text('Saving…');
+                    await API.updateProfile({
+                        full_name: name,
+                        company_name: company,
+                        legacy_client_id: legacy
+                    });
+                    localStorage.setItem('returnpal_profile_name', name);
+                    localStorage.setItem('returnpal_profile_company', company);
+                    try {
+                        const me = await API.getProfile({ skipAuthRedirect: true });
+                        if (me && me.user) {
+                            if (API.getSessionToken()) API.setSessionUser(me.user);
+                            else API.setUser(me.user);
+                            Dashboard.updateUserIdentityUI(me.user);
+                        }
+                    } catch (e) { /* ignore */ }
+                    Dashboard.showToast('Profile saved');
+                    $btn.text('Saved!');
+                    setTimeout(() => $btn.text('Save').prop('disabled', false), 1500);
+                } catch (err) {
+                    alert((err && err.error) || (err && err.errors && err.errors[0] && err.errors[0].msg) || 'Could not save profile.');
+                    $btn.prop('disabled', false).text('Save');
+                }
             });
             // Billing / invoice details
             const billingKeys = { name: 'returnpal_billing_name', company: 'returnpal_billing_company', address: 'returnpal_billing_address', phone: 'returnpal_billing_phone' };

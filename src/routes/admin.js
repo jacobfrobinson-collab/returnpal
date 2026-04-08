@@ -40,7 +40,9 @@ router.get('/users', async (req, res) => {
         const db = await getDb();
         const rows = parseResults(
             db.exec(
-                'SELECT id, email, full_name, company_name, created_at, COALESCE(is_admin, 0) AS is_admin FROM users ORDER BY created_at DESC'
+                `SELECT id, email, full_name, company_name, created_at, COALESCE(is_admin, 0) AS is_admin,
+                        COALESCE(legacy_client_id, '') AS legacy_client_id
+                 FROM users ORDER BY created_at DESC`
             )
         );
         res.json({ users: rows });

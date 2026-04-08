@@ -19,7 +19,7 @@ router.get('/', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
         const users = parseResults(
-            db.exec('SELECT vat_registered, discord_webhook FROM users WHERE id = ?', [req.user.id])
+            db.exec('SELECT vat_registered, discord_webhook, COALESCE(legacy_client_id, \'\') AS legacy_client_id FROM users WHERE id = ?', [req.user.id])
         );
 
         if (users.length === 0) {

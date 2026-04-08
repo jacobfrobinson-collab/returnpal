@@ -91,6 +91,11 @@ async function getDb() {
         // Column already exists
     }
     try {
+        db.run("ALTER TABLE users ADD COLUMN legacy_client_id TEXT DEFAULT ''");
+    } catch (e) {
+        // Column already exists
+    }
+    try {
         db.run('CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by)');
     } catch (e) {
         // ignore

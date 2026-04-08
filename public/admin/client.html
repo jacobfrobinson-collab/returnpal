@@ -18,7 +18,7 @@
     <header class="admin-header py-3 mb-4">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center">
-                <h1 class="h5 mb-0"><a href="/admin/index.html" class="text-decoration-none text-white">← Clients</a> – <span id="client-name">Client</span> <span class="badge bg-light text-dark ms-2" id="admin-client-id-badge">ID 0000</span></h1>
+                <h1 class="h5 mb-0"><a href="/admin/index.html" class="text-decoration-none text-white">← Clients</a> – <span id="client-name">Client</span> <span class="badge bg-light text-dark ms-2" id="admin-client-id-badge">ID 0000</span> <span id="client-legacy-wrap" class="d-none"><span class="badge bg-info text-dark ms-1" id="client-legacy-badge">Legacy —</span></span></h1>
                 <a href="/admin/index.html" class="btn btn-sm btn-outline-light">Back to list</a>
             </div>
         </div>
@@ -272,6 +272,13 @@
                 if (u) {
                     $('#client-name').text(u.full_name || u.email || 'Client');
                     document.title = 'Manage ' + (u.full_name || u.email) + ' – ReturnPal Admin';
+                    var leg = u.legacy_client_id && String(u.legacy_client_id).trim();
+                    if (leg) {
+                        $('#client-legacy-wrap').removeClass('d-none');
+                        $('#client-legacy-badge').text('Legacy ' + leg);
+                    } else {
+                        $('#client-legacy-wrap').addClass('d-none');
+                    }
                 }
             });
         }

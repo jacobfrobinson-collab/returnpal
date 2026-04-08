@@ -46,6 +46,7 @@
                                 <th>ID</th>
                                 <th>Name</th>
                                 <th>Email</th>
+                                <th>Legacy ID</th>
                                 <th>Company</th>
                                 <th>Joined</th>
                                 <th>Actions</th>
@@ -98,7 +99,7 @@
             var $tbody = $('#admin-users-tbody');
             $tbody.empty();
             if (!users || users.length === 0) {
-                $tbody.html('<tr><td colspan="6" class="text-center py-4 text-muted">No clients yet.</td></tr>');
+                $tbody.html('<tr><td colspan="7" class="text-center py-4 text-muted">No clients yet.</td></tr>');
             } else {
                 users.forEach(function(u) {
                     var date = u.created_at ? new Date(u.created_at).toLocaleDateString() : '-';
@@ -108,10 +109,15 @@
                     var deleteBtn = isAdmin
                         ? '<span class="text-muted small me-1" title="Admin accounts cannot be deleted here">—</span>'
                         : '<button type="button" class="btn btn-sm btn-outline-danger delete-user-btn me-1" data-id="' + u.id + '" data-email="' + emailAttr + '">Delete</button>';
+                    var legRaw = (u.legacy_client_id && String(u.legacy_client_id).trim()) ? String(u.legacy_client_id).trim() : '';
+                    var legCell = legRaw
+                        ? '<span class="font-monospace">' + legRaw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') + '</span>'
+                        : '—';
                     var row = '<tr>' +
                         '<td>' + idPadded + '</td>' +
                         '<td>' + (u.full_name || '-') + (isAdmin ? ' <span class="badge bg-secondary">Admin</span>' : '') + '</td>' +
                         '<td>' + (u.email || '') + '</td>' +
+                        '<td>' + legCell + '</td>' +
                         '<td>' + (u.company_name || '-') + '</td>' +
                         '<td>' + date + '</td>' +
                         '<td class="text-nowrap">' +

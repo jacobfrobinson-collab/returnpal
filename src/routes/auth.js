@@ -10,6 +10,15 @@ const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 
 const router = express.Router();
 
+function parseOneUserRow(result) {
+    if (!result || !result.length || !result[0].values || !result[0].values.length) return null;
+    const cols = result[0].columns;
+    const row = result[0].values[0];
+    const o = {};
+    cols.forEach((c, i) => { o[c] = row[i]; });
+    return o;
+}
+
 const uploadRoot = process.env.UPLOAD_DIR
     ? path.resolve(process.env.UPLOAD_DIR)
     : path.join(__dirname, '../../uploads');
@@ -170,7 +179,7 @@ router.post('/login', [
         const { email, password } = req.body;
 
         const result = db.exec(
-            'SELECT id, email, password, full_name, company_name, avatar_url, is_admin FROM users WHERE email = ?',
+            'SELECT id, email, password, full_name, company_name, avatar_url, is_admin, COALESCE(legacy_client_id, \'\') AS legacy_client_id FROM users WHERE email = ?',
             [email]
         );
 
@@ -201,6 +210,7 @@ router.post('/login', [
                 full_name: user.full_name,
                 company_name: user.company_name,
                 avatar_url: user.avatar_url,
+                legacy_client_id: user.legacy_client_id || '',
                 is_admin: isAdmin
             }
         });
@@ -215,7 +225,7 @@ router.get('/me', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
         const result = db.exec(
-            'SELECT id, email, full_name, company_name, phone, vat_registered, discord_webhook, avatar_url, is_admin, created_at FROM users WHERE id = ?',
+            'SELECT id, email, full_name, company_name, phone, vat_registered, discord_webhook, avatar_url, is_admin, legacy_client_id, created_at FROM users WHERE id = ?',
             [req.user.id]
         );
 
@@ -294,11 +304,12 @@ router.delete('/avatar', authMiddleware, async (req, res) => {
     }
 });
 
-// PUT /api/auth/profile
+// PUT /api/auth/profile — merge: only fields present in the body overwrite stored values
 router.put('/profile', authMiddleware, [
     body('full_name').optional().trim().isLength({ max: 200 }).withMessage('Full name too long'),
     body('company_name').optional().trim().isLength({ max: 200 }).withMessage('Company name too long'),
     body('phone').optional().trim().isLength({ max: 50 }).withMessage('Phone too long'),
+    body('legacy_client_id').optional().trim().isLength({ max: 64 }).withMessage('Legacy client ID too long'),
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -306,13 +317,33 @@ router.put('/profile', authMiddleware, [
             return res.status(400).json({ errors: errors.array() });
         }
         const db = await getDb();
-        const full_name = (req.body.full_name != null ? String(req.body.full_name).trim() : undefined);
-        const company_name = (req.body.company_name != null ? String(req.body.company_name).trim() : '');
-        const phone = (req.body.phone != null ? String(req.body.phone).trim() : '');
+        const cur = parseOneUserRow(
+            db.exec(
+                'SELECT full_name, company_name, phone, legacy_client_id FROM users WHERE id = ?',
+                [req.user.id]
+            )
+        );
+        if (!cur) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        let full_name = cur.full_name != null ? String(cur.full_name) : '';
+        if (req.body.full_name !== undefined) full_name = String(req.body.full_name).trim();
+
+        let company_name = cur.company_name != null ? String(cur.company_name) : '';
+        if (req.body.company_name !== undefined) company_name = String(req.body.company_name).trim();
+
+        let phone = cur.phone != null ? String(cur.phone) : '';
+        if (req.body.phone !== undefined) phone = String(req.body.phone).trim();
+
+        let legacy_client_id = cur.legacy_client_id != null ? String(cur.legacy_client_id) : '';
+        if (req.body.legacy_client_id !== undefined) {
+            legacy_client_id = String(req.body.legacy_client_id).trim().slice(0, 64);
+        }
 
         db.run(
-            "UPDATE users SET full_name = ?, company_name = ?, phone = ?, updated_at = datetime('now') WHERE id = ?",
-            [full_name != null ? full_name : '', company_name, phone, req.user.id]
+            "UPDATE users SET full_name = ?, company_name = ?, phone = ?, legacy_client_id = ?, updated_at = datetime('now') WHERE id = ?",
+            [full_name, company_name, phone, legacy_client_id, req.user.id]
         );
         saveDb();
 
