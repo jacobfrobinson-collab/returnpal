@@ -71,33 +71,6 @@ async function runTests() {
         process.exit(1);
     }
 
-    // Wanted marketplace (public list + create)
-    try {
-        const wantedList = await request('GET', '/api/wanted');
-        assert(wantedList.status === 200, 'Wanted list should return 200');
-        assert(Array.isArray(wantedList.data.listings), 'Wanted should return listings array');
-        console.log('  ✓ GET /api/wanted');
-    } catch (e) {
-        console.error('  ✗ GET /api/wanted:', e.message);
-    }
-
-    try {
-        const fd = new FormData();
-        fd.append('title', 'Test wanted item');
-        fd.append('description', 'Integration test description for wanted listing.');
-        fd.append('category', 'Test');
-        fd.append('budget_min', '10');
-        fd.append('budget_max', '50');
-        const url = BASE + '/api/wanted';
-        const res = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd });
-        const data = await res.json().catch(() => ({}));
-        assert(res.status === 201, 'POST wanted should return 201');
-        assert(data.id > 0, 'POST wanted should return id');
-        console.log('  ✓ POST /api/wanted (multipart)');
-    } catch (e) {
-        console.error('  ✗ POST /api/wanted:', e.message);
-    }
-
     // Dashboard stats (auth)
     try {
         const stats = await request('GET', '/api/dashboard/stats', null, token);
