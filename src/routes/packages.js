@@ -193,10 +193,14 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         const db = await getDb();
 
         const existing = parseResults(
-            db.exec('SELECT id FROM packages WHERE id = ? AND user_id = ?', [req.params.id, req.user.id])
+            db.exec('SELECT id, user_id FROM packages WHERE id = ?', [req.params.id])
         );
         if (existing.length === 0) {
             return res.status(404).json({ error: 'Package not found' });
+        }
+        const pkg = existing[0];
+        if (pkg.user_id !== req.user.id && !req.user.is_admin) {
+            return res.status(403).json({ error: 'Not authorized to delete this package' });
         }
 
         db.run('DELETE FROM package_products WHERE package_id = ?', [req.params.id]);

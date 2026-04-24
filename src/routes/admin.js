@@ -308,6 +308,67 @@ router.post('/reimbursement-claims', reimbursementMulter.array('photos', 10), as
     }
 });
 
+// PUT /api/admin/reimbursement-claims/:id — update text fields (admin)
+router.put('/reimbursement-claims/:id', async (req, res) => {
+    try {
+        const claimId = parseInt(req.params.id, 10);
+        if (isNaN(claimId)) return res.status(400).json({ error: 'Invalid id' });
+        const db = await getDb();
+        const rows = parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]));
+        if (!rows.length) return res.status(404).json({ error: 'Claim not found' });
+
+        const { package_reference, item_description, reimbursement_type, notes } = req.body;
+        const cur = rows[0];
+        const pkg = package_reference !== undefined ? String(package_reference || '').trim() : cur.package_reference;
+        const item = item_description !== undefined ? String(item_description || '').trim() : cur.item_description;
+        const rtype = reimbursement_type !== undefined ? String(reimbursement_type || '').trim() : cur.reimbursement_type;
+        const note = notes !== undefined ? String(notes || '').trim() : cur.notes;
+
+        if (!pkg || !item) {
+            return res.status(400).json({ error: 'package_reference and item_description are required' });
+        }
+
+        db.run(
+            'UPDATE reimbursement_claims SET package_reference = ?, item_description = ?, reimbursement_type = ?, notes = ? WHERE id = ?',
+            [pkg, item, rtype, note, claimId]
+        );
+        saveDb();
+        const updated = parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0];
+        updated.photos = parseResults(db.exec('SELECT id, file_path FROM reimbursement_claim_photos WHERE claim_id = ?', [claimId]));
+        res.json({ claim: updated });
+    } catch (err) {
+        console.error('Admin update reimbursement claim error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// DELETE /api/admin/reimbursement-claims/:id — remove claim and stored photos (admin)
+router.delete('/reimbursement-claims/:id', async (req, res) => {
+    try {
+        const claimId = parseInt(req.params.id, 10);
+        if (isNaN(claimId)) return res.status(400).json({ error: 'Invalid id' });
+        const db = await getDb();
+        const rows = parseResults(db.exec('SELECT id FROM reimbursement_claims WHERE id = ?', [claimId]));
+        if (!rows.length) return res.status(404).json({ error: 'Claim not found' });
+
+        const dir = path.join(reimbursementUploadDir, String(claimId));
+        if (fs.existsSync(dir)) {
+            try {
+                fs.rmSync(dir, { recursive: true, force: true });
+            } catch (e) {
+                console.error('Admin delete reimbursement: could not remove dir', dir, e);
+            }
+        }
+
+        db.run('DELETE FROM reimbursement_claims WHERE id = ?', [claimId]);
+        saveDb();
+        res.json({ message: 'Reimbursement claim removed' });
+    } catch (err) {
+        console.error('Admin delete reimbursement claim error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // POST /api/admin/impersonate/:id – get short-lived token to view as that client
 router.post('/impersonate/:id', async (req, res) => {
     try {

@@ -126,4 +126,89 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 });
 
+function canAccessSoldRow(db, req, id) {
+    const rows = parseResults(db.exec('SELECT * FROM sold_items WHERE id = ?', [id]));
+    if (!rows.length) return null;
+    const row = rows[0];
+    if (row.user_id !== req.user.id && !req.user.is_admin) return false;
+    return row;
+}
+
+// PUT /api/sold/:id — owner or admin
+router.put('/:id', authMiddleware, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+        const db = await getDb();
+        const row = canAccessSoldRow(db, req, id);
+        if (row === null) return res.status(404).json({ error: 'Not found' });
+        if (row === false) return res.status(403).json({ error: 'Not authorized' });
+
+        const { reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date, earnings } = req.body;
+        if (product != null && String(product).trim() === '') {
+            return res.status(400).json({ error: 'Product cannot be empty' });
+        }
+
+        const qty = quantity != null ? Math.max(1, parseInt(quantity, 10) || 1) : row.quantity || 1;
+        const earningsNum = earnings !== undefined && earnings !== null && String(earnings).trim() !== '' ? Number(earnings) : NaN;
+
+        let ref = reference !== undefined ? String(reference || '').trim() : row.reference;
+        let u;
+        let total;
+        let p;
+        let m;
+        if (Number.isFinite(earningsNum)) {
+            p = earningsNum;
+            total = earningsNum;
+            u = qty ? earningsNum / qty : 0;
+            m = 0;
+        } else {
+            u = unit_price != null ? Number(unit_price) : row.unit_price;
+            total = total_revenue != null ? Number(total_revenue) : row.total_revenue;
+            if (!total && u) total = u * qty;
+            p = profit != null ? Number(profit) : row.profit;
+            m = margin != null ? Number(margin) : row.margin;
+        }
+
+        const prod = product != null ? String(product).trim() : row.product;
+        let soldDateVal;
+        if (sold_date !== undefined) {
+            soldDateVal =
+                sold_date != null && String(sold_date).trim() !== '' ? String(sold_date).trim() : row.sold_date;
+        } else {
+            soldDateVal = row.sold_date;
+        }
+
+        db.run(
+            `UPDATE sold_items SET reference = ?, product = ?, quantity = ?, unit_price = ?, total_revenue = ?, profit = ?, margin = ?, sold_date = ?
+             WHERE id = ?`,
+            [ref, prod, qty, u || 0, total || 0, p || 0, m || 0, soldDateVal, id]
+        );
+        saveDb();
+        res.json({ message: 'Sold item updated' });
+    } catch (err) {
+        console.error('Update sold item error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// DELETE /api/sold/:id — owner or admin
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+        const db = await getDb();
+        const row = canAccessSoldRow(db, req, id);
+        if (row === null) return res.status(404).json({ error: 'Not found' });
+        if (row === false) return res.status(403).json({ error: 'Not authorized' });
+
+        db.run('DELETE FROM sold_items WHERE id = ?', [id]);
+        saveDb();
+        res.json({ message: 'Sold item removed' });
+    } catch (err) {
+        console.error('Delete sold item error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 module.exports = router;

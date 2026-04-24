@@ -66,7 +66,7 @@
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Reference</th><th>Status</th><th>Date</th><th></th></tr></thead>
+                                <thead><tr><th>Reference</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="packages-tbody"></tbody>
                             </table>
                         </div>
@@ -79,12 +79,12 @@
                 <div class="section-card card">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <span>Check in (Received)</span>
-                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modal-checkin">+ Check in items</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="btn-open-checkin-modal">+ Check in items</button>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Reference</th><th>Items</th><th>Status</th><th>Date</th></tr></thead>
+                                <thead><tr><th>Reference</th><th>Items</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="received-tbody"></tbody>
                             </table>
                         </div>
@@ -94,12 +94,12 @@
                 <div class="section-card card">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <span>Record sale</span>
-                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modal-record-sale">+ Record sale</button>
+                        <button type="button" class="btn btn-sm btn-success" id="btn-open-sale-modal">+ Record sale</button>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Sold Date</th><th>Item name</th><th>Quantity</th><th>Earnings</th></tr></thead>
+                                <thead><tr><th>Sold Date</th><th>Item name</th><th>Quantity</th><th>Earnings</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="sold-tbody"></tbody>
                             </table>
                         </div>
@@ -109,12 +109,12 @@
                 <div class="section-card card">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <span>Pending items</span>
-                        <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modal-add-pending">+ Add pending</button>
+                        <button type="button" class="btn btn-sm btn-warning" id="btn-open-pending-modal">+ Add pending</button>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Product</th><th>Stage</th><th>Est. completion</th></tr></thead>
+                                <thead><tr><th>Product</th><th>Stage</th><th>Est. completion</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="pending-tbody"></tbody>
                             </table>
                         </div>
@@ -130,7 +130,7 @@
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Package ref</th><th>Item</th><th>Type</th><th>Photos</th><th>Date</th></tr></thead>
+                                <thead><tr><th>Package ref</th><th>Item</th><th>Type</th><th>Photos</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="reimbursement-tbody"></tbody>
                             </table>
                         </div>
@@ -180,8 +180,17 @@
     <div class="modal fade" id="modal-checkin" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header"><h6 class="modal-title">Check in items (received)</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header"><h6 class="modal-title" id="checkin-modal-title">Check in items (received)</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
+                    <input type="hidden" id="checkin-edit-id" value="" />
+                    <div class="mb-2 d-none" id="checkin-status-row"><label class="form-label">Status</label>
+                        <select class="form-select" id="checkin-status">
+                            <option value="Processing">Processing</option>
+                            <option value="Processed">Processed</option>
+                            <option value="Quality Check">Quality Check</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
                     <div class="mb-2"><label class="form-label">Reference</label><input type="text" class="form-control" id="checkin-reference" placeholder="e.g. TRACK-123" /></div>
                     <div class="mb-2"><label class="form-label">Items description</label><input type="text" class="form-control" id="checkin-items" placeholder="e.g. iPhone case x2, Cable x1" /></div>
                     <div class="mb-2"><label class="form-label">Quantity</label><input type="number" class="form-control" id="checkin-qty" value="1" min="1" /></div>
@@ -189,7 +198,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="btn-checkin">Check in</button>
+                    <button type="button" class="btn btn-primary" id="btn-checkin"><span id="checkin-btn-label">Check in</span></button>
                 </div>
             </div>
         </div>
@@ -198,8 +207,9 @@
     <div class="modal fade" id="modal-record-sale" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header"><h6 class="modal-title">Record sale</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header"><h6 class="modal-title" id="sale-modal-title">Record sale</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
+                    <input type="hidden" id="sale-edit-id" value="" />
                     <div class="mb-2"><label class="form-label">Sold Date</label><input type="date" class="form-control" id="sale-sold-date" /></div>
                     <div class="mb-2"><label class="form-label">Item name</label><input type="text" class="form-control" id="sale-product" placeholder="Product name" /></div>
                     <div class="mb-2"><label class="form-label">Quantity</label><input type="number" class="form-control" id="sale-qty" value="1" min="1" /></div>
@@ -207,7 +217,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="btn-record-sale">Record sale</button>
+                    <button type="button" class="btn btn-primary" id="btn-record-sale"><span id="sale-btn-label">Record sale</span></button>
                 </div>
             </div>
         </div>
@@ -216,8 +226,9 @@
     <div class="modal fade" id="modal-add-pending" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header"><h6 class="modal-title">Add pending item</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header"><h6 class="modal-title" id="pending-modal-title">Add pending item</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
+                    <input type="hidden" id="pending-edit-id" value="" />
                     <div class="mb-2"><label class="form-label">Reference</label><input type="text" class="form-control" id="pending-reference" placeholder="e.g. TRACK-123" /></div>
                     <div class="mb-2"><label class="form-label">Product</label><input type="text" class="form-control" id="pending-product" placeholder="Product name" /></div>
                     <div class="mb-2"><label class="form-label">Quantity</label><input type="number" class="form-control" id="pending-qty" value="1" min="1" /></div>
@@ -225,15 +236,17 @@
                         <select class="form-select" id="pending-stage">
                             <option value="Initial Inspection">Initial Inspection</option>
                             <option value="Quality Check">Quality Check</option>
+                            <option value="Return Verification">Return Verification</option>
                             <option value="Listing">Listing</option>
                             <option value="Ready for Sale">Ready for Sale</option>
                         </select>
                     </div>
                     <div class="mb-2"><label class="form-label">Est. completion (date)</label><input type="text" class="form-control" id="pending-est" placeholder="YYYY-MM-DD" /></div>
+                    <div class="mb-2"><label class="form-label">Notes</label><input type="text" class="form-control" id="pending-notes" placeholder="Optional" /></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="btn-add-pending">Add</button>
+                    <button type="button" class="btn btn-primary" id="btn-add-pending"><span id="pending-btn-label">Add</span></button>
                 </div>
             </div>
         </div>
@@ -276,6 +289,61 @@
         </div>
     </div>
 
+    <div class="modal fade" id="modal-edit-package" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h6 class="modal-title">Edit package</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" id="package-edit-id" value="" />
+                    <div class="mb-2"><label class="form-label">Reference</label><input type="text" class="form-control" id="package-edit-reference" /></div>
+                    <div class="mb-2"><label class="form-label">Status</label>
+                        <select class="form-select" id="package-edit-status">
+                            <option value="In Transit">In Transit</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Processing">Processing</option>
+                            <option value="Processed">Processed</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    <div class="mb-2"><label class="form-label">Notes</label><input type="text" class="form-control" id="package-edit-notes" /></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-package">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modal-edit-reimbursement" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h6 class="modal-title">Edit reimbursement claim</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" id="reimb-edit-id" value="" />
+                    <div class="mb-2"><label class="form-label">Package reference</label><input type="text" class="form-control" id="reimb-edit-package-reference" /></div>
+                    <div class="mb-2"><label class="form-label">Item description</label><input type="text" class="form-control" id="reimb-edit-item-description" /></div>
+                    <div class="mb-2">
+                        <label class="form-label">Reimbursement type</label>
+                        <select class="form-select" id="reimb-edit-type">
+                            <option value="Destroyed Inventory">Destroyed Inventory</option>
+                            <option value="Damaged Inventory">Damaged Inventory</option>
+                            <option value="Misplaced and Lost Inventory">Misplaced and Lost Inventory</option>
+                            <option value="Customer Returned Orders">Customer Returned Orders</option>
+                            <option value="Missing FBA Shipment Units">Missing FBA Shipment Units</option>
+                        </select>
+                    </div>
+                    <div class="mb-2"><label class="form-label">Notes</label><input type="text" class="form-control" id="reimb-edit-notes" /></div>
+                    <p class="small text-muted mb-0">Photos are not changed here; add a new claim if you need different images.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-reimbursement">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp11"></script>
@@ -293,6 +361,62 @@
         $('#link-view-dashboard').attr('href', '#');
 
         function fmtDate(s) { return s ? RP_DATE.format(s) : '-'; }
+
+        function escapeHtml(s) {
+            if (s == null) return '';
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function toDateInputVal(v) {
+            if (v == null || v === '') return '';
+            var d = new Date(v);
+            if (isNaN(d.getTime())) return String(v).slice(0, 10);
+            var m = (d.getMonth() + 1).toString().padStart(2, '0');
+            var day = d.getDate().toString().padStart(2, '0');
+            return d.getFullYear() + '-' + m + '-' + day;
+        }
+
+        function resetCheckinForNew() {
+            $('#checkin-edit-id').val('');
+            $('#checkin-modal-title').text('Check in items (received)');
+            $('#checkin-btn-label').text('Check in');
+            $('#checkin-status-row').addClass('d-none');
+            $('#checkin-reference, #checkin-items, #checkin-notes').val('');
+            $('#checkin-qty').val(1);
+            $('#checkin-status').val('Processing');
+        }
+
+        function initCardMinimizeControls() {
+            $('.card').each(function(i) {
+                var $card = $(this);
+                var $header = $card.children('.card-header').first();
+                var $body = $card.children('.card-body').first();
+                if (!$header.length || !$body.length) return;
+
+                var bodyId = $body.attr('id');
+                if (!bodyId) {
+                    bodyId = 'card-body-' + i;
+                    $body.attr('id', bodyId);
+                }
+
+                if ($header.find('.card-minimize-toggle').length) return;
+                var $toggle = $('<button type="button" class="btn btn-sm btn-outline-secondary card-minimize-toggle" aria-expanded="true">Minimise</button>');
+                $toggle.attr('aria-controls', bodyId);
+                $header.addClass('d-flex justify-content-between align-items-center');
+                $header.append($toggle);
+
+                $toggle.on('click', function() {
+                    var expanded = $toggle.attr('aria-expanded') === 'true';
+                    if (expanded) {
+                        $body.slideUp(120);
+                        $toggle.text('Expand').attr('aria-expanded', 'false');
+                    } else {
+                        $body.slideDown(120);
+                        $toggle.text('Minimise').attr('aria-expanded', 'true');
+                    }
+                });
+            });
+        }
 
         function loadClientName() {
             API.request('/admin/users').then(function(data) {
@@ -323,9 +447,33 @@
                 $tb.empty();
                 list.forEach(function(p) {
                     var ref = p.reference || p.id || '';
-                    $sel.append('<option value="' + p.id + '">' + ref + ' – ' + (p.status || '') + '</option>');
-                    $reimbSel.append('<option value="' + ref + '">' + ref + '</option>');
-                    $tb.append('<tr><td>' + ref + '</td><td><span class="badge bg-secondary">' + (p.status || '') + '</span></td><td>' + fmtDate(p.date_added) + '</td><td>' + (p.status !== 'Delivered' ? '<button type="button" class="btn btn-sm btn-outline-success mark-deliver-btn" data-id="' + p.id + '">Mark delivered</button>' : '') + '</td></tr>');
+                    var refEsc = escapeHtml(ref);
+                    $sel.append('<option value="' + p.id + '">' + refEsc + ' – ' + escapeHtml(p.status || '') + '</option>');
+                    $reimbSel.append('<option value="' + escapeHtml(ref) + '">' + refEsc + '</option>');
+                    var $tr = $('<tr>');
+                    $tr.append('<td>' + refEsc + '</td><td><span class="badge bg-secondary">' + escapeHtml(p.status || '') + '</span></td><td>' + fmtDate(p.date_added) + '</td>');
+                    var $tdAct = $('<td class="text-end text-nowrap"></td>');
+                    var $grp = $('<div class="btn-group btn-group-sm" role="group"></div>');
+                    if (p.status !== 'Delivered') {
+                        $grp.append('<button type="button" class="btn btn-outline-success mark-deliver-btn" data-id="' + p.id + '" title="Mark delivered">Deliver</button>');
+                    }
+                    var $edit = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
+                    $edit.on('click', function() {
+                        $('#package-edit-id').val(p.id);
+                        $('#package-edit-reference').val(ref);
+                        $('#package-edit-status').val(p.status || 'In Transit');
+                        $('#package-edit-notes').val(p.notes || '');
+                        new bootstrap.Modal(document.getElementById('modal-edit-package')).show();
+                    });
+                    var $del = $('<button type="button" class="btn btn-outline-danger">Delete</button>');
+                    $del.on('click', function() {
+                        if (!confirm('Delete this package? This cannot be undone.')) return;
+                        API.request('/packages/' + p.id, { method: 'DELETE' }).then(function() { refreshAll(); }).catch(function(e) { alert(e.error || 'Failed'); });
+                    });
+                    $grp.append($edit).append($del);
+                    $tdAct.append($grp);
+                    $tr.append($tdAct);
+                    $tb.append($tr);
                 });
                 if (list.length === 0) $tb.append('<tr><td colspan="4" class="text-muted">No packages</td></tr>');
             }).catch(function() { $('#packages-tbody').html('<tr><td colspan="4" class="text-danger">Failed to load</td></tr>'); });
@@ -339,12 +487,33 @@
                 $tb.empty();
                 list.forEach(function(c) {
                     var photoLinks = (c.photos || []).map(function(ph) {
-                        return '<a href="/uploads/' + (ph.file_path || '') + '" target="_blank" class="me-1">Photo</a>';
+                        return '<a href="/uploads/' + escapeHtml(ph.file_path || '') + '" target="_blank" class="me-1">Photo</a>';
                     }).join('') || '-';
-                    $tb.append('<tr><td>' + (c.package_reference || '') + '</td><td>' + (c.item_description || '') + '</td><td><span class="badge bg-info">' + (c.reimbursement_type || '') + '</span></td><td>' + photoLinks + '</td><td>' + fmtDate(c.created_at) + '</td></tr>');
+                    var $tr = $('<tr>');
+                    $tr.append('<td>' + escapeHtml(c.package_reference || '') + '</td><td>' + escapeHtml(c.item_description || '') + '</td><td><span class="badge bg-info">' + escapeHtml(c.reimbursement_type || '') + '</span></td><td>' + photoLinks + '</td><td>' + fmtDate(c.created_at) + '</td>');
+                    var $td = $('<td class="text-end text-nowrap"></td>');
+                    var $grp = $('<div class="btn-group btn-group-sm"></div>');
+                    var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
+                    $ed.on('click', function() {
+                        $('#reimb-edit-id').val(c.id);
+                        $('#reimb-edit-package-reference').val(c.package_reference || '');
+                        $('#reimb-edit-item-description').val(c.item_description || '');
+                        $('#reimb-edit-type').val(c.reimbursement_type || 'Destroyed Inventory');
+                        $('#reimb-edit-notes').val(c.notes || '');
+                        new bootstrap.Modal(document.getElementById('modal-edit-reimbursement')).show();
+                    });
+                    var $rm = $('<button type="button" class="btn btn-outline-danger">Delete</button>');
+                    $rm.on('click', function() {
+                        if (!confirm('Delete this reimbursement claim and its photos?')) return;
+                        API.request('/admin/reimbursement-claims/' + c.id, { method: 'DELETE' }).then(function() { refreshAll(); }).catch(function(e) { alert(e.error || 'Failed'); });
+                    });
+                    $grp.append($ed).append($rm);
+                    $td.append($grp);
+                    $tr.append($td);
+                    $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">None</td></tr>');
-            }).catch(function() { $('#reimbursement-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">None</td></tr>');
+            }).catch(function() { $('#reimbursement-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load</td></tr>'); });
         }
 
         function loadReceived() {
@@ -353,10 +522,35 @@
                 var $tb = $('#received-tbody');
                 $tb.empty();
                 list.forEach(function(r) {
-                    $tb.append('<tr><td>' + (r.reference || '') + '</td><td>' + (r.items_description || '') + '</td><td>' + (r.status || '') + '</td><td>' + fmtDate(r.date_received) + '</td></tr>');
+                    var $tr = $('<tr>');
+                    $tr.append('<td>' + escapeHtml(r.reference || '') + '</td><td>' + escapeHtml(r.items_description || '') + '</td><td>' + escapeHtml(r.status || '') + '</td><td>' + fmtDate(r.date_received) + '</td>');
+                    var $td = $('<td class="text-end text-nowrap"></td>');
+                    var $grp = $('<div class="btn-group btn-group-sm"></div>');
+                    var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
+                    $ed.on('click', function() {
+                        $('#checkin-edit-id').val(r.id);
+                        $('#checkin-modal-title').text('Edit received item');
+                        $('#checkin-btn-label').text('Save');
+                        $('#checkin-status-row').removeClass('d-none');
+                        $('#checkin-reference').val(r.reference || '');
+                        $('#checkin-items').val(r.items_description || '');
+                        $('#checkin-qty').val(r.quantity || 1);
+                        $('#checkin-notes').val(r.notes || '');
+                        $('#checkin-status').val(r.status || 'Processing');
+                        new bootstrap.Modal(document.getElementById('modal-checkin')).show();
+                    });
+                    var $rm = $('<button type="button" class="btn btn-outline-danger">Delete</button>');
+                    $rm.on('click', function() {
+                        if (!confirm('Delete this received line?')) return;
+                        API.request('/received/' + r.id, { method: 'DELETE' }).then(function() { refreshAll(); }).catch(function(e) { alert(e.error || 'Failed'); });
+                    });
+                    $grp.append($ed).append($rm);
+                    $td.append($grp);
+                    $tr.append($td);
+                    $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="4" class="text-muted">None</td></tr>');
-            }).catch(function() { $('#received-tbody').html('<tr><td colspan="4" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">None</td></tr>');
+            }).catch(function() { $('#received-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>'); });
         }
 
         function loadSold() {
@@ -365,10 +559,34 @@
                 var $tb = $('#sold-tbody');
                 $tb.empty();
                 list.forEach(function(s) {
-                    $tb.append('<tr><td>' + fmtDate(s.sold_date) + '</td><td>' + (s.product || '') + '</td><td>' + (s.quantity || '') + '</td><td>£' + Number(s.profit != null ? s.profit : 0).toFixed(2) + '</td></tr>');
+                    var earn = Number(s.profit != null ? s.profit : 0);
+                    var $tr = $('<tr>');
+                    $tr.append('<td>' + fmtDate(s.sold_date) + '</td><td>' + escapeHtml(s.product || '') + '</td><td>' + escapeHtml(String(s.quantity != null ? s.quantity : '')) + '</td><td>£' + earn.toFixed(2) + '</td>');
+                    var $td = $('<td class="text-end text-nowrap"></td>');
+                    var $grp = $('<div class="btn-group btn-group-sm"></div>');
+                    var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
+                    $ed.on('click', function() {
+                        $('#sale-edit-id').val(s.id);
+                        $('#sale-modal-title').text('Edit sale');
+                        $('#sale-btn-label').text('Save');
+                        $('#sale-product').val(s.product || '');
+                        $('#sale-qty').val(s.quantity || 1);
+                        $('#sale-earnings').val(earn.toFixed(2));
+                        $('#sale-sold-date').val(toDateInputVal(s.sold_date));
+                        new bootstrap.Modal(document.getElementById('modal-record-sale')).show();
+                    });
+                    var $rm = $('<button type="button" class="btn btn-outline-danger">Delete</button>');
+                    $rm.on('click', function() {
+                        if (!confirm('Delete this sale record?')) return;
+                        API.request('/sold/' + s.id, { method: 'DELETE' }).then(function() { refreshAll(); }).catch(function(e) { alert(e.error || 'Failed'); });
+                    });
+                    $grp.append($ed).append($rm);
+                    $td.append($grp);
+                    $tr.append($td);
+                    $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="4" class="text-muted">None</td></tr>');
-            }).catch(function() { $('#sold-tbody').html('<tr><td colspan="4" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">None</td></tr>');
+            }).catch(function() { $('#sold-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>'); });
         }
 
         function loadPending() {
@@ -377,10 +595,35 @@
                 var $tb = $('#pending-tbody');
                 $tb.empty();
                 list.forEach(function(p) {
-                    $tb.append('<tr><td>' + (p.product || '') + '</td><td>' + (p.current_stage || '') + '</td><td>' + fmtDate(p.est_completion) + '</td></tr>');
+                    var $tr = $('<tr>');
+                    $tr.append('<td>' + escapeHtml(p.product || '') + '</td><td>' + escapeHtml(p.current_stage || '') + '</td><td>' + fmtDate(p.est_completion) + '</td>');
+                    var $td = $('<td class="text-end text-nowrap"></td>');
+                    var $grp = $('<div class="btn-group btn-group-sm"></div>');
+                    var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
+                    $ed.on('click', function() {
+                        $('#pending-edit-id').val(p.id);
+                        $('#pending-modal-title').text('Edit pending item');
+                        $('#pending-btn-label').text('Save');
+                        $('#pending-reference').val(p.reference || '');
+                        $('#pending-product').val(p.product || '');
+                        $('#pending-qty').val(p.quantity || 1);
+                        $('#pending-stage').val(p.current_stage || 'Initial Inspection');
+                        $('#pending-est').val(p.est_completion ? String(p.est_completion).slice(0, 10) : '');
+                        $('#pending-notes').val(p.notes || '');
+                        new bootstrap.Modal(document.getElementById('modal-add-pending')).show();
+                    });
+                    var $rm = $('<button type="button" class="btn btn-outline-danger">Delete</button>');
+                    $rm.on('click', function() {
+                        if (!confirm('Delete this pending item?')) return;
+                        API.request('/pending/' + p.id, { method: 'DELETE' }).then(function() { refreshAll(); }).catch(function(e) { alert(e.error || 'Failed'); });
+                    });
+                    $grp.append($ed).append($rm);
+                    $td.append($grp);
+                    $tr.append($td);
+                    $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="3" class="text-muted">None</td></tr>');
-            }).catch(function() { $('#pending-tbody').html('<tr><td colspan="3" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="4" class="text-muted">None</td></tr>');
+            }).catch(function() { $('#pending-tbody').html('<tr><td colspan="4" class="text-danger">Failed to load</td></tr>'); });
         }
 
         function refreshAll() { loadPackages(); loadReceived(); loadSold(); loadPending(); loadReimbursementClaims(); }
@@ -399,13 +642,36 @@
             new bootstrap.Modal(document.getElementById('modal-mark-delivered')).show();
         });
 
+        $('#btn-open-checkin-modal').on('click', function() {
+            resetCheckinForNew();
+            new bootstrap.Modal(document.getElementById('modal-checkin')).show();
+        });
+
         $('#btn-checkin').on('click', function() {
             var ref = $('#checkin-reference').val().trim();
             var items = $('#checkin-items').val().trim();
             if (!ref || !items) return alert('Reference and items description required');
-            API.request('/received', { method: 'POST', body: { user_id: parseInt(clientId, 10), reference: ref, items_description: items, quantity: parseInt($('#checkin-qty').val(), 10) || 1, notes: $('#checkin-notes').val().trim() } })
-                .then(function() { bootstrap.Modal.getInstance(document.getElementById('modal-checkin')).hide(); $('#checkin-reference, #checkin-items, #checkin-notes').val(''); $('#checkin-qty').val(1); refreshAll(); })
-                .catch(function(e) { alert(e.error || 'Failed'); });
+            var editId = $('#checkin-edit-id').val();
+            var qty = parseInt($('#checkin-qty').val(), 10) || 1;
+            var notes = $('#checkin-notes').val().trim();
+            if (editId) {
+                var body = { reference: ref, items_description: items, quantity: qty, notes: notes, status: $('#checkin-status').val() };
+                API.request('/received/' + editId, { method: 'PUT', body: body })
+                    .then(function() {
+                        bootstrap.Modal.getInstance(document.getElementById('modal-checkin')).hide();
+                        resetCheckinForNew();
+                        refreshAll();
+                    })
+                    .catch(function(e) { alert(e.error || 'Failed'); });
+            } else {
+                API.request('/received', { method: 'POST', body: { user_id: parseInt(clientId, 10), reference: ref, items_description: items, quantity: qty, notes: notes } })
+                    .then(function() {
+                        bootstrap.Modal.getInstance(document.getElementById('modal-checkin')).hide();
+                        resetCheckinForNew();
+                        refreshAll();
+                    })
+                    .catch(function(e) { alert(e.error || 'Failed'); });
+            }
         });
 
         function todayISODate() {
@@ -414,8 +680,26 @@
             var day = d.getDate().toString().padStart(2, '0');
             return d.getFullYear() + '-' + m + '-' + day;
         }
-        $('#modal-record-sale').on('shown.bs.modal', function() {
-            if (!$('#sale-sold-date').val()) $('#sale-sold-date').val(todayISODate());
+
+        function resetSaleModalForNew() {
+            $('#sale-edit-id').val('');
+            $('#sale-modal-title').text('Record sale');
+            $('#sale-btn-label').text('Record sale');
+            $('#sale-product').val('');
+            $('#sale-qty').val(1);
+            $('#sale-earnings').val('');
+            $('#sale-sold-date').val(todayISODate());
+        }
+
+        $('#btn-open-sale-modal').on('click', function() {
+            $('#sale-edit-id').val('');
+            new bootstrap.Modal(document.getElementById('modal-record-sale')).show();
+        });
+
+        $('#modal-record-sale').on('show.bs.modal', function() {
+            if (!$('#sale-edit-id').val()) {
+                resetSaleModalForNew();
+            }
         });
 
         $('#btn-record-sale').on('click', function() {
@@ -425,26 +709,117 @@
             var soldDate = ($('#sale-sold-date').val() || '').trim();
             if (!product) return alert('Item name required');
             if (!Number.isFinite(earnings)) return alert('Earnings required (valid number)');
-            var body = { user_id: parseInt(clientId, 10), product: product, quantity: qty, earnings: earnings };
-            if (soldDate) body.sold_date = soldDate;
-            API.request('/sold', { method: 'POST', body: body })
-                .then(function() {
-                    bootstrap.Modal.getInstance(document.getElementById('modal-record-sale')).hide();
-                    $('#sale-product').val('');
-                    $('#sale-qty').val(1);
-                    $('#sale-earnings').val('');
-                    $('#sale-sold-date').val('');
-                    refreshAll();
-                })
-                .catch(function(e) { alert(e.error || 'Failed'); });
+            var editId = $('#sale-edit-id').val();
+            if (editId) {
+                var b = { product: product, quantity: qty, earnings: earnings };
+                if (soldDate) b.sold_date = soldDate;
+                API.request('/sold/' + editId, { method: 'PUT', body: b })
+                    .then(function() {
+                        bootstrap.Modal.getInstance(document.getElementById('modal-record-sale')).hide();
+                        resetSaleModalForNew();
+                        refreshAll();
+                    })
+                    .catch(function(e) { alert(e.error || 'Failed'); });
+            } else {
+                var body = { user_id: parseInt(clientId, 10), product: product, quantity: qty, earnings: earnings };
+                if (soldDate) body.sold_date = soldDate;
+                API.request('/sold', { method: 'POST', body: body })
+                    .then(function() {
+                        bootstrap.Modal.getInstance(document.getElementById('modal-record-sale')).hide();
+                        resetSaleModalForNew();
+                        refreshAll();
+                    })
+                    .catch(function(e) { alert(e.error || 'Failed'); });
+            }
+        });
+
+        function resetPendingModalForNew() {
+            $('#pending-edit-id').val('');
+            $('#pending-modal-title').text('Add pending item');
+            $('#pending-btn-label').text('Add');
+            $('#pending-product, #pending-reference, #pending-est, #pending-notes').val('');
+            $('#pending-qty').val(1);
+            $('#pending-stage').val('Initial Inspection');
+        }
+
+        $('#btn-open-pending-modal').on('click', function() {
+            $('#pending-edit-id').val('');
+            new bootstrap.Modal(document.getElementById('modal-add-pending')).show();
+        });
+
+        $('#modal-add-pending').on('show.bs.modal', function() {
+            if (!$('#pending-edit-id').val()) {
+                resetPendingModalForNew();
+            }
         });
 
         $('#btn-add-pending').on('click', function() {
             var product = $('#pending-product').val().trim();
             var ref = $('#pending-reference').val().trim();
             if (!product) return alert('Product required');
-            API.request('/pending', { method: 'POST', body: { user_id: parseInt(clientId, 10), reference: ref, product, quantity: parseInt($('#pending-qty').val(), 10) || 1, current_stage: $('#pending-stage').val(), est_completion: $('#pending-est').val().trim() } })
-                .then(function() { bootstrap.Modal.getInstance(document.getElementById('modal-add-pending')).hide(); $('#pending-product, #pending-reference, #pending-est').val(''); refreshAll(); })
+            var editId = $('#pending-edit-id').val();
+            var common = {
+                reference: ref,
+                product: product,
+                quantity: parseInt($('#pending-qty').val(), 10) || 1,
+                current_stage: $('#pending-stage').val(),
+                est_completion: $('#pending-est').val().trim(),
+                notes: $('#pending-notes').val().trim()
+            };
+            if (editId) {
+                API.request('/pending/' + editId, { method: 'PUT', body: common })
+                    .then(function() {
+                        bootstrap.Modal.getInstance(document.getElementById('modal-add-pending')).hide();
+                        resetPendingModalForNew();
+                        refreshAll();
+                    })
+                    .catch(function(e) { alert(e.error || 'Failed'); });
+            } else {
+                common.user_id = parseInt(clientId, 10);
+                API.request('/pending', { method: 'POST', body: common })
+                    .then(function() {
+                        bootstrap.Modal.getInstance(document.getElementById('modal-add-pending')).hide();
+                        resetPendingModalForNew();
+                        refreshAll();
+                    })
+                    .catch(function(e) { alert(e.error || 'Failed'); });
+            }
+        });
+
+        $('#btn-save-package').on('click', function() {
+            var id = $('#package-edit-id').val();
+            if (!id) return;
+            API.request('/packages/' + id, {
+                method: 'PUT',
+                body: {
+                    reference: $('#package-edit-reference').val().trim(),
+                    status: $('#package-edit-status').val(),
+                    notes: $('#package-edit-notes').val().trim()
+                }
+            })
+                .then(function() {
+                    bootstrap.Modal.getInstance(document.getElementById('modal-edit-package')).hide();
+                    refreshAll();
+                })
+                .catch(function(e) { alert(e.error || 'Failed'); });
+        });
+
+        $('#btn-save-reimbursement').on('click', function() {
+            var id = $('#reimb-edit-id').val();
+            if (!id) return;
+            API.request('/admin/reimbursement-claims/' + id, {
+                method: 'PUT',
+                body: {
+                    package_reference: $('#reimb-edit-package-reference').val().trim(),
+                    item_description: $('#reimb-edit-item-description').val().trim(),
+                    reimbursement_type: $('#reimb-edit-type').val(),
+                    notes: $('#reimb-edit-notes').val().trim()
+                }
+            })
+                .then(function() {
+                    bootstrap.Modal.getInstance(document.getElementById('modal-edit-reimbursement')).hide();
+                    refreshAll();
+                })
                 .catch(function(e) { alert(e.error || 'Failed'); });
         });
 
@@ -531,6 +906,7 @@
             }
         });
 
+        initCardMinimizeControls();
         loadClientName();
         refreshAll();
     });

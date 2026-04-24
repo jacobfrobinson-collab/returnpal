@@ -79,17 +79,22 @@ router.post('/', authMiddleware, async (req, res) => {
 
 const PENDING_STAGES = ['Initial Inspection', 'Quality Check', 'Return Verification', 'Listing', 'Ready for Sale'];
 
+function assertPendingAccess(db, req, id) {
+    const rows = parseResults(db.exec('SELECT * FROM pending_items WHERE id = ?', [id]));
+    if (!rows.length) return null;
+    const row = rows[0];
+    if (row.user_id !== req.user.id && !req.user.is_admin) return false;
+    return row;
+}
+
 // GET /api/pending/:id – single item (for item detail page)
 router.get('/:id', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
-        const items = parseResults(
-            db.exec('SELECT * FROM pending_items WHERE id = ? AND user_id = ?', [req.params.id, req.user.id])
-        );
-        if (items.length === 0) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-        res.json({ item: items[0] });
+        const row = assertPendingAccess(db, req, req.params.id);
+        if (row === null) return res.status(404).json({ error: 'Item not found' });
+        if (row === false) return res.status(403).json({ error: 'Not authorized' });
+        res.json({ item: row });
     } catch (err) {
         console.error('Get pending item error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -105,12 +110,9 @@ router.put('/:id/stage', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'Invalid stage. Allowed: ' + PENDING_STAGES.join(', ') });
         }
 
-        const existing = parseResults(
-            db.exec('SELECT id FROM pending_items WHERE id = ? AND user_id = ?', [req.params.id, req.user.id])
-        );
-        if (existing.length === 0) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
+        const row = assertPendingAccess(db, req, req.params.id);
+        if (row === null) return res.status(404).json({ error: 'Item not found' });
+        if (row === false) return res.status(403).json({ error: 'Not authorized' });
 
         db.run(
             'UPDATE pending_items SET current_stage = ?, est_completion = ?, notes = ? WHERE id = ?',
@@ -125,17 +127,46 @@ router.put('/:id/stage', authMiddleware, async (req, res) => {
     }
 });
 
+// PUT /api/pending/:id — full update (owner or admin)
+router.put('/:id', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const row = assertPendingAccess(db, req, req.params.id);
+        if (row === null) return res.status(404).json({ error: 'Item not found' });
+        if (row === false) return res.status(403).json({ error: 'Not authorized' });
+
+        const { reference, product, quantity, current_stage, est_completion, notes } = req.body;
+        const ref = reference !== undefined ? String(reference || '').trim() : row.reference;
+        const prod = product !== undefined ? String(product || '').trim() : row.product;
+        const qty = quantity != null ? Math.max(1, parseInt(quantity, 10) || 1) : row.quantity;
+        const stage = current_stage != null && PENDING_STAGES.includes(current_stage) ? current_stage : row.current_stage;
+        const est = est_completion !== undefined ? String(est_completion || '').trim() : row.est_completion;
+        const note = notes !== undefined ? String(notes || '').trim() : row.notes;
+
+        if (!prod) {
+            return res.status(400).json({ error: 'Product is required' });
+        }
+
+        db.run(
+            'UPDATE pending_items SET reference = ?, product = ?, quantity = ?, current_stage = ?, est_completion = ?, notes = ? WHERE id = ?',
+            [ref, prod, qty, stage, est, note, req.params.id]
+        );
+        saveDb();
+        res.json({ message: 'Pending item updated' });
+    } catch (err) {
+        console.error('Update pending item error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // DELETE /api/pending/:id
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
 
-        const existing = parseResults(
-            db.exec('SELECT id FROM pending_items WHERE id = ? AND user_id = ?', [req.params.id, req.user.id])
-        );
-        if (existing.length === 0) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
+        const row = assertPendingAccess(db, req, req.params.id);
+        if (row === null) return res.status(404).json({ error: 'Item not found' });
+        if (row === false) return res.status(403).json({ error: 'Not authorized' });
 
         db.run('DELETE FROM pending_items WHERE id = ?', [req.params.id]);
         saveDb();

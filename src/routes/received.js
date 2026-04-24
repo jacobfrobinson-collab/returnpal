@@ -207,4 +207,67 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
     }
 });
 
+function canAccessReceived(db, req, id) {
+    const rows = parseResults(db.exec('SELECT id, user_id FROM received_items WHERE id = ?', [id]));
+    if (!rows.length) return null;
+    const item = rows[0];
+    if (item.user_id !== req.user.id && !req.user.is_admin) return false;
+    return item;
+}
+
+// PUT /api/received/:id — update line (owner or admin)
+router.put('/:id', authMiddleware, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+        const db = await getDb();
+        const access = canAccessReceived(db, req, id);
+        if (access === null) return res.status(404).json({ error: 'Not found' });
+        if (access === false) return res.status(403).json({ error: 'Not authorized' });
+
+        const { reference, items_description, quantity, notes, status } = req.body;
+        const rows = parseResults(db.exec('SELECT * FROM received_items WHERE id = ?', [id]));
+        const cur = rows[0];
+        const ref = reference !== undefined ? String(reference || '').trim().slice(0, 255) : cur.reference;
+        const desc = items_description !== undefined ? String(items_description || '').trim().slice(0, 1000) : cur.items_description;
+        const qty = quantity != null ? Math.max(1, parseInt(quantity, 10) || 1) : cur.quantity;
+        const note = notes !== undefined ? String(notes || '').slice(0, 2000) : cur.notes;
+        let st = cur.status;
+        if (status != null && RECEIVED_STATUSES.includes(status)) st = status;
+
+        if (!ref || !desc) {
+            return res.status(400).json({ error: 'Reference and items description are required' });
+        }
+
+        db.run(
+            'UPDATE received_items SET reference = ?, items_description = ?, quantity = ?, notes = ?, status = ? WHERE id = ?',
+            [ref, desc, qty, note, st, id]
+        );
+        saveDb();
+        res.json({ message: 'Received item updated' });
+    } catch (err) {
+        console.error('Update received item error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// DELETE /api/received/:id — owner or admin
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+        const db = await getDb();
+        const access = canAccessReceived(db, req, id);
+        if (access === null) return res.status(404).json({ error: 'Not found' });
+        if (access === false) return res.status(403).json({ error: 'Not authorized' });
+
+        db.run('DELETE FROM received_items WHERE id = ?', [id]);
+        saveDb();
+        res.json({ message: 'Received item removed' });
+    } catch (err) {
+        console.error('Delete received item error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 module.exports = router;
