@@ -121,8 +121,8 @@
                     var legRaw = (u.legacy_client_id && String(u.legacy_client_id).trim()) ? String(u.legacy_client_id).trim() : '';
                     var legCell = '' +
                         '<div class="d-flex align-items-center gap-1">' +
-                            '<input type="text" class="form-control form-control-sm legacy-id-input text-uppercase" style="width:84px;min-width:84px" ' +
-                                'data-id="' + u.id + '" value="' + escapeHtml(legRaw) + '" placeholder="ABC" maxlength="7" />' +
+                            '<input type="text" class="form-control form-control-sm legacy-id-input" style="width:84px;min-width:84px" ' +
+                                'data-id="' + u.id + '" value="' + escapeHtml(legRaw) + '" placeholder="Old ID" maxlength="64" />' +
                             '<button type="button" class="btn btn-sm btn-outline-primary save-legacy-id-btn" data-id="' + u.id + '">Save</button>' +
                         '</div>';
                     var row = '<tr>' +
@@ -205,11 +205,7 @@
             var btn = $(this);
             var id = btn.data('id');
             var $input = $('.legacy-id-input[data-id="' + id + '"]');
-            var value = ($input.val() || '').trim().toUpperCase();
-            if (value && !/^[A-Z]{2,7}$/.test(value)) {
-                alert('Old Client ID must be 2 to 7 letters (A-Z), or left blank.');
-                return;
-            }
+            var value = ($input.val() || '').trim();
             $input.val(value);
             btn.prop('disabled', true).text('Saving...');
             API.request('/admin/users/' + id, { method: 'PUT', body: { legacy_client_id: value } })
