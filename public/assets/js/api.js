@@ -914,7 +914,7 @@ const API = {
             awaiting_inspection: 5,
             awaiting_listing: 7,
             estimated_resale_value: 2840,
-            recovered_so_far: 452501.58,
+            recovered_so_far: 687003.92,
             potential_remaining_value: 1200,
             stage_breakdown: { inspection: 5, listing: 7, listed: 12, sold: 89, storage: 3 }
         };
@@ -974,7 +974,7 @@ const API = {
         const iso = (d) => d.toISOString();
         const daysAgo = (n) => { const d = new Date(now); d.setDate(d.getDate() - n); return iso(d); };
         return {
-            total_recovered: 452501.58,
+            total_recovered: 687003.92,
             items_processing: 12,
             items_sold: 89,
             packages_sent: 24,

@@ -72,7 +72,7 @@
       let $counter = $("#counter");
       let raw = $counter.text().replace(/[£$,]/g, "").trim();
       let target = parseFloat(raw);
-      if (isNaN(target)) target = 452501.58;
+      if (isNaN(target)) target = 687003.92;
       let duration = 3000;
       $({ count: 0 }).animate(
         { count: target },
