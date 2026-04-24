@@ -94,6 +94,14 @@
             $('#admin-error').text(msg).removeClass('d-none');
             $('#admin-table-wrap').addClass('d-none');
         }
+        function escapeHtml(s) {
+            if (s == null) return '';
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
         function showTable(users) {
             $('#admin-loading').addClass('d-none');
             $('#admin-error').addClass('d-none');
@@ -106,25 +114,28 @@
                     var date = u.created_at ? RP_DATE.format(u.created_at) : '-';
                     var idPadded = u.id != null ? String(u.id).padStart(4, '0') : '';
                     var isAdmin = u.is_admin === true || u.is_admin === 1 || u.is_admin === '1';
-                    var emailAttr = String(u.email || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                    var emailAttr = escapeHtml(String(u.email || ''));
                     var deleteBtn = isAdmin
                         ? '<span class="text-muted small me-1" title="Admin accounts cannot be deleted here">—</span>'
                         : '<button type="button" class="btn btn-sm btn-outline-danger delete-user-btn me-1" data-id="' + u.id + '" data-email="' + emailAttr + '">Delete</button>';
                     var legRaw = (u.legacy_client_id && String(u.legacy_client_id).trim()) ? String(u.legacy_client_id).trim() : '';
-                    var legCell = legRaw
-                        ? '<span class="font-monospace">' + legRaw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') + '</span>'
-                        : '—';
+                    var legCell = '' +
+                        '<div class="d-flex align-items-center gap-1">' +
+                            '<input type="text" class="form-control form-control-sm legacy-id-input" style="min-width:120px" ' +
+                                'data-id="' + u.id + '" value="' + escapeHtml(legRaw) + '" placeholder="Old ID" maxlength="64" />' +
+                            '<button type="button" class="btn btn-sm btn-outline-primary save-legacy-id-btn" data-id="' + u.id + '">Save</button>' +
+                        '</div>';
                     var row = '<tr>' +
                         '<td>' + idPadded + '</td>' +
-                        '<td>' + (u.full_name || '-') + (isAdmin ? ' <span class="badge bg-secondary">Admin</span>' : '') + '</td>' +
-                        '<td>' + (u.email || '') + '</td>' +
+                        '<td>' + escapeHtml(u.full_name || '-') + (isAdmin ? ' <span class="badge bg-secondary">Admin</span>' : '') + '</td>' +
+                        '<td>' + escapeHtml(u.email || '') + '</td>' +
                         '<td>' + legCell + '</td>' +
-                        '<td>' + (u.company_name || '-') + '</td>' +
+                        '<td>' + escapeHtml(u.company_name || '-') + '</td>' +
                         '<td>' + date + '</td>' +
                         '<td class="text-nowrap">' +
                         deleteBtn +
                         '<a href="client.html?id=' + u.id + '" class="btn btn-sm btn-outline-secondary me-1">Update data</a>' +
-                        '<button type="button" class="btn btn-sm btn-outline-primary view-dashboard-btn" data-id="' + u.id + '" data-name="' + (u.full_name || u.email) + '">View dashboard</button>' +
+                        '<button type="button" class="btn btn-sm btn-outline-primary view-dashboard-btn" data-id="' + u.id + '" data-name="' + escapeHtml(u.full_name || u.email) + '">View dashboard</button>' +
                         '</td>' +
                         '</tr>';
                     $tbody.append(row);
@@ -187,6 +198,25 @@
                 .catch(function(err) {
                     alert(err && err.error ? err.error : 'Failed to open dashboard.');
                     btn.prop('disabled', false).text('View dashboard');
+                });
+        });
+
+        $(document).on('click', '.save-legacy-id-btn', function() {
+            var btn = $(this);
+            var id = btn.data('id');
+            var $input = $('.legacy-id-input[data-id="' + id + '"]');
+            var value = ($input.val() || '').trim();
+            btn.prop('disabled', true).text('Saving...');
+            API.request('/admin/users/' + id, { method: 'PUT', body: { legacy_client_id: value } })
+                .then(function() {
+                    btn.text('Saved');
+                    setTimeout(function() {
+                        btn.text('Save').prop('disabled', false);
+                    }, 700);
+                })
+                .catch(function(err) {
+                    alert(err && err.error ? err.error : 'Failed to save legacy ID.');
+                    btn.text('Save').prop('disabled', false);
                 });
         });
 

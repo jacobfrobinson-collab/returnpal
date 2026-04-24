@@ -66,12 +66,14 @@
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Reference</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="packages-select-all" aria-label="Select all packages"></th><th>Reference</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="packages-tbody"></tbody>
                             </table>
                         </div>
-                        <div class="p-2 border-top">
+                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modal-mark-delivered">Mark package as delivered</button>
+                            <button type="button" class="btn btn-sm btn-outline-success" id="btn-mark-delivered-selected" disabled>Mark selected as delivered</button>
+                            <small class="text-muted" id="packages-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -435,6 +437,21 @@
             });
         }
 
+        var selectedPackageIds = new Set();
+
+        function updatePackageSelectionUi() {
+            var selectedCount = selectedPackageIds.size;
+            $('#packages-selected-count').text(selectedCount + ' selected');
+            $('#btn-mark-delivered-selected').prop('disabled', selectedCount === 0);
+
+            var $checks = $('.package-select');
+            var selectableCount = $checks.length;
+            var checkedCount = $checks.filter(':checked').length;
+            $('#packages-select-all')
+                .prop('checked', selectableCount > 0 && checkedCount === selectableCount)
+                .prop('indeterminate', checkedCount > 0 && checkedCount < selectableCount);
+        }
+
         function loadPackages() {
             API.request('/admin/users/' + clientId + '/packages').then(function(data) {
                 var list = data.packages || [];
@@ -451,10 +468,16 @@
                     $sel.append('<option value="' + p.id + '">' + refEsc + ' – ' + escapeHtml(p.status || '') + '</option>');
                     $reimbSel.append('<option value="' + escapeHtml(ref) + '">' + refEsc + '</option>');
                     var $tr = $('<tr>');
-                    $tr.append('<td>' + refEsc + '</td><td><span class="badge bg-secondary">' + escapeHtml(p.status || '') + '</span></td><td>' + fmtDate(p.date_added) + '</td>');
+                    var isDelivered = p.status === 'Delivered';
+                    if (isDelivered) selectedPackageIds.delete(String(p.id));
+                    var checked = selectedPackageIds.has(String(p.id)) ? ' checked' : '';
+                    var checkboxHtml = isDelivered
+                        ? '<input type="checkbox" class="package-select form-check-input m-0" disabled aria-label="Cannot select delivered package">'
+                        : '<input type="checkbox" class="package-select form-check-input m-0" data-id="' + p.id + '"' + checked + ' aria-label="Select package ' + refEsc + '">';
+                    $tr.append('<td class="text-center">' + checkboxHtml + '</td><td>' + refEsc + '</td><td><span class="badge bg-secondary">' + escapeHtml(p.status || '') + '</span></td><td>' + fmtDate(p.date_added) + '</td>');
                     var $tdAct = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm" role="group"></div>');
-                    if (p.status !== 'Delivered') {
+                    if (!isDelivered) {
                         $grp.append('<button type="button" class="btn btn-outline-success mark-deliver-btn" data-id="' + p.id + '" title="Mark delivered">Deliver</button>');
                     }
                     var $edit = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
@@ -475,8 +498,12 @@
                     $tr.append($tdAct);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="4" class="text-muted">No packages</td></tr>');
-            }).catch(function() { $('#packages-tbody').html('<tr><td colspan="4" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">No packages</td></tr>');
+                updatePackageSelectionUi();
+            }).catch(function() {
+                $('#packages-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>');
+                updatePackageSelectionUi();
+            });
         }
 
         function loadReimbursementClaims() {
@@ -640,6 +667,51 @@
             var id = $(this).data('id');
             $('#deliver-package-id').val(id);
             new bootstrap.Modal(document.getElementById('modal-mark-delivered')).show();
+        });
+
+        $(document).on('change', '.package-select', function() {
+            var id = String($(this).data('id') || '');
+            if (!id) return;
+            if (this.checked) selectedPackageIds.add(id);
+            else selectedPackageIds.delete(id);
+            updatePackageSelectionUi();
+        });
+
+        $('#packages-select-all').on('change', function() {
+            var checked = !!this.checked;
+            $('.package-select').each(function() {
+                var id = String($(this).data('id') || '');
+                if (!id || this.disabled) return;
+                this.checked = checked;
+                if (checked) selectedPackageIds.add(id);
+                else selectedPackageIds.delete(id);
+            });
+            updatePackageSelectionUi();
+        });
+
+        $('#btn-mark-delivered-selected').on('click', async function() {
+            var ids = Array.from(selectedPackageIds);
+            if (!ids.length) return alert('Select at least one package first');
+            if (!confirm('Mark ' + ids.length + ' selected package(s) as delivered?')) return;
+
+            var $btn = $(this).prop('disabled', true).text('Marking...');
+            try {
+                var failures = [];
+                await Promise.all(ids.map(async function(id) {
+                    try {
+                        await API.request('/packages/' + id, { method: 'PUT', body: { status: 'Delivered' } });
+                    } catch (e) {
+                        failures.push(id);
+                    }
+                }));
+                if (failures.length) {
+                    alert('Marked ' + (ids.length - failures.length) + ' package(s). Failed: ' + failures.length + '.');
+                }
+                selectedPackageIds.clear();
+                refreshAll();
+            } finally {
+                $btn.text('Mark selected as delivered');
+            }
         });
 
         $('#btn-open-checkin-modal').on('click', function() {

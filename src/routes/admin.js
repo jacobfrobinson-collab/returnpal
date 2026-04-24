@@ -64,6 +64,37 @@ router.get('/users', async (req, res) => {
     }
 });
 
+// PUT /api/admin/users/:id — update admin-editable user fields
+router.put('/users/:id', async (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id, 10);
+        if (isNaN(targetId)) return res.status(400).json({ error: 'Invalid user id' });
+
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec('SELECT id, legacy_client_id FROM users WHERE id = ?', [targetId])
+        );
+        if (!rows.length) return res.status(404).json({ error: 'User not found' });
+
+        const current = rows[0];
+        let legacyClientId = current.legacy_client_id != null ? String(current.legacy_client_id) : '';
+        if (req.body.legacy_client_id !== undefined) {
+            legacyClientId = String(req.body.legacy_client_id || '').trim().slice(0, 64);
+        }
+
+        db.run(
+            "UPDATE users SET legacy_client_id = ?, updated_at = datetime('now') WHERE id = ?",
+            [legacyClientId, targetId]
+        );
+        saveDb();
+
+        res.json({ message: 'Client updated', user: { id: targetId, legacy_client_id: legacyClientId } });
+    } catch (err) {
+        console.error('Admin update user error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 function unlinkAvatarFile(avatarUrl) {
     if (!avatarUrl || typeof avatarUrl !== 'string') return;
     if (!avatarUrl.startsWith('/uploads/')) return;
