@@ -73,6 +73,7 @@
                         <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modal-mark-delivered">Mark package as delivered</button>
                             <button type="button" class="btn btn-sm btn-outline-success" id="btn-mark-delivered-selected" disabled>Mark selected as delivered</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-packages-selected" disabled>Delete selected</button>
                             <small class="text-muted" id="packages-selected-count">0 selected</small>
                         </div>
                     </div>
@@ -86,9 +87,13 @@
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Reference</th><th>Items</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="received-select-all" aria-label="Select all received"></th><th>Reference</th><th>Items</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="received-tbody"></tbody>
                             </table>
+                        </div>
+                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-received-selected" disabled>Delete selected</button>
+                            <small class="text-muted" id="received-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -101,9 +106,13 @@
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Sold Date</th><th>Item name</th><th>Quantity</th><th>Earnings</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="sold-select-all" aria-label="Select all sales"></th><th>Sold Date</th><th>Item name</th><th>Quantity</th><th>Earnings</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="sold-tbody"></tbody>
                             </table>
+                        </div>
+                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-sold-selected" disabled>Delete selected</button>
+                            <small class="text-muted" id="sold-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -116,9 +125,13 @@
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Product</th><th>Stage</th><th>Est. completion</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="pending-select-all" aria-label="Select all pending"></th><th>Product</th><th>Stage</th><th>Est. completion</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="pending-tbody"></tbody>
                             </table>
+                        </div>
+                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-pending-selected" disabled>Delete selected</button>
+                            <small class="text-muted" id="pending-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -132,9 +145,13 @@
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th>Package ref</th><th>Item</th><th>Type</th><th>Photos</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="reimb-select-all" aria-label="Select all reimbursement claims"></th><th>Package ref</th><th>Item</th><th>Type</th><th>Photos</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="reimbursement-tbody"></tbody>
                             </table>
+                        </div>
+                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-reimb-selected" disabled>Delete selected</button>
+                            <small class="text-muted" id="reimb-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -438,11 +455,64 @@
         }
 
         var selectedPackageIds = new Set();
+        var selectedReceivedIds = new Set();
+        var selectedSoldIds = new Set();
+        var selectedPendingIds = new Set();
+        var selectedReimbIds = new Set();
+
+        function updateReceivedSelectionUi() {
+            var n = selectedReceivedIds.size;
+            $('#received-selected-count').text(n + ' selected');
+            $('#btn-delete-received-selected').prop('disabled', n === 0);
+            var $c = $('.received-select');
+            var sel = $c.length;
+            var chk = $c.filter(':checked').length;
+            $('#received-select-all')
+                .prop('checked', sel > 0 && chk === sel)
+                .prop('indeterminate', chk > 0 && chk < sel);
+        }
+
+        function updateSoldSelectionUi() {
+            var n = selectedSoldIds.size;
+            $('#sold-selected-count').text(n + ' selected');
+            $('#btn-delete-sold-selected').prop('disabled', n === 0);
+            var $c = $('.sold-select');
+            var sel = $c.length;
+            var chk = $c.filter(':checked').length;
+            $('#sold-select-all')
+                .prop('checked', sel > 0 && chk === sel)
+                .prop('indeterminate', chk > 0 && chk < sel);
+        }
+
+        function updatePendingSelectionUi() {
+            var n = selectedPendingIds.size;
+            $('#pending-selected-count').text(n + ' selected');
+            $('#btn-delete-pending-selected').prop('disabled', n === 0);
+            var $c = $('.pending-select');
+            var sel = $c.length;
+            var chk = $c.filter(':checked').length;
+            $('#pending-select-all')
+                .prop('checked', sel > 0 && chk === sel)
+                .prop('indeterminate', chk > 0 && chk < sel);
+        }
+
+        function updateReimbSelectionUi() {
+            var n = selectedReimbIds.size;
+            $('#reimb-selected-count').text(n + ' selected');
+            $('#btn-delete-reimb-selected').prop('disabled', n === 0);
+            var $c = $('.reimb-select');
+            var sel = $c.length;
+            var chk = $c.filter(':checked').length;
+            $('#reimb-select-all')
+                .prop('checked', sel > 0 && chk === sel)
+                .prop('indeterminate', chk > 0 && chk < sel);
+        }
 
         function updatePackageSelectionUi() {
             var selectedCount = selectedPackageIds.size;
             $('#packages-selected-count').text(selectedCount + ' selected');
             $('#btn-mark-delivered-selected').prop('disabled', selectedCount === 0);
+            $('#btn-delete-packages-selected').prop('disabled', selectedCount === 0);
 
             var $checks = $('.package-select');
             var selectableCount = $checks.length;
@@ -469,11 +539,8 @@
                     $reimbSel.append('<option value="' + escapeHtml(ref) + '">' + refEsc + '</option>');
                     var $tr = $('<tr>');
                     var isDelivered = p.status === 'Delivered';
-                    if (isDelivered) selectedPackageIds.delete(String(p.id));
                     var checked = selectedPackageIds.has(String(p.id)) ? ' checked' : '';
-                    var checkboxHtml = isDelivered
-                        ? '<input type="checkbox" class="package-select form-check-input m-0" disabled aria-label="Cannot select delivered package">'
-                        : '<input type="checkbox" class="package-select form-check-input m-0" data-id="' + p.id + '"' + checked + ' aria-label="Select package ' + refEsc + '">';
+                    var checkboxHtml = '<input type="checkbox" class="package-select form-check-input m-0" data-id="' + p.id + '"' + checked + ' aria-label="Select package ' + refEsc + '">';
                     $tr.append('<td class="text-center">' + checkboxHtml + '</td><td>' + refEsc + '</td><td><span class="badge bg-secondary">' + escapeHtml(p.status || '') + '</span></td><td>' + fmtDate(p.date_added) + '</td>');
                     var $tdAct = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm" role="group"></div>');
@@ -517,6 +584,9 @@
                         return '<a href="/uploads/' + escapeHtml(ph.file_path || '') + '" target="_blank" class="me-1">Photo</a>';
                     }).join('') || '-';
                     var $tr = $('<tr>');
+                    var idStr = String(c.id);
+                    var chk = selectedReimbIds.has(idStr) ? ' checked' : '';
+                    $tr.append('<td class="text-center"><input type="checkbox" class="reimb-select form-check-input m-0" data-id="' + c.id + '"' + chk + ' /></td>');
                     $tr.append('<td>' + escapeHtml(c.package_reference || '') + '</td><td>' + escapeHtml(c.item_description || '') + '</td><td><span class="badge bg-info">' + escapeHtml(c.reimbursement_type || '') + '</span></td><td>' + photoLinks + '</td><td>' + fmtDate(c.created_at) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
@@ -539,8 +609,12 @@
                     $tr.append($td);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">None</td></tr>');
-            }).catch(function() { $('#reimbursement-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="7" class="text-muted">None</td></tr>');
+                updateReimbSelectionUi();
+            }).catch(function() {
+                $('#reimbursement-tbody').html('<tr><td colspan="7" class="text-danger">Failed to load</td></tr>');
+                updateReimbSelectionUi();
+            });
         }
 
         function loadReceived() {
@@ -550,6 +624,9 @@
                 $tb.empty();
                 list.forEach(function(r) {
                     var $tr = $('<tr>');
+                    var idStr = String(r.id);
+                    var chk = selectedReceivedIds.has(idStr) ? ' checked' : '';
+                    $tr.append('<td class="text-center"><input type="checkbox" class="received-select form-check-input m-0" data-id="' + r.id + '"' + chk + ' /></td>');
                     $tr.append('<td>' + escapeHtml(r.reference || '') + '</td><td>' + escapeHtml(r.items_description || '') + '</td><td>' + escapeHtml(r.status || '') + '</td><td>' + fmtDate(r.date_received) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
@@ -576,8 +653,12 @@
                     $tr.append($td);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">None</td></tr>');
-            }).catch(function() { $('#received-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">None</td></tr>');
+                updateReceivedSelectionUi();
+            }).catch(function() {
+                $('#received-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load</td></tr>');
+                updateReceivedSelectionUi();
+            });
         }
 
         function loadSold() {
@@ -588,6 +669,9 @@
                 list.forEach(function(s) {
                     var earn = Number(s.profit != null ? s.profit : 0);
                     var $tr = $('<tr>');
+                    var idStr = String(s.id);
+                    var chk = selectedSoldIds.has(idStr) ? ' checked' : '';
+                    $tr.append('<td class="text-center"><input type="checkbox" class="sold-select form-check-input m-0" data-id="' + s.id + '"' + chk + ' /></td>');
                     $tr.append('<td>' + fmtDate(s.sold_date) + '</td><td>' + escapeHtml(s.product || '') + '</td><td>' + escapeHtml(String(s.quantity != null ? s.quantity : '')) + '</td><td>£' + earn.toFixed(2) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
@@ -612,8 +696,12 @@
                     $tr.append($td);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">None</td></tr>');
-            }).catch(function() { $('#sold-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">None</td></tr>');
+                updateSoldSelectionUi();
+            }).catch(function() {
+                $('#sold-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load</td></tr>');
+                updateSoldSelectionUi();
+            });
         }
 
         function loadPending() {
@@ -623,6 +711,9 @@
                 $tb.empty();
                 list.forEach(function(p) {
                     var $tr = $('<tr>');
+                    var idStr = String(p.id);
+                    var chk = selectedPendingIds.has(idStr) ? ' checked' : '';
+                    $tr.append('<td class="text-center"><input type="checkbox" class="pending-select form-check-input m-0" data-id="' + p.id + '"' + chk + ' /></td>');
                     $tr.append('<td>' + escapeHtml(p.product || '') + '</td><td>' + escapeHtml(p.current_stage || '') + '</td><td>' + fmtDate(p.est_completion) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
@@ -649,8 +740,12 @@
                     $tr.append($td);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="4" class="text-muted">None</td></tr>');
-            }).catch(function() { $('#pending-tbody').html('<tr><td colspan="4" class="text-danger">Failed to load</td></tr>'); });
+                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">None</td></tr>');
+                updatePendingSelectionUi();
+            }).catch(function() {
+                $('#pending-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>');
+                updatePendingSelectionUi();
+            });
         }
 
         function refreshAll() { loadPackages(); loadReceived(); loadSold(); loadPending(); loadReimbursementClaims(); }
@@ -681,12 +776,42 @@
             var checked = !!this.checked;
             $('.package-select').each(function() {
                 var id = String($(this).data('id') || '');
-                if (!id || this.disabled) return;
+                if (!id) return;
                 this.checked = checked;
                 if (checked) selectedPackageIds.add(id);
                 else selectedPackageIds.delete(id);
             });
             updatePackageSelectionUi();
+        });
+
+        async function bulkDeleteRows(ids, urlForId, noun) {
+            if (!ids.length) return;
+            if (!confirm('Permanently delete ' + ids.length + ' ' + noun + '? This cannot be undone.')) return;
+            var failures = [];
+            await Promise.all(ids.map(async function(id) {
+                try {
+                    await API.request(urlForId(id), { method: 'DELETE' });
+                } catch (e) {
+                    failures.push(id);
+                }
+            }));
+            if (failures.length) {
+                alert('Deleted ' + (ids.length - failures.length) + ' row(s). Failed: ' + failures.length + '.');
+            }
+            return failures.length;
+        }
+
+        $('#btn-delete-packages-selected').on('click', async function() {
+            var ids = Array.from(selectedPackageIds);
+            if (!ids.length) return;
+            var $btn = $(this).prop('disabled', true).text('Deleting...');
+            try {
+                await bulkDeleteRows(ids, function(id) { return '/packages/' + id; }, 'package(s)');
+                selectedPackageIds.clear();
+                refreshAll();
+            } finally {
+                $btn.text('Delete selected').prop('disabled', false);
+            }
         });
 
         $('#btn-mark-delivered-selected').on('click', async function() {
@@ -710,7 +835,131 @@
                 selectedPackageIds.clear();
                 refreshAll();
             } finally {
-                $btn.text('Mark selected as delivered');
+                $btn.text('Mark selected as delivered').prop('disabled', false);
+            }
+        });
+
+        $(document).on('change', '.received-select', function() {
+            var id = String($(this).data('id') || '');
+            if (!id) return;
+            if (this.checked) selectedReceivedIds.add(id);
+            else selectedReceivedIds.delete(id);
+            updateReceivedSelectionUi();
+        });
+        $('#received-select-all').on('change', function() {
+            var checked = !!this.checked;
+            $('.received-select').each(function() {
+                var id = String($(this).data('id') || '');
+                if (!id) return;
+                this.checked = checked;
+                if (checked) selectedReceivedIds.add(id);
+                else selectedReceivedIds.delete(id);
+            });
+            updateReceivedSelectionUi();
+        });
+        $('#btn-delete-received-selected').on('click', async function() {
+            var ids = Array.from(selectedReceivedIds);
+            if (!ids.length) return;
+            var $btn = $(this).prop('disabled', true).text('Deleting...');
+            try {
+                await bulkDeleteRows(ids, function(id) { return '/received/' + id; }, 'received line(s)');
+                selectedReceivedIds.clear();
+                refreshAll();
+            } finally {
+                $btn.text('Delete selected').prop('disabled', false);
+            }
+        });
+
+        $(document).on('change', '.sold-select', function() {
+            var id = String($(this).data('id') || '');
+            if (!id) return;
+            if (this.checked) selectedSoldIds.add(id);
+            else selectedSoldIds.delete(id);
+            updateSoldSelectionUi();
+        });
+        $('#sold-select-all').on('change', function() {
+            var checked = !!this.checked;
+            $('.sold-select').each(function() {
+                var id = String($(this).data('id') || '');
+                if (!id) return;
+                this.checked = checked;
+                if (checked) selectedSoldIds.add(id);
+                else selectedSoldIds.delete(id);
+            });
+            updateSoldSelectionUi();
+        });
+        $('#btn-delete-sold-selected').on('click', async function() {
+            var ids = Array.from(selectedSoldIds);
+            if (!ids.length) return;
+            var $btn = $(this).prop('disabled', true).text('Deleting...');
+            try {
+                await bulkDeleteRows(ids, function(id) { return '/sold/' + id; }, 'sale record(s)');
+                selectedSoldIds.clear();
+                refreshAll();
+            } finally {
+                $btn.text('Delete selected').prop('disabled', false);
+            }
+        });
+
+        $(document).on('change', '.pending-select', function() {
+            var id = String($(this).data('id') || '');
+            if (!id) return;
+            if (this.checked) selectedPendingIds.add(id);
+            else selectedPendingIds.delete(id);
+            updatePendingSelectionUi();
+        });
+        $('#pending-select-all').on('change', function() {
+            var checked = !!this.checked;
+            $('.pending-select').each(function() {
+                var id = String($(this).data('id') || '');
+                if (!id) return;
+                this.checked = checked;
+                if (checked) selectedPendingIds.add(id);
+                else selectedPendingIds.delete(id);
+            });
+            updatePendingSelectionUi();
+        });
+        $('#btn-delete-pending-selected').on('click', async function() {
+            var ids = Array.from(selectedPendingIds);
+            if (!ids.length) return;
+            var $btn = $(this).prop('disabled', true).text('Deleting...');
+            try {
+                await bulkDeleteRows(ids, function(id) { return '/pending/' + id; }, 'pending item(s)');
+                selectedPendingIds.clear();
+                refreshAll();
+            } finally {
+                $btn.text('Delete selected').prop('disabled', false);
+            }
+        });
+
+        $(document).on('change', '.reimb-select', function() {
+            var id = String($(this).data('id') || '');
+            if (!id) return;
+            if (this.checked) selectedReimbIds.add(id);
+            else selectedReimbIds.delete(id);
+            updateReimbSelectionUi();
+        });
+        $('#reimb-select-all').on('change', function() {
+            var checked = !!this.checked;
+            $('.reimb-select').each(function() {
+                var id = String($(this).data('id') || '');
+                if (!id) return;
+                this.checked = checked;
+                if (checked) selectedReimbIds.add(id);
+                else selectedReimbIds.delete(id);
+            });
+            updateReimbSelectionUi();
+        });
+        $('#btn-delete-reimb-selected').on('click', async function() {
+            var ids = Array.from(selectedReimbIds);
+            if (!ids.length) return;
+            var $btn = $(this).prop('disabled', true).text('Deleting...');
+            try {
+                await bulkDeleteRows(ids, function(id) { return '/admin/reimbursement-claims/' + id; }, 'reimbursement claim(s)');
+                selectedReimbIds.clear();
+                refreshAll();
+            } finally {
+                $btn.text('Delete selected').prop('disabled', false);
             }
         });
 
