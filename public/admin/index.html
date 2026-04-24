@@ -44,9 +44,9 @@
                         <thead class="table-light">
                             <tr>
                                 <th>ID</th>
+                                <th>Old Client ID</th>
                                 <th>Name</th>
                                 <th>Email</th>
-                                <th>Legacy ID</th>
                                 <th>Company</th>
                                 <th>Joined</th>
                                 <th>Actions</th>
@@ -121,15 +121,15 @@
                     var legRaw = (u.legacy_client_id && String(u.legacy_client_id).trim()) ? String(u.legacy_client_id).trim() : '';
                     var legCell = '' +
                         '<div class="d-flex align-items-center gap-1">' +
-                            '<input type="text" class="form-control form-control-sm legacy-id-input" style="min-width:120px" ' +
-                                'data-id="' + u.id + '" value="' + escapeHtml(legRaw) + '" placeholder="Old ID" maxlength="64" />' +
+                            '<input type="text" class="form-control form-control-sm legacy-id-input text-uppercase" style="width:84px;min-width:84px" ' +
+                                'data-id="' + u.id + '" value="' + escapeHtml(legRaw) + '" placeholder="ABC" maxlength="7" />' +
                             '<button type="button" class="btn btn-sm btn-outline-primary save-legacy-id-btn" data-id="' + u.id + '">Save</button>' +
                         '</div>';
                     var row = '<tr>' +
                         '<td>' + idPadded + '</td>' +
+                        '<td>' + legCell + '</td>' +
                         '<td>' + escapeHtml(u.full_name || '-') + (isAdmin ? ' <span class="badge bg-secondary">Admin</span>' : '') + '</td>' +
                         '<td>' + escapeHtml(u.email || '') + '</td>' +
-                        '<td>' + legCell + '</td>' +
                         '<td>' + escapeHtml(u.company_name || '-') + '</td>' +
                         '<td>' + date + '</td>' +
                         '<td class="text-nowrap">' +
@@ -205,7 +205,12 @@
             var btn = $(this);
             var id = btn.data('id');
             var $input = $('.legacy-id-input[data-id="' + id + '"]');
-            var value = ($input.val() || '').trim();
+            var value = ($input.val() || '').trim().toUpperCase();
+            if (value && !/^[A-Z]{2,7}$/.test(value)) {
+                alert('Old Client ID must be 2 to 7 letters (A-Z), or left blank.');
+                return;
+            }
+            $input.val(value);
             btn.prop('disabled', true).text('Saving...');
             API.request('/admin/users/' + id, { method: 'PUT', body: { legacy_client_id: value } })
                 .then(function() {

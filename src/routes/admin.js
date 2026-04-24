@@ -79,7 +79,10 @@ router.put('/users/:id', async (req, res) => {
         const current = rows[0];
         let legacyClientId = current.legacy_client_id != null ? String(current.legacy_client_id) : '';
         if (req.body.legacy_client_id !== undefined) {
-            legacyClientId = String(req.body.legacy_client_id || '').trim().slice(0, 64);
+            legacyClientId = String(req.body.legacy_client_id || '').trim().toUpperCase();
+            if (legacyClientId && !/^[A-Z]{2,7}$/.test(legacyClientId)) {
+                return res.status(400).json({ error: 'Old Client ID must be 2 to 7 letters (A-Z), or blank' });
+            }
         }
 
         db.run(
