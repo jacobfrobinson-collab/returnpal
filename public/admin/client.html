@@ -12,6 +12,7 @@
         .admin-header a { color: rgba(255,255,255,.9); }
         .section-card { margin-bottom: 1.5rem; }
         .table th { font-size: 0.875rem; }
+        .bulk-actions-bar { position: sticky; top: 0; z-index: 2; }
     </style>
 </head>
 <body>
@@ -64,17 +65,29 @@
                         <span class="badge bg-secondary" id="packages-count">0</span>
                     </div>
                     <div class="card-body p-0">
+                        <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <span class="small fw-semibold text-secondary text-nowrap">Bulk actions</span>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modal-mark-delivered">Mark one delivered…</button>
+                                <button type="button" class="btn btn-sm btn-outline-success" id="btn-mark-delivered-selected" disabled>Mark selected delivered</button>
+                                <label class="small text-muted mb-0">Set status</label>
+                                <select class="form-select form-select-sm" id="packages-bulk-status" style="width:auto;min-width:130px;max-width:200px">
+                                    <option value="In Transit">In Transit</option>
+                                    <option value="Delivered">Delivered</option>
+                                    <option value="Processing">Processing</option>
+                                    <option value="Processed">Processed</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                </select>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-packages-status-selected" disabled>Apply to selected</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-packages-selected" disabled>Delete selected</button>
+                                <span class="small text-muted ms-auto" id="packages-selected-count">0 selected</span>
+                            </div>
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead><tr><th style="width:36px"><input type="checkbox" id="packages-select-all" aria-label="Select all packages"></th><th>Reference</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="packages-tbody"></tbody>
                             </table>
-                        </div>
-                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modal-mark-delivered">Mark package as delivered</button>
-                            <button type="button" class="btn btn-sm btn-outline-success" id="btn-mark-delivered-selected" disabled>Mark selected as delivered</button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-packages-selected" disabled>Delete selected</button>
-                            <small class="text-muted" id="packages-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -85,15 +98,26 @@
                         <button type="button" class="btn btn-sm btn-primary" id="btn-open-checkin-modal">+ Check in items</button>
                     </div>
                     <div class="card-body p-0">
+                        <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <span class="small fw-semibold text-secondary text-nowrap">Bulk actions</span>
+                                <label class="small text-muted mb-0">Set status</label>
+                                <select class="form-select form-select-sm" id="received-bulk-status" style="width:auto;min-width:140px;max-width:200px">
+                                    <option value="Processing">Processing</option>
+                                    <option value="Processed">Processed</option>
+                                    <option value="Quality Check">Quality Check</option>
+                                    <option value="Rejected">Rejected</option>
+                                </select>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-received-status-selected" disabled>Apply to selected</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-received-selected" disabled>Delete selected</button>
+                                <span class="small text-muted ms-auto" id="received-selected-count">0 selected</span>
+                            </div>
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead><tr><th style="width:36px"><input type="checkbox" id="received-select-all" aria-label="Select all received"></th><th>Reference</th><th>Items</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="received-tbody"></tbody>
                             </table>
-                        </div>
-                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-received-selected" disabled>Delete selected</button>
-                            <small class="text-muted" id="received-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -104,15 +128,18 @@
                         <button type="button" class="btn btn-sm btn-success" id="btn-open-sale-modal">+ Record sale</button>
                     </div>
                     <div class="card-body p-0">
+                        <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <span class="small fw-semibold text-secondary text-nowrap">Bulk actions</span>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-sold-selected" disabled>Delete selected</button>
+                                <span class="small text-muted ms-auto" id="sold-selected-count">0 selected</span>
+                            </div>
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead><tr><th style="width:36px"><input type="checkbox" id="sold-select-all" aria-label="Select all sales"></th><th>Sold Date</th><th>Item name</th><th>Quantity</th><th>Earnings</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="sold-tbody"></tbody>
                             </table>
-                        </div>
-                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-sold-selected" disabled>Delete selected</button>
-                            <small class="text-muted" id="sold-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -123,15 +150,27 @@
                         <button type="button" class="btn btn-sm btn-warning" id="btn-open-pending-modal">+ Add pending</button>
                     </div>
                     <div class="card-body p-0">
+                        <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <span class="small fw-semibold text-secondary text-nowrap">Bulk actions</span>
+                                <label class="small text-muted mb-0">Set stage</label>
+                                <select class="form-select form-select-sm" id="pending-bulk-stage" style="width:auto;min-width:140px;max-width:220px">
+                                    <option value="Initial Inspection">Initial Inspection</option>
+                                    <option value="Quality Check">Quality Check</option>
+                                    <option value="Return Verification">Return Verification</option>
+                                    <option value="Listing">Listing</option>
+                                    <option value="Ready for Sale">Ready for Sale</option>
+                                </select>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-pending-stage-selected" disabled>Apply to selected</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-pending-selected" disabled>Delete selected</button>
+                                <span class="small text-muted ms-auto" id="pending-selected-count">0 selected</span>
+                            </div>
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead><tr><th style="width:36px"><input type="checkbox" id="pending-select-all" aria-label="Select all pending"></th><th>Product</th><th>Stage</th><th>Est. completion</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="pending-tbody"></tbody>
                             </table>
-                        </div>
-                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-pending-selected" disabled>Delete selected</button>
-                            <small class="text-muted" id="pending-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -143,15 +182,18 @@
                         <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#modal-add-reimbursement">+ Add item + photos</button>
                     </div>
                     <div class="card-body p-0">
+                        <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <span class="small fw-semibold text-secondary text-nowrap">Bulk actions</span>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-reimb-selected" disabled>Delete selected</button>
+                                <span class="small text-muted ms-auto" id="reimb-selected-count">0 selected</span>
+                            </div>
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead><tr><th style="width:36px"><input type="checkbox" id="reimb-select-all" aria-label="Select all reimbursement claims"></th><th>Package ref</th><th>Item</th><th>Type</th><th>Photos</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="reimbursement-tbody"></tbody>
                             </table>
-                        </div>
-                        <div class="p-2 border-top d-flex gap-2 align-items-center flex-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-reimb-selected" disabled>Delete selected</button>
-                            <small class="text-muted" id="reimb-selected-count">0 selected</small>
                         </div>
                     </div>
                 </div>
@@ -180,6 +222,19 @@
     </div>
 
     <!-- Modals -->
+    <div class="modal fade" id="modal-bulk-confirm" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h6 class="modal-title" id="bulk-confirm-title">Confirm</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body"><p class="mb-0" id="bulk-confirm-message"></p></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="bulk-confirm-yes">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="modal-mark-delivered" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -460,10 +515,67 @@
         var selectedPendingIds = new Set();
         var selectedReimbIds = new Set();
 
+        var bulkConfirmHandler = null;
+        var bulkConfirmBusy = false;
+
+        function showBulkConfirmModal(title, message, yesBtnClass, handler) {
+            $('#bulk-confirm-title').text(title);
+            $('#bulk-confirm-message').text(message);
+            var $yes = $('#bulk-confirm-yes');
+            $yes.removeClass('btn-danger btn-primary btn-success btn-warning btn-secondary');
+            $yes.addClass(yesBtnClass || 'btn-danger');
+            bulkConfirmHandler = handler;
+            var el = document.getElementById('modal-bulk-confirm');
+            var modal = bootstrap.Modal.getInstance(el);
+            if (!modal) modal = new bootstrap.Modal(el);
+            modal.show();
+        }
+
+        $('#bulk-confirm-yes').on('click', async function() {
+            if (bulkConfirmBusy || !bulkConfirmHandler) return;
+            bulkConfirmBusy = true;
+            var fn = bulkConfirmHandler;
+            var $btn = $(this).prop('disabled', true);
+            try {
+                await fn();
+                var el = document.getElementById('modal-bulk-confirm');
+                var inst = bootstrap.Modal.getInstance(el);
+                if (inst) inst.hide();
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Action failed');
+            } finally {
+                bulkConfirmBusy = false;
+                bulkConfirmHandler = null;
+                $btn.prop('disabled', false);
+            }
+        });
+
+        $('#modal-bulk-confirm').on('hidden.bs.modal', function() {
+            bulkConfirmHandler = null;
+            bulkConfirmBusy = false;
+            $('#bulk-confirm-yes').prop('disabled', false);
+        });
+
+        async function bulkDeleteRowsNoConfirm(ids, urlForId) {
+            if (!ids.length) return;
+            var failures = [];
+            await Promise.all(ids.map(async function(id) {
+                try {
+                    await API.request(urlForId(id), { method: 'DELETE' });
+                } catch (e) {
+                    failures.push(id);
+                }
+            }));
+            if (failures.length) {
+                alert('Deleted ' + (ids.length - failures.length) + ' row(s). Failed: ' + failures.length + '.');
+            }
+        }
+
         function updateReceivedSelectionUi() {
             var n = selectedReceivedIds.size;
             $('#received-selected-count').text(n + ' selected');
             $('#btn-delete-received-selected').prop('disabled', n === 0);
+            $('#btn-received-status-selected').prop('disabled', n === 0);
             var $c = $('.received-select');
             var sel = $c.length;
             var chk = $c.filter(':checked').length;
@@ -488,6 +600,7 @@
             var n = selectedPendingIds.size;
             $('#pending-selected-count').text(n + ' selected');
             $('#btn-delete-pending-selected').prop('disabled', n === 0);
+            $('#btn-pending-stage-selected').prop('disabled', n === 0);
             var $c = $('.pending-select');
             var sel = $c.length;
             var chk = $c.filter(':checked').length;
@@ -512,6 +625,7 @@
             var selectedCount = selectedPackageIds.size;
             $('#packages-selected-count').text(selectedCount + ' selected');
             $('#btn-mark-delivered-selected').prop('disabled', selectedCount === 0);
+            $('#btn-packages-status-selected').prop('disabled', selectedCount === 0);
             $('#btn-delete-packages-selected').prop('disabled', selectedCount === 0);
 
             var $checks = $('.package-select');
@@ -784,59 +898,70 @@
             updatePackageSelectionUi();
         });
 
-        async function bulkDeleteRows(ids, urlForId, noun) {
-            if (!ids.length) return;
-            if (!confirm('Permanently delete ' + ids.length + ' ' + noun + '? This cannot be undone.')) return;
-            var failures = [];
-            await Promise.all(ids.map(async function(id) {
-                try {
-                    await API.request(urlForId(id), { method: 'DELETE' });
-                } catch (e) {
-                    failures.push(id);
-                }
-            }));
-            if (failures.length) {
-                alert('Deleted ' + (ids.length - failures.length) + ' row(s). Failed: ' + failures.length + '.');
-            }
-            return failures.length;
-        }
-
-        $('#btn-delete-packages-selected').on('click', async function() {
+        $('#btn-delete-packages-selected').on('click', function() {
             var ids = Array.from(selectedPackageIds);
             if (!ids.length) return;
-            var $btn = $(this).prop('disabled', true).text('Deleting...');
-            try {
-                await bulkDeleteRows(ids, function(id) { return '/packages/' + id; }, 'package(s)');
-                selectedPackageIds.clear();
-                refreshAll();
-            } finally {
-                $btn.text('Delete selected').prop('disabled', false);
-            }
+            showBulkConfirmModal(
+                'Delete selected packages?',
+                'This will permanently delete ' + ids.length + ' package(s). This cannot be undone.',
+                'btn-danger',
+                async function() {
+                    await bulkDeleteRowsNoConfirm(ids, function(id) { return '/packages/' + id; });
+                    selectedPackageIds.clear();
+                    refreshAll();
+                }
+            );
         });
 
-        $('#btn-mark-delivered-selected').on('click', async function() {
+        $('#btn-mark-delivered-selected').on('click', function() {
             var ids = Array.from(selectedPackageIds);
             if (!ids.length) return alert('Select at least one package first');
-            if (!confirm('Mark ' + ids.length + ' selected package(s) as delivered?')) return;
-
-            var $btn = $(this).prop('disabled', true).text('Marking...');
-            try {
-                var failures = [];
-                await Promise.all(ids.map(async function(id) {
-                    try {
-                        await API.request('/packages/' + id, { method: 'PUT', body: { status: 'Delivered' } });
-                    } catch (e) {
-                        failures.push(id);
+            showBulkConfirmModal(
+                'Mark selected packages as delivered?',
+                'This will mark ' + ids.length + ' package(s) as Delivered.',
+                'btn-success',
+                async function() {
+                    var failures = [];
+                    await Promise.all(ids.map(async function(id) {
+                        try {
+                            await API.request('/packages/' + id, { method: 'PUT', body: { status: 'Delivered' } });
+                        } catch (e) {
+                            failures.push(id);
+                        }
+                    }));
+                    if (failures.length) {
+                        alert('Marked ' + (ids.length - failures.length) + ' package(s). Failed: ' + failures.length + '.');
                     }
-                }));
-                if (failures.length) {
-                    alert('Marked ' + (ids.length - failures.length) + ' package(s). Failed: ' + failures.length + '.');
+                    selectedPackageIds.clear();
+                    refreshAll();
                 }
-                selectedPackageIds.clear();
-                refreshAll();
-            } finally {
-                $btn.text('Mark selected as delivered').prop('disabled', false);
-            }
+            );
+        });
+
+        $('#btn-packages-status-selected').on('click', function() {
+            var ids = Array.from(selectedPackageIds);
+            if (!ids.length) return;
+            var st = $('#packages-bulk-status').val();
+            showBulkConfirmModal(
+                'Update package status?',
+                'Set status to “' + st + '” for ' + ids.length + ' selected package(s).',
+                'btn-primary',
+                async function() {
+                    var failures = [];
+                    await Promise.all(ids.map(async function(id) {
+                        try {
+                            await API.request('/packages/' + id, { method: 'PUT', body: { status: st } });
+                        } catch (e) {
+                            failures.push(id);
+                        }
+                    }));
+                    if (failures.length) {
+                        alert('Updated ' + (ids.length - failures.length) + ' package(s). Failed: ' + failures.length + '.');
+                    }
+                    selectedPackageIds.clear();
+                    refreshAll();
+                }
+            );
         });
 
         $(document).on('change', '.received-select', function() {
@@ -857,17 +982,45 @@
             });
             updateReceivedSelectionUi();
         });
-        $('#btn-delete-received-selected').on('click', async function() {
+        $('#btn-received-status-selected').on('click', function() {
             var ids = Array.from(selectedReceivedIds);
             if (!ids.length) return;
-            var $btn = $(this).prop('disabled', true).text('Deleting...');
-            try {
-                await bulkDeleteRows(ids, function(id) { return '/received/' + id; }, 'received line(s)');
-                selectedReceivedIds.clear();
-                refreshAll();
-            } finally {
-                $btn.text('Delete selected').prop('disabled', false);
-            }
+            var st = $('#received-bulk-status').val();
+            showBulkConfirmModal(
+                'Update status on selected rows?',
+                'Set status to “' + st + '” for ' + ids.length + ' received line(s).',
+                'btn-primary',
+                async function() {
+                    var failures = [];
+                    await Promise.all(ids.map(async function(id) {
+                        try {
+                            await API.request('/received/' + id, { method: 'PUT', body: { status: st } });
+                        } catch (e) {
+                            failures.push(id);
+                        }
+                    }));
+                    if (failures.length) {
+                        alert('Updated ' + (ids.length - failures.length) + ' row(s). Failed: ' + failures.length + '.');
+                    }
+                    selectedReceivedIds.clear();
+                    refreshAll();
+                }
+            );
+        });
+
+        $('#btn-delete-received-selected').on('click', function() {
+            var ids = Array.from(selectedReceivedIds);
+            if (!ids.length) return;
+            showBulkConfirmModal(
+                'Delete selected received lines?',
+                'This will permanently delete ' + ids.length + ' received line(s). This cannot be undone.',
+                'btn-danger',
+                async function() {
+                    await bulkDeleteRowsNoConfirm(ids, function(id) { return '/received/' + id; });
+                    selectedReceivedIds.clear();
+                    refreshAll();
+                }
+            );
         });
 
         $(document).on('change', '.sold-select', function() {
@@ -888,17 +1041,19 @@
             });
             updateSoldSelectionUi();
         });
-        $('#btn-delete-sold-selected').on('click', async function() {
+        $('#btn-delete-sold-selected').on('click', function() {
             var ids = Array.from(selectedSoldIds);
             if (!ids.length) return;
-            var $btn = $(this).prop('disabled', true).text('Deleting...');
-            try {
-                await bulkDeleteRows(ids, function(id) { return '/sold/' + id; }, 'sale record(s)');
-                selectedSoldIds.clear();
-                refreshAll();
-            } finally {
-                $btn.text('Delete selected').prop('disabled', false);
-            }
+            showBulkConfirmModal(
+                'Delete selected sale records?',
+                'This will permanently delete ' + ids.length + ' sale record(s). This cannot be undone.',
+                'btn-danger',
+                async function() {
+                    await bulkDeleteRowsNoConfirm(ids, function(id) { return '/sold/' + id; });
+                    selectedSoldIds.clear();
+                    refreshAll();
+                }
+            );
         });
 
         $(document).on('change', '.pending-select', function() {
@@ -919,17 +1074,45 @@
             });
             updatePendingSelectionUi();
         });
-        $('#btn-delete-pending-selected').on('click', async function() {
+        $('#btn-pending-stage-selected').on('click', function() {
             var ids = Array.from(selectedPendingIds);
             if (!ids.length) return;
-            var $btn = $(this).prop('disabled', true).text('Deleting...');
-            try {
-                await bulkDeleteRows(ids, function(id) { return '/pending/' + id; }, 'pending item(s)');
-                selectedPendingIds.clear();
-                refreshAll();
-            } finally {
-                $btn.text('Delete selected').prop('disabled', false);
-            }
+            var st = $('#pending-bulk-stage').val();
+            showBulkConfirmModal(
+                'Update stage on selected items?',
+                'Set stage to “' + st + '” for ' + ids.length + ' pending item(s).',
+                'btn-primary',
+                async function() {
+                    var failures = [];
+                    await Promise.all(ids.map(async function(id) {
+                        try {
+                            await API.request('/pending/' + id, { method: 'PUT', body: { current_stage: st } });
+                        } catch (e) {
+                            failures.push(id);
+                        }
+                    }));
+                    if (failures.length) {
+                        alert('Updated ' + (ids.length - failures.length) + ' row(s). Failed: ' + failures.length + '.');
+                    }
+                    selectedPendingIds.clear();
+                    refreshAll();
+                }
+            );
+        });
+
+        $('#btn-delete-pending-selected').on('click', function() {
+            var ids = Array.from(selectedPendingIds);
+            if (!ids.length) return;
+            showBulkConfirmModal(
+                'Delete selected pending items?',
+                'This will permanently delete ' + ids.length + ' pending item(s). This cannot be undone.',
+                'btn-danger',
+                async function() {
+                    await bulkDeleteRowsNoConfirm(ids, function(id) { return '/pending/' + id; });
+                    selectedPendingIds.clear();
+                    refreshAll();
+                }
+            );
         });
 
         $(document).on('change', '.reimb-select', function() {
@@ -950,17 +1133,19 @@
             });
             updateReimbSelectionUi();
         });
-        $('#btn-delete-reimb-selected').on('click', async function() {
+        $('#btn-delete-reimb-selected').on('click', function() {
             var ids = Array.from(selectedReimbIds);
             if (!ids.length) return;
-            var $btn = $(this).prop('disabled', true).text('Deleting...');
-            try {
-                await bulkDeleteRows(ids, function(id) { return '/admin/reimbursement-claims/' + id; }, 'reimbursement claim(s)');
-                selectedReimbIds.clear();
-                refreshAll();
-            } finally {
-                $btn.text('Delete selected').prop('disabled', false);
-            }
+            showBulkConfirmModal(
+                'Delete selected reimbursement claims?',
+                'This will permanently delete ' + ids.length + ' claim(s) and their stored photos. This cannot be undone.',
+                'btn-danger',
+                async function() {
+                    await bulkDeleteRowsNoConfirm(ids, function(id) { return '/admin/reimbursement-claims/' + id; });
+                    selectedReimbIds.clear();
+                    refreshAll();
+                }
+            );
         });
 
         $('#btn-open-checkin-modal').on('click', function() {
