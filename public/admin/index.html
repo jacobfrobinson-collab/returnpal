@@ -11,6 +11,7 @@
         .admin-header { background: var(--bs-dark); color: #fff; }
         .admin-header a { color: rgba(255,255,255,.9); text-decoration: none; }
         .admin-header a:hover { color: #fff; }
+        .section-card { margin-bottom: 1.5rem; }
     </style>
 </head>
 <body>
@@ -31,6 +32,95 @@
     </header>
 
     <div class="container-fluid">
+        <div id="bulk-import-spreadsheet" class="section-card card border-primary shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h2 class="h6 mb-0">Bulk spreadsheet import</h2>
+                    <p class="small text-muted mb-0">All multi-client and single-client file uploads run from here. Use <strong>Preview</strong> to verify Client ID → email before saving.</p>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="bulk-import-template-btn">Download template</button>
+            </div>
+            <div class="card-body">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="bulk-import-multi" />
+                    <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the list below); rows are applied to that client’s dashboard.</label>
+                </div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4 col-lg-3">
+                        <label class="form-label small mb-0">Import type</label>
+                        <select class="form-select form-select-sm" id="bulk-import-kind">
+                            <option value="sold">Record sales</option>
+                            <option value="received">Check in (received items)</option>
+                            <option value="pending">Pending items</option>
+                            <option value="mark_delivered">Mark packages delivered</option>
+                            <option value="reimbursement">Reimbursement claims</option>
+                            <option value="return_adjustment">Return / refund adjustments</option>
+                            <option value="refunds">Refunds (same as adjustments — dedicated template)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-lg-4" id="bulk-import-single-client-wrap">
+                        <label class="form-label small mb-0">Apply to client <span class="text-muted fw-normal">(single-file only)</span></label>
+                        <select class="form-select form-select-sm" id="bulk-import-target-client">
+                            <option value="">— Select client —</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-lg-3">
+                        <label class="form-label small mb-0">File</label>
+                        <input type="file" class="form-control form-control-sm" id="bulk-import-file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" />
+                    </div>
+                    <div class="col-6 col-md-2 col-lg-1">
+                        <label class="form-label small mb-0 d-block">&nbsp;</label>
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="bulk-import-preview-btn">Preview</button>
+                    </div>
+                    <div class="col-6 col-md-2 col-lg-1">
+                        <label class="form-label small mb-0 d-block">&nbsp;</label>
+                        <button type="button" class="btn btn-primary btn-sm w-100" id="bulk-import-run">Import</button>
+                    </div>
+                </div>
+                <div id="bulk-import-preview-wrap" class="d-none mt-3">
+                    <div class="small fw-semibold mb-1">Preview (not saved)</div>
+                    <div class="table-responsive border rounded" style="max-height:260px;overflow:auto">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead class="table-light"><tr><th>Line</th><th>OK</th><th>Client</th><th>Warnings / error</th><th>Row</th></tr></thead>
+                            <tbody id="bulk-import-preview-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <pre class="small mt-2 mb-0 bg-light p-2 rounded text-wrap d-none" id="bulk-import-result" style="white-space:pre-wrap;max-height:220px;overflow:auto"></pre>
+                <div id="bulk-import-result-links" class="small mt-2 d-none"></div>
+            </div>
+        </div>
+
+        <div class="section-card card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <h2 class="h6 mb-0">Recent spreadsheet imports</h2>
+                    <span class="badge bg-secondary" id="bulk-import-jobs-count">0</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-jobs-refresh">Refresh</button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>When</th>
+                                <th>Kind</th>
+                                <th>Multi</th>
+                                <th>Client</th>
+                                <th>OK</th>
+                                <th>Err</th>
+                                <th>File</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulk-import-jobs-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="small text-muted mb-0 px-2 py-2 border-top">Undo removes rows created in that import (and restores package status for “mark delivered” rows). Jobs from all clients are listed here.</p>
+            </div>
+        </div>
+
         <div class="card shadow-sm">
             <div class="card-header bg-white py-3">
                 <h2 class="h6 mb-0">All clients</h2>
@@ -62,7 +152,7 @@
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
-    <script src="/assets/js/api.js?v=rp10"></script>
+    <script src="/assets/js/api.js?v=rp11"></script>
     <script src="/assets/js/dateUk.js"></script>
     <script>
     $(function() {
@@ -102,6 +192,89 @@
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;');
+        }
+        function fmtDate(s) {
+            return s ? RP_DATE.format(s) : '-';
+        }
+        function populateBulkImportClientSelect(users) {
+            var $sel = $('#bulk-import-target-client');
+            if (!$sel.length) return;
+            var prev = $sel.val();
+            $sel.find('option:not(:first)').remove();
+            (users || []).forEach(function(u) {
+                var id = u.id;
+                if (id == null) return;
+                var label = String(id).padStart(4, '0') + ' — ' + (u.full_name || u.email || 'Client');
+                $sel.append($('<option></option>').attr('value', String(id)).text(label));
+            });
+            if (prev && $sel.find('option[value="' + prev + '"]').length) $sel.val(prev);
+            var bc = new URLSearchParams(window.location.search || '').get('bulk_client');
+            if (bc && $sel.find('option[value="' + bc + '"]').length) {
+                $sel.val(bc);
+                document.getElementById('bulk-import-multi').checked = false;
+                syncBulkImportMultiUi();
+            }
+        }
+        function syncBulkImportMultiUi() {
+            var multi = document.getElementById('bulk-import-multi') && document.getElementById('bulk-import-multi').checked;
+            $('#bulk-import-target-client').prop('disabled', !!multi);
+            $('#bulk-import-single-client-wrap').toggleClass('opacity-50', !!multi);
+        }
+        function loadBulkImportJobs() {
+            API.adminListBulkImportJobs()
+                .then(function(data) {
+                    var jobs = data.jobs || [];
+                    $('#bulk-import-jobs-count').text(jobs.length);
+                    var $tb = $('#bulk-import-jobs-tbody');
+                    $tb.empty();
+                    jobs.forEach(function(j) {
+                        var isMulti = j.is_multi === 1 || j.is_multi === true || j.is_multi === '1';
+                        var clientCell;
+                        if (isMulti) {
+                            clientCell = '<span class="text-muted">Various</span>';
+                        } else {
+                            var tid = j.target_user_id;
+                            if (tid != null && tid !== '') {
+                                clientCell = '<a href="/admin/client.html?id=' + encodeURIComponent(tid) + '">ID ' + escapeHtml(String(tid).padStart(4, '0')) + '</a>';
+                            } else {
+                                clientCell = '<span class="text-muted">—</span>';
+                            }
+                        }
+                        var undone = !j.rolled_back_at && (j.imported_count > 0);
+                        var roll = undone
+                            ? '<button type="button" class="btn btn-sm btn-outline-danger btn-rollback-job" data-id="' + j.id + '">Undo</button>'
+                            : (j.rolled_back_at ? '<span class="text-muted small">Undone</span>' : '<span class="text-muted">—</span>');
+                        $tb.append(
+                            '<tr><td class="small">' + escapeHtml(fmtDate(j.created_at)) + '</td><td class="small">' + escapeHtml(j.kind || '') +
+                            '</td><td class="small">' + (isMulti ? 'Yes' : 'No') + '</td><td class="small">' + clientCell +
+                            '</td><td>' + (j.imported_count != null ? j.imported_count : 0) + '</td><td>' + (j.error_count != null ? j.error_count : 0) +
+                            '</td><td class="small text-truncate" style="max-width:140px" title="' + escapeHtml(j.original_filename || '') + '">' +
+                            escapeHtml((j.original_filename || '').slice(0, 40)) + '</td><td>' + roll + '</td></tr>'
+                        );
+                    });
+                    if (jobs.length === 0) $tb.append('<tr><td colspan="8" class="text-muted px-2 py-3">No imports yet</td></tr>');
+                })
+                .catch(function() {
+                    $('#bulk-import-jobs-tbody').html('<tr><td colspan="8" class="text-danger px-2">Failed to load jobs</td></tr>');
+                });
+        }
+        function renderBulkImportErrorsHtml(errors) {
+            var $links = $('#bulk-import-result-links').empty();
+            if (!errors || !errors.length) {
+                $links.addClass('d-none');
+                return;
+            }
+            $links.removeClass('d-none').append('<div class="fw-semibold mb-1">Row issues</div>');
+            errors.forEach(function(e) {
+                var row = $('<div class="mb-1"></div>');
+                row.append(document.createTextNode('Line ' + e.line + ': ' + (e.error || '')));
+                if (e.user_id) {
+                    row.append(' — ');
+                    var a = $('<a></a>').attr('href', '/admin/client.html?id=' + encodeURIComponent(e.user_id)).text('Open client ' + String(e.user_id).padStart(4, '0'));
+                    row.append(a);
+                }
+                $links.append(row);
+            });
         }
         function showTable(users) {
             $('#admin-loading').addClass('d-none');
@@ -143,6 +316,13 @@
                 });
             }
             $('#admin-table-wrap').removeClass('d-none');
+            populateBulkImportClientSelect(users);
+            if (window.location.hash === '#bulk-import-spreadsheet') {
+                setTimeout(function() {
+                    var el = document.getElementById('bulk-import-spreadsheet');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 150);
+            }
         }
 
         function loadUsers() {
@@ -222,6 +402,130 @@
                 });
         });
 
+        $('#bulk-import-multi').on('change', syncBulkImportMultiUi);
+        syncBulkImportMultiUi();
+
+        $('#bulk-import-template-btn').on('click', async function() {
+            var kind = $('#bulk-import-kind').val();
+            var multi = document.getElementById('bulk-import-multi').checked;
+            var token = API.getToken();
+            if (!token) return alert('Not logged in');
+            try {
+                var url = API.getApiBase() + '/admin/bulk-import-template/' + encodeURIComponent(kind);
+                if (multi) url += '?multi=1';
+                var res = await fetch(url, {
+                    headers: { Authorization: 'Bearer ' + token }
+                });
+                if (!res.ok) {
+                    var err = await res.json().catch(function() { return {}; });
+                    throw new Error(err.error || res.statusText);
+                }
+                var blob = await res.blob();
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'returnpal-import-' + kind + (multi ? '-multi-client' : '') + '.xlsx';
+                a.click();
+                URL.revokeObjectURL(a.href);
+            } catch (e) {
+                alert(e.message || 'Could not download template');
+            }
+        });
+
+        $('#bulk-import-preview-btn').on('click', async function() {
+            var f = document.getElementById('bulk-import-file').files[0];
+            if (!f) return alert('Choose a spreadsheet file');
+            var kind = $('#bulk-import-kind').val();
+            var multi = document.getElementById('bulk-import-multi').checked;
+            var targetId = parseInt($('#bulk-import-target-client').val(), 10);
+            if (!multi && !Number.isFinite(targetId)) {
+                return alert('Select a client for single-file import, or enable “Multi-client file”.');
+            }
+            var $btn = $(this).prop('disabled', true);
+            try {
+                var prev = await API.adminBulkImportPreview(kind, f, { multi: multi, userId: targetId });
+                $('#bulk-import-preview-wrap').removeClass('d-none');
+                var $tb = $('#bulk-import-preview-tbody').empty();
+                (prev.rows || []).forEach(function(r) {
+                    var ok = r.ok ? 'Yes' : 'No';
+                    var client = r.resolved_email
+                        ? escapeHtml((r.resolved_name || '').trim()) + ' · ' + escapeHtml(r.resolved_email)
+                        : r.user_id
+                          ? 'ID ' + String(r.user_id).padStart(4, '0')
+                          : '—';
+                    var issue =
+                        r.warnings && r.warnings.length ? escapeHtml(r.warnings.join('; ')) : r.error ? escapeHtml(r.error) : '—';
+                    $tb.append(
+                        '<tr><td>' +
+                            r.line +
+                            '</td><td>' +
+                            ok +
+                            '</td><td class="small">' +
+                            client +
+                            '</td><td class="small">' +
+                            issue +
+                            '</td><td class="small">' +
+                            escapeHtml(r.summary || '') +
+                            '</td></tr>'
+                    );
+                });
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Preview failed');
+            } finally {
+                $btn.prop('disabled', false);
+            }
+        });
+
+        $('#bulk-import-jobs-refresh').on('click', function() {
+            loadBulkImportJobs();
+        });
+        $(document).on('click', '.btn-rollback-job', async function() {
+            var id = $(this).data('id');
+            if (!id || !confirm('Undo this import? All rows created in that job will be removed (and delivered packages reverted where applicable).')) return;
+            try {
+                await API.adminRollbackBulkImportJob(id);
+                loadBulkImportJobs();
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Undo failed');
+            }
+        });
+
+        $('#bulk-import-run').on('click', async function() {
+            var f = document.getElementById('bulk-import-file').files[0];
+            if (!f) return alert('Choose a spreadsheet file');
+            var kind = $('#bulk-import-kind').val();
+            var multi = document.getElementById('bulk-import-multi').checked;
+            var targetId = parseInt($('#bulk-import-target-client').val(), 10);
+            if (!multi && !Number.isFinite(targetId)) {
+                return alert('Select a client for single-file import, or enable “Multi-client file”.');
+            }
+            var $btn = $(this).prop('disabled', true);
+            var $out = $('#bulk-import-result').addClass('d-none').text('');
+            $('#bulk-import-result-links').addClass('d-none').empty();
+            try {
+                var data = multi
+                    ? await API.adminBulkImportMulti(kind, f)
+                    : await API.adminBulkImportUser(targetId, kind, f);
+                var txt = 'Imported ' + (data.imported || 0) + ' row(s).';
+                if (data.job_id) txt += ' Job #' + data.job_id + ' (you can Undo from Recent imports).';
+                if (multi && data.by_user && Object.keys(data.by_user).length) {
+                    txt += '\n\nPer client (user id → rows): ' + JSON.stringify(data.by_user);
+                }
+                if (data.errors && data.errors.length) {
+                    txt += '\n\nRow errors (summary): ' + data.errors.length + ' — see links below.';
+                }
+                $out.text(txt).removeClass('d-none');
+                renderBulkImportErrorsHtml(data.errors || []);
+                document.getElementById('bulk-import-file').value = '';
+                loadBulkImportJobs();
+                loadUsers();
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Import failed');
+            } finally {
+                $btn.prop('disabled', false);
+            }
+        });
+
+        loadBulkImportJobs();
         loadUsers();
     });
     </script>

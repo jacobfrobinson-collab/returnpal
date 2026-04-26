@@ -15,6 +15,46 @@ function parseResults(result) {
     });
 }
 
+/** Sum of applied return amounts per sold_items.id for this user. */
+function computeReturnsBySoldId(db, userId) {
+    const rows = parseResults(
+        db.exec(
+            `SELECT linked_sold_item_id, COALESCE(SUM(amount), 0) AS s
+             FROM return_adjustments
+             WHERE user_id = ? AND status = 'applied' AND linked_sold_item_id IS NOT NULL
+             GROUP BY linked_sold_item_id`,
+            [userId]
+        )
+    );
+    const map = Object.create(null);
+    for (const r of rows) {
+        map[String(r.linked_sold_item_id)] = Number(r.s) || 0;
+    }
+    return map;
+}
+
+// GET /api/sold/returns — list refund/return adjustments (define before /:id routes)
+router.get('/returns', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec(
+                `SELECT r.id, r.product, r.reference, r.amount, r.status, r.notes, r.created_at,
+                        r.linked_sold_item_id, s.product AS sold_product, s.sold_date
+                 FROM return_adjustments r
+                 LEFT JOIN sold_items s ON s.id = r.linked_sold_item_id
+                 WHERE r.user_id = ?
+                 ORDER BY r.created_at DESC, r.id DESC`,
+                [req.user.id]
+            )
+        );
+        res.json({ items: rows, total: rows.length });
+    } catch (err) {
+        console.error('Get sold returns error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // GET /api/sold - List sold items with summary stats
 router.get('/', authMiddleware, async (req, res) => {
     try {
@@ -40,13 +80,31 @@ router.get('/', authMiddleware, async (req, res) => {
             total_earnings: 0, items_sold: 0, avg_earnings: 0, avg_margin: 0
         };
 
+        const returnsBySold = computeReturnsBySoldId(db, req.user.id);
+        const totalReturnsRows = parseResults(
+            db.exec(
+                `SELECT COALESCE(SUM(amount), 0) AS s FROM return_adjustments WHERE user_id = ? AND status = 'applied'`,
+                [req.user.id]
+            )
+        );
+        const total_returns_applied = totalReturnsRows.length ? Number(totalReturnsRows[0].s) || 0 : 0;
+        const gross = Number(stats.total_earnings) || 0;
+        stats.total_returns_applied = total_returns_applied;
+        stats.net_earnings_after_returns = gross - total_returns_applied;
+        stats.avg_earnings_net =
+            stats.items_sold > 0 ? stats.net_earnings_after_returns / stats.items_sold : 0;
+
         const promo = computeMonthlyFreeProcessing(items);
         const itemsWithPromo = items.map((row) => {
             const w = promo.winner_by_item_id[String(row.id)];
+            const ret = returnsBySold[String(row.id)] || 0;
+            const profit = Number(row.profit) || 0;
             return {
                 ...row,
                 is_monthly_free_processing: !!w,
-                monthly_free_processing_month: w ? w.year_month : null
+                monthly_free_processing_month: w ? w.year_month : null,
+                returns_deducted: ret,
+                net_after_returns: profit - ret
             };
         });
 

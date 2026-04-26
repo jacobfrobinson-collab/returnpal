@@ -432,6 +432,7 @@ const Dashboard = {
             this.loadReceived();
         } else if (page.includes('sold-items')) {
             this.loadSold();
+            this.loadSoldReturns();
         } else if (page.includes('item-pending')) {
             this.loadPending();
         } else if (page.includes('invoices')) {
@@ -1748,8 +1749,8 @@ const Dashboard = {
         return '<span class="badge bg-' + cls + '-subtle text-' + cls + ' py-1 px-2 fs-12" title="Recovery route">' + label + ' – ' + sub + '</span>';
     },
     async loadSold() {
-        const $tbody = $('table tbody');
-        if ($tbody.length) $tbody.html('<tr><td colspan="4" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        const $tbody = $('#sold-items-tbody');
+        if ($tbody.length) $tbody.html('<tr><td colspan="6" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getSold();
 
@@ -1775,14 +1776,24 @@ const Dashboard = {
                 }
                 return esc(item.product) + badge;
             };
-            const soldRowHtml = (item) => (
-                '<tr>' +
-                '<td>' + this.formatDate(item.sold_date) + '</td>' +
-                '<td>' + productCell(item) + '</td>' +
-                '<td>' + esc(String(item.quantity)) + '</td>' +
-                '<td class="text-success">£' + Number(item.profit != null ? item.profit : 0).toFixed(2) + '</td>' +
-                '</tr>'
-            );
+            const soldRowHtml = (item) => {
+                const gross = Number(item.profit != null ? item.profit : 0);
+                const ret = Number(item.returns_deducted != null ? item.returns_deducted : 0);
+                const net = Number(item.net_after_returns != null ? item.net_after_returns : gross - ret);
+                const retCell = ret > 0
+                    ? '<td class="text-danger">£' + ret.toFixed(2) + '</td>'
+                    : '<td class="text-muted">—</td>';
+                return (
+                    '<tr>' +
+                    '<td>' + this.formatDate(item.sold_date) + '</td>' +
+                    '<td>' + productCell(item) + '</td>' +
+                    '<td>' + esc(String(item.quantity)) + '</td>' +
+                    '<td class="text-success">£' + gross.toFixed(2) + '</td>' +
+                    retCell +
+                    '<td class="text-success fw-semibold">£' + net.toFixed(2) + '</td>' +
+                    '</tr>'
+                );
+            };
 
             const $banner = $('#sold-monthly-free-banner');
             const $bannerText = $('#sold-monthly-free-banner-text');
@@ -1823,24 +1834,36 @@ const Dashboard = {
             }
             const cards = $('.card-body h3');
             if (data.stats && !filter) {
-                $(cards[0]).text('£' + Number(data.stats.total_earnings).toFixed(2));
+                const net = data.stats.net_earnings_after_returns != null
+                    ? Number(data.stats.net_earnings_after_returns)
+                    : Number(data.stats.total_earnings);
+                const avgNet = data.stats.avg_earnings_net != null
+                    ? Number(data.stats.avg_earnings_net)
+                    : Number(data.stats.avg_earnings);
+                $(cards[0]).text('£' + net.toFixed(2));
                 $(cards[1]).text(data.stats.items_sold);
-                $(cards[2]).text('£' + Number(data.stats.avg_earnings).toFixed(2));
+                $(cards[2]).text('£' + avgNet.toFixed(2));
                 $(cards[3]).text(Number(data.stats.avg_margin).toFixed(2) + '%');
             } else if (items.length) {
-                const tot = items.reduce((s, i) => s + (Number(i.profit) || 0), 0);
+                const totNet = items.reduce((s, i) => {
+                    const n = i.net_after_returns != null ? Number(i.net_after_returns) : (Number(i.profit) || 0) - (Number(i.returns_deducted) || 0);
+                    return s + (Number.isFinite(n) ? n : 0);
+                }, 0);
                 const qty = items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
-                $(cards[0]).text('£' + tot.toFixed(2));
+                $(cards[0]).text('£' + totNet.toFixed(2));
                 $(cards[1]).text(qty);
-                $(cards[2]).text(qty ? '£' + (tot / qty).toFixed(2) : '£0.00');
+                $(cards[2]).text(qty ? '£' + (totNet / qty).toFixed(2) : '£0.00');
                 $(cards[3]).text(items.length ? Number(items[0].margin || 0).toFixed(2) + '%' : '0%');
             }
 
             $tbody.empty();
-            $('.seco-title').text(items.length + ' Total Sold' + (filter || soldSearch ? ' (filtered)' : ''));
+            const $soldCount = $('#sold-items-count');
+            if ($soldCount.length) {
+                $soldCount.text(items.length + ' Total Sold' + (filter || soldSearch ? ' (filtered)' : ''));
+            }
 
             if (items.length === 0) {
-                $tbody.html('<tr><td colspan="4" class="text-center py-5"><p class="text-muted mb-3">No sold items match this filter. Change the recovery route filter or send more packages.</p><a href="packages.html" class="btn btn-primary">Send packages</a></td></tr>');
+                $tbody.html('<tr><td colspan="6" class="text-center py-5"><p class="text-muted mb-3">No sold items match this filter. Change the recovery route filter or send more packages.</p><a href="packages.html" class="btn btn-primary">Send packages</a></td></tr>');
                 return;
             }
 
@@ -1866,8 +1889,55 @@ const Dashboard = {
         } catch(err) {
             console.error('Load sold error:', err);
             const msg = err.error || 'Unable to load sold items.';
-            $tbody.html('<tr><td colspan="4" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
+            $tbody.html('<tr><td colspan="6" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
             $tbody.find('.btn').on('click', () => this.loadSold());
+        }
+    },
+
+    async loadSoldReturns() {
+        const $tbody = $('#sold-returns-tbody');
+        const $count = $('#sold-returns-count');
+        if (!$tbody.length) return;
+        $tbody.html('<tr><td colspan="6" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        try {
+            const data = await API.getSoldReturns();
+            const items = data.items || [];
+            if ($count.length) {
+                $count.text(items.length + (items.length === 1 ? ' entry' : ' entries'));
+            }
+            const esc = (s) => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+            if (!items.length) {
+                $tbody.html('<tr><td colspan="6" class="text-center py-4 text-muted">No refunds or return adjustments yet.</td></tr>');
+                return;
+            }
+            $tbody.empty();
+            items.forEach((r) => {
+                const linked = r.linked_sold_item_id
+                    ? '#' + esc(String(r.linked_sold_item_id)) + (r.sold_product ? ' — ' + esc(r.sold_product) : '')
+                    : '—';
+                const st = esc(String(r.status || ''));
+                $tbody.append(
+                    '<tr>' +
+                    '<td>' + this.formatDate(r.created_at) + '</td>' +
+                    '<td>' + esc(r.product) + '</td>' +
+                    '<td>' + esc(r.reference || '') + '</td>' +
+                    '<td class="text-danger">£' + Number(r.amount != null ? r.amount : 0).toFixed(2) + '</td>' +
+                    '<td><span class="badge bg-secondary-subtle text-secondary">' + st + '</span></td>' +
+                    '<td class="small">' + linked + '</td>' +
+                    '</tr>'
+                );
+            });
+        } catch (err) {
+            console.error('Load sold returns error:', err);
+            const msg = String(err.error || err.message || 'Unable to load refunds.')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            $tbody.html('<tr><td colspan="6" class="text-center py-4"><p class="text-danger mb-2">' + msg + '</p></td></tr>');
         }
     },
 

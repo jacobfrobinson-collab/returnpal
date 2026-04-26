@@ -500,6 +500,17 @@ const API = {
             throw err;
         }
     },
+    async getSoldReturns() {
+        if (window.RETURNPAL_CONFIG && window.RETURNPAL_CONFIG.useMock) {
+            return { items: [], total: 0 };
+        }
+        try {
+            return await this.request('/sold/returns');
+        } catch (err) {
+            if (err.status === 404 || err.status === 501) return { items: [], total: 0 };
+            throw err;
+        }
+    },
     _getSoldMock() {
         const now = new Date();
         const items = [
@@ -541,20 +552,27 @@ const API = {
             if (/reimbursement/i.test(route) || /not recoverable/i.test(route)) return;
             if (!best || Number(row.total_revenue) > Number(best.total_revenue)) best = row;
         });
+        const mockReturnAmt = 4.99;
         const itemsOut = out.map((row) => ({
             ...row,
             is_monthly_free_processing: !!(best && best.id === row.id),
-            monthly_free_processing_month: best && best.id === row.id ? ym : null
+            monthly_free_processing_month: best && best.id === row.id ? ym : null,
+            returns_deducted: best && best.id === row.id ? mockReturnAmt : 0,
+            net_after_returns: Number(row.profit) - (best && best.id === row.id ? mockReturnAmt : 0)
         }));
         const gross = best ? Number(best.total_revenue) : 0;
         const fee = Math.round(gross * 0.15 * 100) / 100;
+        const totalReturns = best ? mockReturnAmt : 0;
         return {
             total: itemsOut.length,
             stats: {
                 total_earnings: totalEarnings,
                 items_sold: totalQty,
                 avg_earnings: totalQty ? totalEarnings / totalQty : 0,
-                avg_margin: 85
+                avg_margin: 85,
+                total_returns_applied: totalReturns,
+                net_earnings_after_returns: totalEarnings - totalReturns,
+                avg_earnings_net: itemsOut.length ? (totalEarnings - totalReturns) / itemsOut.length : 0
             },
             items: itemsOut,
             monthly_free_processing: {

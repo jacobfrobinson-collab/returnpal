@@ -163,6 +163,7 @@ function summarizeRow(kind, row) {
         case 'reimbursement':
             return (str(row.package_reference) || '(pkg)') + ' — ' + (str(row.item_description).slice(0, 50) || '');
         case 'return_adjustment':
+        case 'refunds':
             return (str(row.product) || '(product)') + ' £' + str(row.amount);
         default:
             return '';
@@ -374,10 +375,27 @@ function importReturnAdjustmentRow(db, userId, row) {
     const reference = str(row.reference);
     const notes = str(row.notes);
     const status = str(row.status).toLowerCase() === 'pending' ? 'pending' : 'applied';
+    let linkedSoldItemId = null;
+    if (row.linked_sold_item_id != null && row.linked_sold_item_id !== '') {
+        const parsed = parseInt(row.linked_sold_item_id, 10);
+        if (Number.isFinite(parsed)) linkedSoldItemId = parsed;
+    }
+    if (!linkedSoldItemId && reference) {
+        const match = parseResults(
+            db.exec(
+                `SELECT id FROM sold_items
+                 WHERE user_id = ? AND reference = ?
+                 ORDER BY sold_date DESC, id DESC
+                 LIMIT 1`,
+                [userId, reference]
+            )
+        );
+        if (match.length) linkedSoldItemId = match[0].id;
+    }
     db.run(
         `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [userId, product, reference, amount, null, status, notes]
+        [userId, product, reference, amount, linkedSoldItemId, status, notes]
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     if (status === 'applied') {
@@ -404,6 +422,7 @@ const IMPORTERS = {
     mark_delivered: importMarkDeliveredRow,
     reimbursement: importReimbursementRow,
     return_adjustment: importReturnAdjustmentRow,
+    refunds: importReturnAdjustmentRow,
 };
 
 /**
@@ -526,7 +545,7 @@ function dryValidateRow(db, kind, userId, row) {
         if (!packageReference || !itemDescription) throw new Error('package_reference and item_description are required');
         return;
     }
-    if (kind === 'return_adjustment') {
+    if (kind === 'return_adjustment' || kind === 'refunds') {
         const product = str(row.product);
         const amount = num(row.amount, NaN);
         if (!product || !Number.isFinite(amount) || amount <= 0) throw new Error('product and a positive amount are required');
@@ -774,8 +793,12 @@ function templateSheetAoA(kind, options = {}) {
             ['TRACK-001', 'Damaged unit', 'Damaged Inventory', ''],
         ],
         return_adjustment: [
-            ['product', 'amount', 'reference', 'notes', 'status'],
-            ['Returned cable', 12.5, 'REF-1', '', 'applied'],
+            ['product', 'amount', 'reference', 'linked_sold_item_id', 'notes', 'status'],
+            ['Returned cable', 12.5, 'REF-1', '', '', 'applied'],
+        ],
+        refunds: [
+            ['product', 'amount', 'reference', 'linked_sold_item_id', 'notes', 'status'],
+            ['Returned cable', 12.5, 'REF-1', '', '', 'applied'],
         ],
     };
     const base = T[kind] || null;
