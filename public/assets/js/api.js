@@ -852,6 +852,42 @@ const API = {
         return this.request('/admin/bulk-import-multi', { method: 'POST', body: fd });
     },
 
+    /** Admin: validate spreadsheet without writing (Client ID → email preview). */
+    async adminBulkImportPreview(kind, file, opts) {
+        if (!file || !(file instanceof Blob)) {
+            throw Object.assign(new Error('Choose a spreadsheet file'), { error: 'Choose a spreadsheet file' });
+        }
+        const fd = new FormData();
+        fd.append('kind', kind);
+        fd.append('file', file, file.name || 'import.xlsx');
+        fd.append('multi', opts && opts.multi ? '1' : '0');
+        if (!opts || !opts.multi) {
+            fd.append('user_id', String(opts && opts.userId != null ? opts.userId : ''));
+        }
+        return this.request('/admin/bulk-import-preview', { method: 'POST', body: fd });
+    },
+
+    async adminListBulkImportJobs(clientId) {
+        var q = clientId != null && clientId !== '' ? '?client_id=' + encodeURIComponent(clientId) : '';
+        return this.request('/admin/bulk-import-jobs' + q);
+    },
+
+    async adminRollbackBulkImportJob(jobId) {
+        return this.request('/admin/bulk-import-jobs/' + encodeURIComponent(jobId) + '/rollback', { method: 'POST', body: {} });
+    },
+
+    async adminAuditLog(params) {
+        var q = '';
+        if (params && typeof params === 'object') {
+            var sp = new URLSearchParams();
+            if (params.limit != null && params.limit !== '') sp.set('limit', String(params.limit));
+            if (params.offset != null && params.offset !== '') sp.set('offset', String(params.offset));
+            var s = sp.toString();
+            if (s) q = '?' + s;
+        }
+        return this.request('/admin/audit-log' + q);
+    },
+
     async importInventoryRows(rows) {
         return this.request('/inventory/import', { method: 'POST', body: { rows } });
     },
@@ -865,6 +901,10 @@ const API = {
     },
     async updateWebhook(discord_webhook) {
         return this.request('/settings/webhook', { method: 'PUT', body: { discord_webhook } });
+    },
+
+    async updateWeeklyDigest(weekly_digest_email) {
+        return this.request('/settings/weekly-digest', { method: 'PUT', body: { weekly_digest_email } });
     },
 
     // ─── Contact ─────────────────────────────────────────────

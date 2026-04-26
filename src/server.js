@@ -160,6 +160,13 @@ async function start() {
             console.log(`  API:     http://localhost:${PORT}/api`);
             console.log(`  Health:  http://localhost:${PORT}/api/health\n`);
         });
+
+        try {
+            const { startWeeklyDigestScheduler } = require('./jobs/weeklyDigest');
+            startWeeklyDigestScheduler();
+        } catch (e) {
+            console.warn('Weekly digest scheduler:', e && e.message);
+        }
     } catch (err) {
         console.error('Failed to start server:', err);
         process.exit(1);

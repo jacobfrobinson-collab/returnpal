@@ -134,6 +134,41 @@ function str(v) {
     return v == null ? '' : String(v).trim();
 }
 
+function lookupUserBrief(db, userId) {
+    const r = parseResults(
+        db.exec(
+            "SELECT id, email, full_name, COALESCE(legacy_client_id, '') AS legacy_client_id FROM users WHERE id = ?",
+            [userId]
+        )
+    );
+    if (!r.length) return null;
+    return {
+        user_id: r[0].id,
+        email: r[0].email,
+        name: r[0].full_name,
+        legacy_client_id: r[0].legacy_client_id,
+    };
+}
+
+function summarizeRow(kind, row) {
+    switch (kind) {
+        case 'sold':
+            return str(row.product) || '(product)';
+        case 'received':
+            return (str(row.reference) || '(ref)') + ' — ' + (str(row.items_description).slice(0, 60) || '(desc)');
+        case 'pending':
+            return str(row.product) || str(row.reference) || '(pending)';
+        case 'mark_delivered':
+            return str(row.reference) || ('pkg#' + str(row.package_id));
+        case 'reimbursement':
+            return (str(row.package_reference) || '(pkg)') + ' — ' + (str(row.item_description).slice(0, 50) || '');
+        case 'return_adjustment':
+            return (str(row.product) || '(product)') + ' £' + str(row.amount);
+        default:
+            return '';
+    }
+}
+
 function pad2(n) {
     return n < 10 ? '0' + n : String(n);
 }
@@ -170,7 +205,8 @@ function normalizeSoldDateForDb(v) {
     return null;
 }
 
-function importSoldRow(db, userId, row) {
+/** @returns {{ reference: string, product: string, qty: number, soldDateParam: string|null, unit: number, total: number, profit: number, margin: number }} */
+function parseSoldRowFields(row) {
     const product = str(row.product);
     if (!product) throw new Error('item name (product) is required');
     const reference = str(row.reference);
@@ -200,6 +236,11 @@ function importSoldRow(db, userId, row) {
         profit = num(row.profit, 0);
         margin = num(row.margin, 0);
     }
+    return { reference, product, qty, soldDateParam, unit, total, profit, margin };
+}
+
+function importSoldRow(db, userId, row) {
+    const { reference, product, qty, soldDateParam, unit, total, profit, margin } = parseSoldRowFields(row);
 
     db.run(
         `INSERT INTO sold_items (user_id, reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date)
@@ -209,7 +250,12 @@ function importSoldRow(db, userId, row) {
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     const amount = total || unit * qty;
     const msg = 'Item "' + product + '" sold for £' + amount.toFixed(2);
-    return { id, activity: () => pushActivity(userId, 'item_sold', msg, '/dashboard/sold-items.html') };
+    return {
+        id,
+        table: 'sold_items',
+        rollbackJson: '',
+        activity: () => pushActivity(userId, 'item_sold', msg, '/dashboard/sold-items.html'),
+    };
 }
 
 function importReceivedRow(db, userId, row) {
@@ -228,7 +274,12 @@ function importReceivedRow(db, userId, row) {
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     const msg = 'Package received: ' + reference + (desc ? ' – ' + desc.slice(0, 80) : '');
-    return { id, activity: () => pushActivity(userId, 'package_received', msg, '/dashboard/received.html') };
+    return {
+        id,
+        table: 'received_items',
+        rollbackJson: '',
+        activity: () => pushActivity(userId, 'package_received', msg, '/dashboard/received.html'),
+    };
 }
 
 function importPendingRow(db, userId, row) {
@@ -250,7 +301,12 @@ function importPendingRow(db, userId, row) {
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     const msg = 'Item added to pending: ' + (product || reference || '');
-    return { id, activity: () => pushActivity(userId, 'item_pending', msg, '/dashboard/item-pending.html') };
+    return {
+        id,
+        table: 'pending_items',
+        rollbackJson: '',
+        activity: () => pushActivity(userId, 'item_pending', msg, '/dashboard/item-pending.html'),
+    };
 }
 
 function importMarkDeliveredRow(db, userId, row) {
@@ -270,9 +326,16 @@ function importMarkDeliveredRow(db, userId, row) {
     } else {
         throw new Error('reference or package_id is required');
     }
+    const statusRows = parseResults(db.exec('SELECT status FROM packages WHERE id = ?', [pkg.id]));
+    const previousStatus = statusRows[0] && statusRows[0].status ? String(statusRows[0].status) : 'In Transit';
     db.run(`UPDATE packages SET status = ?, updated_at = datetime('now') WHERE id = ?`, ['Delivered', pkg.id]);
     const msg = 'Package ' + (pkg.reference || '') + ' marked as delivered';
-    return { id: pkg.id, activity: () => pushActivity(userId, 'package_delivered', msg, '/dashboard/packages.html') };
+    return {
+        id: pkg.id,
+        table: 'packages',
+        rollbackJson: JSON.stringify({ type: 'package_status', package_id: pkg.id, previous_status: previousStatus }),
+        activity: () => pushActivity(userId, 'package_delivered', msg, '/dashboard/packages.html'),
+    };
 }
 
 function importReimbursementRow(db, userId, row) {
@@ -292,6 +355,8 @@ function importReimbursementRow(db, userId, row) {
     const claimId = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     return {
         id: claimId,
+        table: 'reimbursement_claims',
+        rollbackJson: '',
         activity: () =>
             pushActivity(
                 userId,
@@ -318,6 +383,8 @@ function importReturnAdjustmentRow(db, userId, row) {
     if (status === 'applied') {
         return {
             id,
+            table: 'return_adjustments',
+            rollbackJson: '',
             activity: () =>
                 pushActivity(
                     userId,
@@ -327,7 +394,7 @@ function importReturnAdjustmentRow(db, userId, row) {
                 ),
         };
     }
-    return { id, activity: null };
+    return { id, table: 'return_adjustments', rollbackJson: '', activity: null };
 }
 
 const IMPORTERS = {
@@ -412,29 +479,168 @@ function resolveUserIdFromClientSpecifier(db, raw) {
 }
 
 /**
+ * Same validation as importers without writing (except mark_delivered reads package row).
  * @param {import('sql.js').Database} db
- * @returns {{ imported: number, errors: Array<{ line: number, error: string }> }}
  */
-async function runBulkImport(db, kind, userId, buffer) {
+function dryValidateRow(db, kind, userId, row) {
+    if (kind === 'sold') {
+        parseSoldRowFields(row);
+        return;
+    }
+    if (kind === 'received') {
+        const reference = str(row.reference);
+        const desc = str(row.items_description);
+        if (!reference || !desc) throw new Error('reference and items_description are required');
+        return;
+    }
+    if (kind === 'pending') {
+        const product = str(row.product);
+        if (!product) throw new Error('product is required');
+        return;
+    }
+    if (kind === 'mark_delivered') {
+        const pid = row.package_id != null && row.package_id !== '' ? parseInt(row.package_id, 10) : NaN;
+        const reference = str(row.reference);
+        let pkg;
+        if (Number.isFinite(pid)) {
+            const rows = parseResults(db.exec('SELECT id, user_id, reference FROM packages WHERE id = ?', [pid]));
+            pkg = rows[0];
+            if (!pkg || pkg.user_id !== userId) throw new Error('package_id not found for this client');
+        } else if (reference) {
+            const rows = parseResults(
+                db.exec('SELECT id, user_id, reference FROM packages WHERE user_id = ? AND reference = ? LIMIT 1', [
+                    userId,
+                    reference,
+                ])
+            );
+            pkg = rows[0];
+            if (!pkg) throw new Error('No package with that reference');
+        } else {
+            throw new Error('reference or package_id is required');
+        }
+        return;
+    }
+    if (kind === 'reimbursement') {
+        const packageReference = str(row.package_reference);
+        const itemDescription = str(row.item_description);
+        if (!packageReference || !itemDescription) throw new Error('package_reference and item_description are required');
+        return;
+    }
+    if (kind === 'return_adjustment') {
+        const product = str(row.product);
+        const amount = num(row.amount, NaN);
+        if (!product || !Number.isFinite(amount) || amount <= 0) throw new Error('product and a positive amount are required');
+        return;
+    }
+    throw new Error('Unknown import type');
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {{ kind: string, userId: number, buffer: Buffer, multi: boolean }} opts
+ */
+function previewBulkImport(db, opts) {
+    const { kind, userId, buffer, multi } = opts;
     const importer = IMPORTERS[kind];
     if (!importer) {
-        return { imported: 0, errors: [{ line: 0, error: 'Unknown import type' }] };
+        return { rows: [], summary: { error: 'Unknown import type' } };
+    }
+    let rows;
+    try {
+        rows = parseSpreadsheetBuffer(buffer);
+    } catch (e) {
+        return { rows: [], summary: { error: e.message || 'Could not read spreadsheet' } };
+    }
+    if (rows.length > MAX_ROWS) {
+        return { rows: [], summary: { error: `Too many rows (max ${MAX_ROWS})` } };
+    }
+    const out = [];
+    let ok = 0;
+    let bad = 0;
+    let rowsWithWarnings = 0;
+    for (let i = 0; i < rows.length; i++) {
+        const line = i + 2;
+        let effUser = userId;
+        let resolved = null;
+        let dataRow = rows[i];
+        if (multi) {
+            const spec = extractClientSpecifier(rows[i]);
+            if (spec == null || spec === '') {
+                out.push({ line, ok: false, error: 'Missing Client ID or Old Client ID column for this row', summary: '' });
+                bad++;
+                continue;
+            }
+            const res = resolveUserIdFromClientSpecifier(db, spec);
+            if (res.error) {
+                out.push({ line, ok: false, error: res.error, specifier: String(spec), summary: '' });
+                bad++;
+                continue;
+            }
+            effUser = res.userId;
+            resolved = lookupUserBrief(db, effUser);
+            dataRow = rowWithoutClientSpecifier(rows[i]);
+        } else {
+            resolved = lookupUserBrief(db, userId);
+        }
+        const warnings = [];
+        if (kind === 'sold' && dataRow.sold_date != null && dataRow.sold_date !== '' && !normalizeSoldDateForDb(dataRow.sold_date)) {
+            warnings.push('sold_date not recognised; if imported, today’s date will be used');
+        }
+        try {
+            dryValidateRow(db, kind, effUser, dataRow);
+            ok++;
+            if (warnings.length) rowsWithWarnings++;
+            out.push({
+                line,
+                ok: true,
+                warnings,
+                user_id: effUser,
+                resolved_email: resolved ? resolved.email : null,
+                resolved_name: resolved ? resolved.name : null,
+                legacy_client_id: resolved ? resolved.legacy_client_id : null,
+                summary: summarizeRow(kind, dataRow),
+            });
+        } catch (e) {
+            bad++;
+            out.push({
+                line,
+                ok: false,
+                error: e.message || String(e),
+                user_id: effUser,
+                resolved_email: resolved ? resolved.email : null,
+                resolved_name: resolved ? resolved.name : null,
+                summary: summarizeRow(kind, dataRow),
+            });
+        }
+    }
+    return { rows: out, summary: { total: rows.length, ok, bad, rows_with_warnings: rowsWithWarnings } };
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @returns {{ imported: number, errors: Array<{ line: number, error: string, user_id?: number }>, inserted: Array<{ entityTable: string, entityId: number, userId: number, rollbackJson: string }> }}
+ */
+async function runBulkImport(db, kind, userId, buffer, options = {}) {
+    const importer = IMPORTERS[kind];
+    if (!importer) {
+        return { imported: 0, errors: [{ line: 0, error: 'Unknown import type' }], inserted: [], row_count: 0 };
     }
 
     let rows;
     try {
         rows = parseSpreadsheetBuffer(buffer);
     } catch (e) {
-        return { imported: 0, errors: [{ line: 0, error: e.message || 'Could not read spreadsheet' }] };
+        return { imported: 0, errors: [{ line: 0, error: e.message || 'Could not read spreadsheet' }], inserted: [], row_count: 0 };
     }
 
     if (rows.length > MAX_ROWS) {
-        return { imported: 0, errors: [{ line: 0, error: `Too many rows (max ${MAX_ROWS})` }] };
+        return { imported: 0, errors: [{ line: 0, error: `Too many rows (max ${MAX_ROWS})` }], inserted: [], row_count: rows.length };
     }
 
     const errors = [];
     let imported = 0;
     const activities = [];
+    const inserted = [];
 
     for (let i = 0; i < rows.length; i++) {
         const line = i + 2;
@@ -442,8 +648,16 @@ async function runBulkImport(db, kind, userId, buffer) {
             const result = importer(db, userId, rows[i]);
             if (result && result.activity) activities.push(result.activity);
             imported++;
+            if (result && result.table) {
+                inserted.push({
+                    entityTable: result.table,
+                    entityId: result.id,
+                    userId,
+                    rollbackJson: result.rollbackJson || '',
+                });
+            }
         } catch (err) {
-            errors.push({ line, error: err.message || String(err) });
+            errors.push({ line, error: err.message || String(err), user_id: userId });
         }
     }
 
@@ -458,7 +672,7 @@ async function runBulkImport(db, kind, userId, buffer) {
         }
     }
 
-    return { imported, errors };
+    return { imported, errors, inserted, row_count: rows.length };
 }
 
 /**
@@ -469,24 +683,25 @@ async function runBulkImport(db, kind, userId, buffer) {
 async function runBulkImportMulti(db, kind, buffer) {
     const importer = IMPORTERS[kind];
     if (!importer) {
-        return { imported: 0, errors: [{ line: 0, error: 'Unknown import type' }] };
+        return { imported: 0, errors: [{ line: 0, error: 'Unknown import type' }], inserted: [], by_user: {}, row_count: 0 };
     }
 
     let rows;
     try {
         rows = parseSpreadsheetBuffer(buffer);
     } catch (e) {
-        return { imported: 0, errors: [{ line: 0, error: e.message || 'Could not read spreadsheet' }] };
+        return { imported: 0, errors: [{ line: 0, error: e.message || 'Could not read spreadsheet' }], inserted: [], by_user: {}, row_count: 0 };
     }
 
     if (rows.length > MAX_ROWS) {
-        return { imported: 0, errors: [{ line: 0, error: `Too many rows (max ${MAX_ROWS})` }] };
+        return { imported: 0, errors: [{ line: 0, error: `Too many rows (max ${MAX_ROWS})` }], inserted: [], by_user: {}, row_count: rows.length };
     }
 
     const errors = [];
     let imported = 0;
     const activities = [];
     const byUser = {};
+    const inserted = [];
 
     for (let i = 0; i < rows.length; i++) {
         const line = i + 2;
@@ -508,8 +723,16 @@ async function runBulkImportMulti(db, kind, buffer) {
             imported++;
             const k = String(userId);
             byUser[k] = (byUser[k] || 0) + 1;
+            if (result && result.table) {
+                inserted.push({
+                    entityTable: result.table,
+                    entityId: result.id,
+                    userId,
+                    rollbackJson: result.rollbackJson || '',
+                });
+            }
         } catch (err) {
-            errors.push({ line, error: err.message || String(err) });
+            errors.push({ line, error: err.message || String(err), user_id: userId });
         }
     }
 
@@ -524,7 +747,7 @@ async function runBulkImportMulti(db, kind, buffer) {
         }
     }
 
-    return { imported, errors, by_user: byUser };
+    return { imported, errors, by_user: byUser, inserted, row_count: rows.length };
 }
 
 function templateSheetAoA(kind, options = {}) {
@@ -578,6 +801,7 @@ module.exports = {
     parseSpreadsheetBuffer,
     runBulkImport,
     runBulkImportMulti,
+    previewBulkImport,
     buildTemplateBuffer,
     resolveUserIdFromClientSpecifier,
     extractClientSpecifier,

@@ -7,7 +7,15 @@ const { authMiddleware, requireAdmin, generateToken } = require('../middleware/a
 const { adminRateLimitMiddleware } = require('../middleware/adminRateLimit');
 const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
-const { runBulkImport, runBulkImportMulti, buildTemplateBuffer, KINDS: BULK_IMPORT_KINDS } = require('../utils/adminBulkImport');
+const {
+    runBulkImport,
+    runBulkImportMulti,
+    buildTemplateBuffer,
+    previewBulkImport,
+    KINDS: BULK_IMPORT_KINDS,
+} = require('../utils/adminBulkImport');
+const { createBulkImportJob, addBulkImportEntries, listBulkImportJobs, rollbackBulkImportJob } = require('../utils/bulkImportJob');
+const { logAdminAudit, listAdminAudit } = require('../utils/adminAudit');
 
 const router = express.Router();
 
@@ -88,6 +96,8 @@ router.put('/users/:id', async (req, res) => {
         );
         saveDb();
 
+        logAdminAudit(db, req.user.id, 'update_user', { target_user_id: targetId, legacy_client_id: legacyClientId });
+
         res.json({ message: 'Client updated', user: { id: targetId, legacy_client_id: legacyClientId } });
     } catch (err) {
         console.error('Admin update user error:', err);
@@ -143,6 +153,8 @@ router.delete('/users/:id', async (req, res) => {
         db.run('UPDATE users SET referred_by = NULL WHERE referred_by = ?', [targetId]);
         db.run('DELETE FROM users WHERE id = ?', [targetId]);
         saveDb();
+
+        logAdminAudit(db, req.user.id, 'delete_user', { target_user_id: targetId, email: target.email });
 
         res.json({ message: 'Account deleted' });
     } catch (err) {
@@ -427,6 +439,8 @@ router.post('/impersonate/:id', async (req, res) => {
             '1h'
         );
 
+        logAdminAudit(db, req.user.id, 'impersonate', { target_user_id: targetId, email: user.email });
+
         res.json({
             token,
             user: {
@@ -649,6 +663,81 @@ router.get('/monthly-free-processing', async (req, res) => {
     }
 });
 
+// POST /api/admin/bulk-import-preview — multipart: kind, file, user_id (single), multi=1|0
+router.post('/bulk-import-preview', bulkSpreadsheetUpload.single('file'), async (req, res) => {
+    try {
+        const kind = String(req.body.kind || '').trim();
+        const multi = req.body.multi === '1' || req.body.multi === 'true' || req.body.multi === true;
+        const uid = parseInt(req.body.user_id || req.body.userId || '0', 10);
+        if (!BULK_IMPORT_KINDS.includes(kind)) {
+            return res.status(400).json({ error: 'Invalid kind', kinds: BULK_IMPORT_KINDS });
+        }
+        if (!req.file || !req.file.buffer) {
+            return res.status(400).json({ error: 'file is required (.xlsx, .xls, or .csv)' });
+        }
+        if (!multi && isNaN(uid)) {
+            return res.status(400).json({ error: 'user_id is required for single-client preview' });
+        }
+        const db = await getDb();
+        const preview = previewBulkImport(db, {
+            kind,
+            userId: multi ? 0 : uid,
+            buffer: req.file.buffer,
+            multi,
+        });
+        res.json({ ...preview, kind, multi });
+    } catch (err) {
+        console.error('Bulk preview error:', err);
+        res.status(500).json({ error: err.message || 'Server error' });
+    }
+});
+
+// GET /api/admin/bulk-import-jobs?client_id=&limit=
+router.get('/bulk-import-jobs', async (req, res) => {
+    try {
+        const db = await getDb();
+        const cid = req.query.client_id != null ? parseInt(req.query.client_id, 10) : NaN;
+        const jobs = listBulkImportJobs(db, {
+            clientId: Number.isFinite(cid) ? cid : undefined,
+            limit: req.query.limit,
+        });
+        res.json({ jobs });
+    } catch (err) {
+        console.error('List bulk jobs error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/bulk-import-jobs/:id/rollback
+router.post('/bulk-import-jobs/:id/rollback', async (req, res) => {
+    try {
+        const jobId = parseInt(req.params.id, 10);
+        if (isNaN(jobId)) return res.status(400).json({ error: 'Invalid job id' });
+        const db = await getDb();
+        const result = rollbackBulkImportJob(db, jobId, req.user.id);
+        if (!result.ok) {
+            return res.status(400).json({ error: result.error || 'Rollback failed' });
+        }
+        logAdminAudit(db, req.user.id, 'bulk_import_rollback', { job_id: jobId, entries: result.entries_rolled });
+        res.json(result);
+    } catch (err) {
+        console.error('Rollback bulk job error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/audit-log?limit=&offset=
+router.get('/audit-log', async (req, res) => {
+    try {
+        const db = await getDb();
+        const entries = listAdminAudit(db, { limit: req.query.limit, offset: req.query.offset });
+        res.json({ entries });
+    } catch (err) {
+        console.error('Audit log error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // GET /api/admin/bulk-import-template/:kind — download example .xlsx (sold, received, pending, …)
 router.get('/bulk-import-template/:kind', (req, res) => {
     try {
@@ -684,8 +773,30 @@ router.post('/users/:userId/bulk-import', bulkSpreadsheetUpload.single('file'), 
         const ucheck = parseResults(db.exec('SELECT id FROM users WHERE id = ?', [userId]));
         if (!ucheck.length) return res.status(404).json({ error: 'User not found' });
 
-        const { imported, errors } = await runBulkImport(db, kind, userId, req.file.buffer);
-        res.json({ imported, errors, kind, user_id: userId });
+        const filename = (req.file && req.file.originalname) || 'import';
+        const { imported, errors, inserted, row_count } = await runBulkImport(db, kind, userId, req.file.buffer);
+        const jobId = createBulkImportJob(db, {
+            adminUserId: req.user.id,
+            kind,
+            isMulti: false,
+            originalFilename: filename,
+            targetUserId: userId,
+            rowCount: row_count,
+            importedCount: imported,
+            errorCount: errors.length,
+        });
+        if (inserted.length) {
+            addBulkImportEntries(db, jobId, inserted);
+        }
+        logAdminAudit(db, req.user.id, 'bulk_import', {
+            job_id: jobId,
+            kind,
+            user_id: userId,
+            imported,
+            error_count: errors.length,
+            filename,
+        });
+        res.json({ imported, errors, kind, user_id: userId, job_id: jobId, inserted_count: inserted.length });
     } catch (err) {
         console.error('Bulk import error:', err);
         res.status(500).json({ error: err.message || 'Server error' });
@@ -703,8 +814,29 @@ router.post('/bulk-import-multi', bulkSpreadsheetUpload.single('file'), async (r
             return res.status(400).json({ error: 'file is required (.xlsx, .xls, or .csv)' });
         }
         const db = await getDb();
-        const { imported, errors, by_user } = await runBulkImportMulti(db, kind, req.file.buffer);
-        res.json({ imported, errors, kind, by_user });
+        const filename = (req.file && req.file.originalname) || 'import';
+        const { imported, errors, by_user, inserted, row_count } = await runBulkImportMulti(db, kind, req.file.buffer);
+        const jobId = createBulkImportJob(db, {
+            adminUserId: req.user.id,
+            kind,
+            isMulti: true,
+            originalFilename: filename,
+            targetUserId: null,
+            rowCount: row_count,
+            importedCount: imported,
+            errorCount: errors.length,
+        });
+        if (inserted.length) {
+            addBulkImportEntries(db, jobId, inserted);
+        }
+        logAdminAudit(db, req.user.id, 'bulk_import_multi', {
+            job_id: jobId,
+            kind,
+            imported,
+            error_count: errors.length,
+            filename,
+        });
+        res.json({ imported, errors, kind, by_user, job_id: jobId, inserted_count: inserted.length });
     } catch (err) {
         console.error('Bulk import multi error:', err);
         res.status(500).json({ error: err.message || 'Server error' });

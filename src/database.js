@@ -313,6 +313,53 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_return_adjustments_user ON return_adjustments(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_item_queries_user ON item_queries(user_id)');
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS bulk_import_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_user_id INTEGER NOT NULL,
+            kind TEXT NOT NULL,
+            is_multi INTEGER DEFAULT 0,
+            original_filename TEXT DEFAULT '',
+            target_user_id INTEGER,
+            row_count INTEGER DEFAULT 0,
+            imported_count INTEGER DEFAULT 0,
+            error_count INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            rolled_back_at TEXT
+        )
+    `);
+    db.run(`
+        CREATE TABLE IF NOT EXISTS bulk_import_job_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL,
+            entity_table TEXT NOT NULL,
+            entity_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            rollback_json TEXT DEFAULT '',
+            FOREIGN KEY (job_id) REFERENCES bulk_import_jobs(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_bulk_import_entries_job ON bulk_import_job_entries(job_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_bulk_import_jobs_admin ON bulk_import_jobs(admin_user_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_bulk_import_jobs_target ON bulk_import_jobs(target_user_id)');
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS admin_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_user_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            detail TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_log(created_at)');
+
+    try {
+        db.run('ALTER TABLE users ADD COLUMN weekly_digest_email INTEGER DEFAULT 1');
+    } catch (e) {
+        /* exists */
+    }
+
     // Save to disk
     saveDb();
 

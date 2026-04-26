@@ -35,13 +35,13 @@
                         <button type="button" class="btn btn-sm btn-outline-primary" id="bulk-import-template-btn">Download template</button>
                     </div>
                     <div class="card-body">
-                        <p class="small text-muted mb-2">Upload an Excel (.xlsx, .xls) or CSV file with one row per item. Use the template so column names match. <strong>Record sales</strong> uses: sold_date, item_name, quantity, earnings. Reimbursement imports are text-only (no photos).</p>
+                        <p class="small text-muted mb-2">Upload an Excel (.xlsx, .xls) or CSV file with one row per item. Use the template so column names match. <strong>Record sales</strong> uses: sold_date, item_name, quantity, earnings. Reimbursement imports are text-only (no photos). Use <strong>Preview</strong> to check Client ID → client email before writing.</p>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bulk-import-multi" />
                             <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the client list); rows are applied to that client’s dashboard.</label>
                         </div>
                         <div class="row g-2 align-items-end">
-                            <div class="col-md-5">
+                            <div class="col-md-4">
                                 <label class="form-label small mb-0">Import type</label>
                                 <select class="form-select form-select-sm" id="bulk-import-kind">
                                     <option value="sold">Record sales</option>
@@ -56,17 +56,61 @@
                                 <label class="form-label small mb-0">File</label>
                                 <input type="file" class="form-control form-control-sm" id="bulk-import-file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" />
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
+                                <label class="form-label small mb-0 d-block">&nbsp;</label>
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="bulk-import-preview-btn">Preview</button>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-0 d-block">&nbsp;</label>
                                 <button type="button" class="btn btn-primary btn-sm w-100" id="bulk-import-run">Import</button>
                             </div>
                         </div>
+                        <div id="bulk-import-preview-wrap" class="d-none mt-3">
+                            <div class="small fw-semibold mb-1">Preview (not saved)</div>
+                            <div class="table-responsive border rounded" style="max-height:260px;overflow:auto">
+                                <table class="table table-sm table-striped mb-0">
+                                    <thead class="table-light"><tr><th>Line</th><th>OK</th><th>Client</th><th>Warnings / error</th><th>Row</th></tr></thead>
+                                    <tbody id="bulk-import-preview-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
                         <pre class="small mt-2 mb-0 bg-light p-2 rounded text-wrap d-none" id="bulk-import-result" style="white-space:pre-wrap;max-height:220px;overflow:auto"></pre>
+                        <div id="bulk-import-result-links" class="small mt-2 d-none"></div>
                     </div>
                 </div>
                 <div class="section-card card">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <span>Packages</span>
-                        <span class="badge bg-secondary" id="packages-count">0</span>
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span>Recent spreadsheet imports</span>
+                            <span class="badge bg-secondary" id="bulk-import-jobs-count">0</span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-jobs-refresh">Refresh</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead><tr><th>When</th><th>Kind</th><th>OK</th><th>Err</th><th>File</th><th></th></tr></thead>
+                                <tbody id="bulk-import-jobs-tbody"></tbody>
+                            </table>
+                        </div>
+                        <p class="small text-muted mb-0 px-2 py-2">Undo removes rows created in that import (and restores package status for “mark delivered” rows).</p>
+                    </div>
+                </div>
+                <div class="section-card card">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span>Packages</span>
+                            <span class="badge bg-secondary" id="packages-count">0</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <label class="small text-muted mb-0">Saved view</label>
+                            <select class="form-select form-select-sm" id="packages-filter-save" style="width:auto;min-width:140px;">
+                                <option value="all">All packages</option>
+                                <option value="in_transit">Not delivered</option>
+                                <option value="delivered">Delivered only</option>
+                            </select>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="export-packages-csv">Export CSV</button>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
@@ -97,9 +141,12 @@
                 </div>
 
                 <div class="section-card card">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <span>Check in (Received)</span>
-                        <button type="button" class="btn btn-sm btn-primary" id="btn-open-checkin-modal">+ Check in items</button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="export-received-csv">Export CSV</button>
+                            <button type="button" class="btn btn-sm btn-primary" id="btn-open-checkin-modal">+ Check in items</button>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
@@ -127,9 +174,12 @@
                 </div>
 
                 <div class="section-card card">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <span>Record sale</span>
-                        <button type="button" class="btn btn-sm btn-success" id="btn-open-sale-modal">+ Record sale</button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="export-sold-csv">Export CSV</button>
+                            <button type="button" class="btn btn-sm btn-success" id="btn-open-sale-modal">+ Record sale</button>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
@@ -149,9 +199,21 @@
                 </div>
 
                 <div class="section-card card">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <span>Pending items</span>
-                        <button type="button" class="btn btn-sm btn-warning" id="btn-open-pending-modal">+ Add pending</button>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <label class="small text-muted mb-0">Saved view</label>
+                            <select class="form-select form-select-sm" id="pending-stage-filter" style="width:auto;min-width:160px;">
+                                <option value="all">All stages</option>
+                                <option value="Initial Inspection">Initial Inspection</option>
+                                <option value="Quality Check">Quality Check</option>
+                                <option value="Return Verification">Return Verification</option>
+                                <option value="Listing">Listing</option>
+                                <option value="Ready for Sale">Ready for Sale</option>
+                            </select>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="export-pending-csv">Export CSV</button>
+                            <button type="button" class="btn btn-sm btn-warning" id="btn-open-pending-modal">+ Add pending</button>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
@@ -180,10 +242,15 @@
                 </div>
 
                 <div class="section-card card">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <span>Reimbursement items (Amazon claims)</span>
-                        <span class="badge bg-secondary" id="reimbursement-count">0</span>
-                        <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#modal-add-reimbursement">+ Add item + photos</button>
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span>Reimbursement items (Amazon claims)</span>
+                            <span class="badge bg-secondary" id="reimbursement-count">0</span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="export-reimb-csv">Export CSV</button>
+                            <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#modal-add-reimbursement">+ Add item + photos</button>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
@@ -640,9 +707,74 @@
                 .prop('indeterminate', checkedCount > 0 && checkedCount < selectableCount);
         }
 
+        function downloadCsv(filename, headers, rows) {
+            function esc(cell) {
+                var s = String(cell == null ? '' : cell).replace(/"/g, '""');
+                if (/[",\n\r]/.test(s)) return '"' + s + '"';
+                return s;
+            }
+            var lines = [headers.map(esc).join(',')];
+            rows.forEach(function(r) { lines.push(r.map(esc).join(',')); });
+            var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        function loadBulkImportJobs() {
+            API.adminListBulkImportJobs(clientId).then(function(data) {
+                var jobs = data.jobs || [];
+                $('#bulk-import-jobs-count').text(jobs.length);
+                var $tb = $('#bulk-import-jobs-tbody');
+                $tb.empty();
+                jobs.slice(0, 20).forEach(function(j) {
+                    var undone = !j.rolled_back_at && (j.imported_count > 0);
+                    var roll = undone
+                        ? '<button type="button" class="btn btn-sm btn-outline-danger btn-rollback-job" data-id="' + j.id + '">Undo</button>'
+                        : (j.rolled_back_at ? '<span class="text-muted small">Undone</span>' : '<span class="text-muted">—</span>');
+                    $tb.append(
+                        '<tr><td class="small">' + escapeHtml(fmtDate(j.created_at)) + '</td><td class="small">' + escapeHtml(j.kind || '') +
+                        '</td><td>' + (j.imported_count != null ? j.imported_count : 0) + '</td><td>' + (j.error_count != null ? j.error_count : 0) +
+                        '</td><td class="small text-truncate" style="max-width:140px" title="' + escapeHtml(j.original_filename || '') + '">' +
+                        escapeHtml((j.original_filename || '').slice(0, 40)) + '</td><td>' + roll + '</td></tr>'
+                    );
+                });
+                if (jobs.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">No imports yet</td></tr>');
+            }).catch(function() {
+                $('#bulk-import-jobs-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load jobs</td></tr>');
+            });
+        }
+
+        function renderBulkImportErrorsHtml(errors) {
+            var $links = $('#bulk-import-result-links').empty();
+            if (!errors || !errors.length) {
+                $links.addClass('d-none');
+                return;
+            }
+            $links.removeClass('d-none').append('<div class="fw-semibold mb-1">Row issues</div>');
+            errors.forEach(function(e) {
+                var row = $('<div class="mb-1"></div>');
+                row.append(document.createTextNode('Line ' + e.line + ': ' + (e.error || '')));
+                if (e.user_id) {
+                    row.append(' — ');
+                    var a = $('<a></a>').attr('href', '/admin/client.html?id=' + encodeURIComponent(e.user_id)).text('Open client ' + String(e.user_id).padStart(4, '0'));
+                    row.append(a);
+                }
+                $links.append(row);
+            });
+        }
+
         function loadPackages() {
             API.request('/admin/users/' + clientId + '/packages').then(function(data) {
-                var list = data.packages || [];
+                var fullList = data.packages || [];
+                window._adminPackagesFullList = fullList;
+                var filt = localStorage.getItem('rp_admin_pkg_filter_' + clientId) || 'all';
+                $('#packages-filter-save').val(filt);
+                var list = fullList.slice();
+                if (filt === 'in_transit') list = list.filter(function(p) { return p.status !== 'Delivered'; });
+                else if (filt === 'delivered') list = list.filter(function(p) { return p.status === 'Delivered'; });
                 $('#packages-count').text(list.length);
                 var $sel = $('#deliver-package-id');
                 $sel.find('option:not(:first)').remove();
@@ -694,6 +826,7 @@
         function loadReimbursementClaims() {
             API.request('/admin/users/' + clientId + '/reimbursement-claims').then(function(data) {
                 var list = data.claims || [];
+                window._adminReimbList = list;
                 $('#reimbursement-count').text(list.length);
                 var $tb = $('#reimbursement-tbody');
                 $tb.empty();
@@ -738,6 +871,7 @@
         function loadReceived() {
             API.request('/admin/users/' + clientId + '/received').then(function(data) {
                 var list = data.items || [];
+                window._adminReceivedList = list;
                 var $tb = $('#received-tbody');
                 $tb.empty();
                 list.forEach(function(r) {
@@ -782,6 +916,7 @@
         function loadSold() {
             API.request('/admin/users/' + clientId + '/sold').then(function(data) {
                 var list = data.items || [];
+                window._adminSoldList = list;
                 var $tb = $('#sold-tbody');
                 $tb.empty();
                 list.forEach(function(s) {
@@ -824,7 +959,12 @@
 
         function loadPending() {
             API.request('/admin/users/' + clientId + '/pending').then(function(data) {
-                var list = data.items || [];
+                var fullList = data.items || [];
+                window._adminPendingFullList = fullList;
+                var pf = localStorage.getItem('rp_admin_pending_stage_' + clientId) || 'all';
+                $('#pending-stage-filter').val(pf);
+                var list = fullList.slice();
+                if (pf !== 'all') list = list.filter(function(p) { return (p.current_stage || '') === pf; });
                 var $tb = $('#pending-tbody');
                 $tb.empty();
                 list.forEach(function(p) {
@@ -866,7 +1006,14 @@
             });
         }
 
-        function refreshAll() { loadPackages(); loadReceived(); loadSold(); loadPending(); loadReimbursementClaims(); }
+        function refreshAll() {
+            loadPackages();
+            loadReceived();
+            loadSold();
+            loadPending();
+            loadReimbursementClaims();
+            loadBulkImportJobs();
+        }
 
         $('#btn-mark-delivered').on('click', function() {
             var id = $('#deliver-package-id').val();
@@ -1397,6 +1544,141 @@
             }
         });
 
+        $('#bulk-import-preview-btn').on('click', async function() {
+            var f = document.getElementById('bulk-import-file').files[0];
+            if (!f) return alert('Choose a spreadsheet file');
+            var kind = $('#bulk-import-kind').val();
+            var multi = document.getElementById('bulk-import-multi').checked;
+            var $btn = $(this).prop('disabled', true);
+            try {
+                var prev = await API.adminBulkImportPreview(kind, f, { multi: multi, userId: clientId });
+                $('#bulk-import-preview-wrap').removeClass('d-none');
+                var $tb = $('#bulk-import-preview-tbody').empty();
+                (prev.rows || []).forEach(function(r) {
+                    var ok = r.ok ? 'Yes' : 'No';
+                    var client = r.resolved_email
+                        ? escapeHtml((r.resolved_name || '').trim()) + ' · ' + escapeHtml(r.resolved_email)
+                        : r.user_id
+                          ? 'ID ' + String(r.user_id).padStart(4, '0')
+                          : '—';
+                    var issue =
+                        r.warnings && r.warnings.length ? escapeHtml(r.warnings.join('; ')) : r.error ? escapeHtml(r.error) : '—';
+                    $tb.append(
+                        '<tr><td>' +
+                            r.line +
+                            '</td><td>' +
+                            ok +
+                            '</td><td class="small">' +
+                            client +
+                            '</td><td class="small">' +
+                            issue +
+                            '</td><td class="small">' +
+                            escapeHtml(r.summary || '') +
+                            '</td></tr>'
+                    );
+                });
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Preview failed');
+            } finally {
+                $btn.prop('disabled', false);
+            }
+        });
+
+        $('#bulk-import-jobs-refresh').on('click', function() {
+            loadBulkImportJobs();
+        });
+        $(document).on('click', '.btn-rollback-job', async function() {
+            var id = $(this).data('id');
+            if (!id || !confirm('Undo this import? All rows created in that job will be removed (and delivered packages reverted where applicable).')) return;
+            try {
+                await API.adminRollbackBulkImportJob(id);
+                loadBulkImportJobs();
+                refreshAll();
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Undo failed');
+            }
+        });
+
+        $('#packages-filter-save').on('change', function() {
+            localStorage.setItem('rp_admin_pkg_filter_' + clientId, $(this).val());
+            loadPackages();
+        });
+        $('#pending-stage-filter').on('change', function() {
+            localStorage.setItem('rp_admin_pending_stage_' + clientId, $(this).val());
+            loadPending();
+        });
+
+        $('#export-packages-csv').on('click', function() {
+            var filt = $('#packages-filter-save').val();
+            var list = (window._adminPackagesFullList || []).slice();
+            if (filt === 'in_transit') list = list.filter(function(p) { return p.status !== 'Delivered'; });
+            else if (filt === 'delivered') list = list.filter(function(p) { return p.status === 'Delivered'; });
+            downloadCsv(
+                'client-' + clientId + '-packages.csv',
+                ['Reference', 'Status', 'Date added', 'Notes'],
+                list.map(function(p) {
+                    return [p.reference || '', p.status || '', p.date_added || '', p.notes || ''];
+                })
+            );
+        });
+        $('#export-received-csv').on('click', function() {
+            var list = window._adminReceivedList || [];
+            downloadCsv(
+                'client-' + clientId + '-received.csv',
+                ['Reference', 'Items', 'Status', 'Quantity', 'Date received', 'Notes'],
+                list.map(function(r) {
+                    return [
+                        r.reference || '',
+                        r.items_description || '',
+                        r.status || '',
+                        r.quantity != null ? r.quantity : '',
+                        r.date_received || '',
+                        r.notes || '',
+                    ];
+                })
+            );
+        });
+        $('#export-sold-csv').on('click', function() {
+            var list = window._adminSoldList || [];
+            downloadCsv(
+                'client-' + clientId + '-sold.csv',
+                ['Sold date', 'Product', 'Quantity', 'Earnings', 'Reference'],
+                list.map(function(s) {
+                    var earn = Number(s.profit != null ? s.profit : 0);
+                    return [s.sold_date || '', s.product || '', s.quantity != null ? s.quantity : '', earn.toFixed(2), s.reference || ''];
+                })
+            );
+        });
+        $('#export-pending-csv').on('click', function() {
+            var pf = $('#pending-stage-filter').val();
+            var list = (window._adminPendingFullList || []).slice();
+            if (pf !== 'all') list = list.filter(function(p) { return (p.current_stage || '') === pf; });
+            downloadCsv(
+                'client-' + clientId + '-pending.csv',
+                ['Product', 'Stage', 'Est completion', 'Reference', 'Quantity', 'Notes'],
+                list.map(function(p) {
+                    return [
+                        p.product || '',
+                        p.current_stage || '',
+                        p.est_completion || '',
+                        p.reference || '',
+                        p.quantity != null ? p.quantity : '',
+                        p.notes || '',
+                    ];
+                })
+            );
+        });
+        $('#export-reimb-csv').on('click', function() {
+            var list = window._adminReimbList || [];
+            downloadCsv(
+                'client-' + clientId + '-reimbursement.csv',
+                ['Package ref', 'Item', 'Type', 'Notes', 'Created'],
+                list.map(function(c) {
+                    return [c.package_reference || '', c.item_description || '', c.reimbursement_type || '', c.notes || '', c.created_at || ''];
+                })
+            );
+        });
+
         $('#bulk-import-run').on('click', async function() {
             var f = document.getElementById('bulk-import-file').files[0];
             if (!f) return alert('Choose a spreadsheet file');
@@ -1404,18 +1686,21 @@
             var multi = document.getElementById('bulk-import-multi').checked;
             var $btn = $(this).prop('disabled', true);
             var $out = $('#bulk-import-result').addClass('d-none').text('');
+            $('#bulk-import-result-links').addClass('d-none').empty();
             try {
                 var data = multi
                     ? await API.adminBulkImportMulti(kind, f)
                     : await API.adminBulkImportUser(clientId, kind, f);
                 var txt = 'Imported ' + (data.imported || 0) + ' row(s).';
+                if (data.job_id) txt += ' Job #' + data.job_id + ' (you can Undo from Recent imports).';
                 if (multi && data.by_user && Object.keys(data.by_user).length) {
                     txt += '\n\nPer client (user id → rows): ' + JSON.stringify(data.by_user);
                 }
                 if (data.errors && data.errors.length) {
-                    txt += '\n\nRow errors:\n' + data.errors.map(function(e) { return 'Line ' + e.line + ': ' + e.error; }).join('\n');
+                    txt += '\n\nRow errors (summary): ' + data.errors.length + ' — see links below.';
                 }
                 $out.text(txt).removeClass('d-none');
+                renderBulkImportErrorsHtml(data.errors || []);
                 document.getElementById('bulk-import-file').value = '';
                 refreshAll();
             } catch (e) {

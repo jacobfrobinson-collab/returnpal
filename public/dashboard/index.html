@@ -121,6 +121,7 @@
                                         <option value="90">Last 90 days</option>
                                     </select>
                                     <button type="button" class="btn btn-primary rp-btn-primary" id="dashboard-export-report"><i class="ri-download-2-line me-1"></i>Export Report</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modal-status-glossary">Status guide</button>
                                 </div>
                             </div>
                         </div>
@@ -162,14 +163,25 @@
                         <div id="dash-balance-ledger-preview" class="mt-3"></div>
                     </div>
 
+                    <div class="rp-card card border-0 p-3 mb-4" id="dashboard-week-summary">
+                        <h6 class="mb-2">Your last 7 days</h6>
+                        <p class="small text-muted mb-2">Activity on your account this week. Enable a weekly email summary in Settings → Email preferences (when your host has email configured).</p>
+                        <div class="d-flex flex-wrap gap-4">
+                            <div><span class="text-muted small">Received check-ins</span><br /><strong id="dash-week-received">0</strong></div>
+                            <div><span class="text-muted small">Sales recorded</span><br /><strong id="dash-week-sold">0</strong></div>
+                            <div><span class="text-muted small">Reimbursement claims</span><br /><strong id="dash-week-claims">0</strong></div>
+                        </div>
+                    </div>
+
                     <!-- Onboarding checklist -->
                     <div class="rp-card card border-0 p-3 mb-4" id="dashboard-onboarding-checklist">
                         <h6 class="mb-2">Get started</h6>
                         <div class="d-flex flex-wrap gap-3 align-items-center">
-                            <span class="d-flex align-items-center" id="onboarding-1" data-rp-tooltip="Add your first package"><i class="ri-checkbox-blank-circle-line me-2 text-muted"></i><a href="packages.html" class="text-body text-decoration-none">Add your first package</a></span>
-                            <span class="d-flex align-items-center" id="onboarding-2" data-rp-tooltip="Connect Amazon (optional)"><i class="ri-checkbox-blank-circle-line me-2 text-muted"></i><a href="settings.html" class="text-body text-decoration-none">Connect Amazon</a> <small class="text-muted">(optional)</small></span>
-                            <span class="d-flex align-items-center" id="onboarding-3" data-rp-tooltip="Get your first payout"><i class="ri-checkbox-blank-circle-line me-2 text-muted"></i><a href="invoices.html" class="text-body text-decoration-none">Get your first payout</a></span>
-                            <span class="d-flex align-items-center" id="onboarding-4" data-rp-tooltip="Add prep centre (optional)"><i class="ri-checkbox-blank-circle-line me-2 text-muted"></i><a href="settings.html" class="text-body text-decoration-none">Add prep centre</a> <small class="text-muted">(optional)</small></span>
+                            <span class="d-flex align-items-center" id="onboarding-1" data-rp-tooltip="Track returns you send us"><i class="ri-checkbox-blank-circle-line me-2 text-muted"></i><a href="packages.html" class="text-body text-decoration-none">Add your first package</a></span>
+                            <span class="d-flex align-items-center" id="onboarding-2" data-rp-tooltip="Optional"><i class="ri-checkbox-blank-circle-line me-2 text-muted"></i><a href="settings.html" class="text-body text-decoration-none">Connect Amazon</a> <small class="text-muted">(optional)</small></span>
+                            <span class="d-flex align-items-center" id="onboarding-3" data-rp-tooltip="Payouts &amp; statements"><i class="ri-checkbox-blank-circle-line me-2 text-muted"></i><a href="invoices.html" class="text-body text-decoration-none">Set up payouts</a></span>
+                            <span class="d-flex align-items-center" id="onboarding-4" data-rp-tooltip="Optional"><i class="ri-checkbox-blank-circle-line me-2 text-muted"></i><a href="settings.html" class="text-body text-decoration-none">Add prep centre</a> <small class="text-muted">(optional)</small></span>
+                            <span class="d-flex align-items-center" id="onboarding-5" data-rp-tooltip="Amazon reimbursement claims"><i class="ri-checkbox-blank-circle-line me-2 text-muted"></i><a href="reimbursement.html" class="text-body text-decoration-none">Submit a reimbursement claim</a></span>
                         </div>
                     </div>
 
@@ -284,6 +296,37 @@
                         </div>
                     </div>
                 </footer>
+            </div>
+        </div>
+
+        <div class="modal fade" id="modal-status-glossary" tabindex="-1" aria-labelledby="modal-status-glossary-label" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-scrollable modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modal-status-glossary-label">What these statuses mean</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body small">
+                        <p class="text-muted">Short definitions for the main areas of your ReturnPal dashboard.</p>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Packages sent</dt>
+                            <dd class="col-sm-8">Shipments <strong>you</strong> send to ReturnPal (tracking / reference). Status follows delivery and processing at our warehouse.</dd>
+                            <dt class="col-sm-4">Received</dt>
+                            <dd class="col-sm-8">Lines we log when stock arrives and is checked in against your references. May link to a package when the reference matches.</dd>
+                            <dt class="col-sm-4">Items pending</dt>
+                            <dd class="col-sm-8">Units going through our internal pipeline (inspection, listing prep, etc.) before they are offered for sale.</dd>
+                            <dt class="col-sm-4">Sold items</dt>
+                            <dd class="col-sm-8">Units that have sold and how revenue and fees affect your balance.</dd>
+                            <dt class="col-sm-4">Reimbursement / claims</dt>
+                            <dd class="col-sm-8">Amazon reimbursement cases you ask us to track (destroyed, damaged, lost, etc.) — separate from resale.</dd>
+                            <dt class="col-sm-4">Payouts &amp; invoices</dt>
+                            <dd class="col-sm-8">Statements and money sent to you.</dd>
+                        </dl>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
             </div>
         </div>
 

@@ -19,7 +19,10 @@ router.get('/', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
         const users = parseResults(
-            db.exec('SELECT vat_registered, discord_webhook, COALESCE(legacy_client_id, \'\') AS legacy_client_id FROM users WHERE id = ?', [req.user.id])
+            db.exec(
+                'SELECT vat_registered, discord_webhook, COALESCE(legacy_client_id, \'\') AS legacy_client_id, COALESCE(weekly_digest_email, 1) AS weekly_digest_email FROM users WHERE id = ?',
+                [req.user.id]
+            )
         );
 
         if (users.length === 0) {
@@ -72,6 +75,20 @@ router.put('/webhook', authMiddleware, async (req, res) => {
         res.json({ message: 'Discord webhook saved' });
     } catch (err) {
         console.error('Update webhook error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PUT /api/settings/weekly-digest — opt in/out of weekly summary email (when SMTP is configured on server)
+router.put('/weekly-digest', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const on = req.body.weekly_digest_email !== false && req.body.weekly_digest_email !== 0 && req.body.weekly_digest_email !== '0';
+        db.run("UPDATE users SET weekly_digest_email = ?, updated_at = datetime('now') WHERE id = ?", [on ? 1 : 0, req.user.id]);
+        saveDb();
+        res.json({ message: 'Preference saved', weekly_digest_email: on ? 1 : 0 });
+    } catch (err) {
+        console.error('Weekly digest setting error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

@@ -882,6 +882,15 @@ const Dashboard = {
             this.updateOnboardingCheckmark('#onboarding-2', amazonConnected, null);
             this.updateOnboardingCheckmark('#onboarding-3', hasPayout, 'invoices.html');
             this.updateOnboardingCheckmark('#onboarding-4', hasPrepCentre, 'settings.html');
+            const claimsTotal = Number(data.reimbursement_claims_total) || 0;
+            this.updateOnboardingCheckmark('#onboarding-5', claimsTotal > 0, 'reimbursement.html');
+
+            const $wRec = $('#dash-week-received');
+            if ($wRec.length) {
+                $wRec.text(String(Number(data.week_received_count) || 0));
+                $('#dash-week-sold').text(String(Number(data.week_sold_count) || 0));
+                $('#dash-week-claims').text(String(Number(data.week_claims_count) || 0));
+            }
 
             const escBal = (s) => String(s == null ? '' : s)
                 .replace(/&/g, '&amp;')
@@ -2739,6 +2748,10 @@ const Dashboard = {
             if (data.settings) {
                 $('#flexSwitchCheckDefault').prop('checked', !!data.settings.vat_registered);
                 $('input[placeholder*="discord"]').val(data.settings.discord_webhook || '');
+                const wd = data.settings.weekly_digest_email;
+                const weeklyOn = wd === 1 || wd === '1' || wd === true;
+                const $dig = $('#email-digest-preference');
+                if ($dig.length) $dig.val(weeklyOn ? 'weekly' : 'off');
             }
             // Profile details (name, email from user; company from profile or billing)
             const user = API.getUser();
@@ -2880,6 +2893,22 @@ const Dashboard = {
                 } catch(err) {
                     alert(err.error || 'Failed to save webhook.');
                     $(this).prop('disabled', false).text('Save Webhook');
+                }
+            });
+
+            $(document).off('click', '#settings-email-prefs-save').on('click', '#settings-email-prefs-save', async function() {
+                const v = $('#email-digest-preference').val();
+                const on = v === 'weekly' || v === 'monthly';
+                const $btn = $(this);
+                try {
+                    $btn.prop('disabled', true).text('Saving…');
+                    await API.updateWeeklyDigest(on);
+                    Dashboard.showToast('Email preferences saved');
+                    $btn.text('Saved!');
+                    setTimeout(() => $btn.text('Save email preferences').prop('disabled', false), 1500);
+                } catch (err) {
+                    alert((err && err.error) || err.message || 'Could not save preferences.');
+                    $btn.prop('disabled', false).text('Save email preferences');
                 }
             });
         } catch(err) {

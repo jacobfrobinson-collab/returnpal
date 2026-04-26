@@ -124,6 +124,28 @@ router.get('/summary', authMiddleware, async (req, res) => {
         );
         const latest_payout = latestPayout.length ? latestPayout[0] : null;
 
+        const weekReceived = parseResults(
+            db.exec(
+                "SELECT COUNT(*) as c FROM received_items WHERE user_id = ? AND date_received >= datetime('now', '-7 days')",
+                [userId]
+            )
+        );
+        const weekSold = parseResults(
+            db.exec(
+                "SELECT COUNT(*) as c FROM sold_items WHERE user_id = ? AND sold_date >= date(datetime('now', '-7 days'))",
+                [userId]
+            )
+        );
+        const weekClaims = parseResults(
+            db.exec(
+                "SELECT COUNT(*) as c FROM reimbursement_claims WHERE user_id = ? AND created_at >= datetime('now', '-7 days')",
+                [userId]
+            )
+        );
+        const claimsEver = parseResults(
+            db.exec('SELECT COUNT(*) as c FROM reimbursement_claims WHERE user_id = ?', [userId])
+        );
+
         res.json({
             total_recovered: totalRecovered[0]?.total || 0,
             items_processing: totalPending[0]?.count || 0,
@@ -131,7 +153,11 @@ router.get('/summary', authMiddleware, async (req, res) => {
             packages_sent: totalPackages[0]?.count || 0,
             recent_activity,
             top_items,
-            latest_payout
+            latest_payout,
+            week_received_count: weekReceived[0]?.c || 0,
+            week_sold_count: weekSold[0]?.c || 0,
+            week_claims_count: weekClaims[0]?.c || 0,
+            reimbursement_claims_total: claimsEver[0]?.c || 0,
         });
     } catch (err) {
         console.error('Dashboard summary error:', err);
