@@ -841,6 +841,17 @@ const API = {
         return this.request('/admin/users/' + encodeURIComponent(userId) + '/bulk-import', { method: 'POST', body: fd });
     },
 
+    /** Admin: bulk import with Client ID or Old Client ID per row (routes each row to that client). */
+    async adminBulkImportMulti(kind, file) {
+        if (!file || !(file instanceof Blob)) {
+            throw Object.assign(new Error('Choose a spreadsheet file'), { error: 'Choose a spreadsheet file' });
+        }
+        const fd = new FormData();
+        fd.append('kind', kind);
+        fd.append('file', file, file.name || 'import.xlsx');
+        return this.request('/admin/bulk-import-multi', { method: 'POST', body: fd });
+    },
+
     async importInventoryRows(rows) {
         return this.request('/inventory/import', { method: 'POST', body: { rows } });
     },

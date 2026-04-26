@@ -7,7 +7,7 @@ const { authMiddleware, requireAdmin, generateToken } = require('../middleware/a
 const { adminRateLimitMiddleware } = require('../middleware/adminRateLimit');
 const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
-const { runBulkImport, buildTemplateBuffer, KINDS: BULK_IMPORT_KINDS } = require('../utils/adminBulkImport');
+const { runBulkImport, runBulkImportMulti, buildTemplateBuffer, KINDS: BULK_IMPORT_KINDS } = require('../utils/adminBulkImport');
 
 const router = express.Router();
 
@@ -653,12 +653,14 @@ router.get('/monthly-free-processing', async (req, res) => {
 router.get('/bulk-import-template/:kind', (req, res) => {
     try {
         const kind = String(req.params.kind || '').trim();
-        const buf = buildTemplateBuffer(kind);
+        const multi = String(req.query.multi || '').trim() === '1' || String(req.query.multi || '').toLowerCase() === 'true';
+        const buf = buildTemplateBuffer(kind, { multi });
         if (!buf) {
             return res.status(400).json({ error: 'Unknown template type', kinds: BULK_IMPORT_KINDS });
         }
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename="returnpal-import-${kind}.xlsx"`);
+        const suffix = multi ? '-multi-client' : '';
+        res.setHeader('Content-Disposition', `attachment; filename="returnpal-import-${kind}${suffix}.xlsx"`);
         res.send(Buffer.from(buf));
     } catch (err) {
         console.error('Bulk template error:', err);
@@ -686,6 +688,25 @@ router.post('/users/:userId/bulk-import', bulkSpreadsheetUpload.single('file'), 
         res.json({ imported, errors, kind, user_id: userId });
     } catch (err) {
         console.error('Bulk import error:', err);
+        res.status(500).json({ error: err.message || 'Server error' });
+    }
+});
+
+// POST /api/admin/bulk-import-multi — multipart: kind, file; each row must include Client ID or Old Client ID
+router.post('/bulk-import-multi', bulkSpreadsheetUpload.single('file'), async (req, res) => {
+    try {
+        const kind = String(req.body.kind || '').trim();
+        if (!BULK_IMPORT_KINDS.includes(kind)) {
+            return res.status(400).json({ error: 'Invalid kind', kinds: BULK_IMPORT_KINDS });
+        }
+        if (!req.file || !req.file.buffer) {
+            return res.status(400).json({ error: 'file is required (.xlsx, .xls, or .csv)' });
+        }
+        const db = await getDb();
+        const { imported, errors, by_user } = await runBulkImportMulti(db, kind, req.file.buffer);
+        res.json({ imported, errors, kind, by_user });
+    } catch (err) {
+        console.error('Bulk import multi error:', err);
         res.status(500).json({ error: err.message || 'Server error' });
     }
 });

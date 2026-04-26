@@ -33,6 +33,16 @@ function normalizeHeaderKey(s) {
         .replace(/[^a-z0-9_]/g, '');
 }
 
+/** Headers (after normalizeHeaderKey) that identify which client a row belongs to. */
+const CLIENT_SPECIFIER_KEYS = [
+    'client_id',
+    'returnpal_client_id',
+    'legacy_client_id',
+    'old_client_id',
+    'oldclientid',
+    'clientid',
+];
+
 function aliasKey(k) {
     const m = {
         ref: 'reference',
@@ -330,6 +340,78 @@ const IMPORTERS = {
 };
 
 /**
+ * First non-empty client specifier from a row (Client ID, Old Client ID, etc.).
+ * @param {Record<string, unknown>} row
+ * @returns {string|number|null}
+ */
+function extractClientSpecifier(row) {
+    for (const key of CLIENT_SPECIFIER_KEYS) {
+        if (!Object.prototype.hasOwnProperty.call(row, key)) continue;
+        const v = row[key];
+        if (v == null || v === '') continue;
+        if (typeof v === 'number' && Number.isFinite(v)) return v;
+        const s = str(v);
+        if (s) return s;
+    }
+    return null;
+}
+
+/**
+ * Strip client-routing columns so importers only see data fields.
+ * @param {Record<string, unknown>} row
+ */
+function rowWithoutClientSpecifier(row) {
+    const o = { ...row };
+    for (const key of CLIENT_SPECIFIER_KEYS) delete o[key];
+    return o;
+}
+
+/**
+ * Resolve dashboard client: numeric id (14, "0014") or legacy / old client id string.
+ * @param {import('sql.js').Database} db
+ * @param {string|number} raw
+ * @returns {{ userId: number } | { error: string }}
+ */
+function resolveUserIdFromClientSpecifier(db, raw) {
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+        const intId = Math.floor(raw);
+        const byId = parseResults(db.exec('SELECT id FROM users WHERE id = ?', [intId]));
+        if (byId.length) return { userId: intId };
+        const leg = parseResults(
+            db.exec('SELECT id FROM users WHERE TRIM(legacy_client_id) = ?', [String(intId)])
+        );
+        if (leg.length === 1) return { userId: leg[0].id };
+        if (leg.length > 1) return { error: 'Multiple clients share that legacy Client ID' };
+        return { error: 'No client with that Client ID' };
+    }
+
+    const s = str(raw);
+    if (!s) return { error: 'Missing Client ID' };
+
+    if (/^\d+$/.test(s)) {
+        const intId = parseInt(s, 10);
+        const byId = parseResults(db.exec('SELECT id FROM users WHERE id = ?', [intId]));
+        if (byId.length) return { userId: intId };
+    }
+
+    const legacyRows = parseResults(
+        db.exec(
+            `SELECT id FROM users
+             WHERE legacy_client_id IS NOT NULL AND TRIM(legacy_client_id) <> ''
+               AND LOWER(TRIM(legacy_client_id)) = LOWER(TRIM(?))`,
+            [s]
+        )
+    );
+    if (legacyRows.length === 1) return { userId: legacyRows[0].id };
+    if (legacyRows.length > 1) return { error: 'Multiple clients share that Old Client ID' };
+
+    if (/^\d+$/.test(s)) {
+        return { error: 'No client with that Client ID' };
+    }
+    return { error: 'No client with that Old Client ID' };
+}
+
+/**
  * @param {import('sql.js').Database} db
  * @returns {{ imported: number, errors: Array<{ line: number, error: string }> }}
  */
@@ -379,7 +461,74 @@ async function runBulkImport(db, kind, userId, buffer) {
     return { imported, errors };
 }
 
-function templateSheetAoA(kind) {
+/**
+ * Same as runBulkImport but each row must include Client ID or Old Client ID; rows are routed to that user.
+ * @param {import('sql.js').Database} db
+ * @returns {{ imported: number, errors: Array<{ line: number, error: string }>, by_user?: Record<string, number> }}
+ */
+async function runBulkImportMulti(db, kind, buffer) {
+    const importer = IMPORTERS[kind];
+    if (!importer) {
+        return { imported: 0, errors: [{ line: 0, error: 'Unknown import type' }] };
+    }
+
+    let rows;
+    try {
+        rows = parseSpreadsheetBuffer(buffer);
+    } catch (e) {
+        return { imported: 0, errors: [{ line: 0, error: e.message || 'Could not read spreadsheet' }] };
+    }
+
+    if (rows.length > MAX_ROWS) {
+        return { imported: 0, errors: [{ line: 0, error: `Too many rows (max ${MAX_ROWS})` }] };
+    }
+
+    const errors = [];
+    let imported = 0;
+    const activities = [];
+    const byUser = {};
+
+    for (let i = 0; i < rows.length; i++) {
+        const line = i + 2;
+        const spec = extractClientSpecifier(rows[i]);
+        if (spec == null || spec === '') {
+            errors.push({ line, error: 'Missing Client ID or Old Client ID column for this row' });
+            continue;
+        }
+        const resolved = resolveUserIdFromClientSpecifier(db, spec);
+        if (resolved.error) {
+            errors.push({ line, error: resolved.error });
+            continue;
+        }
+        const userId = resolved.userId;
+        const dataRow = rowWithoutClientSpecifier(rows[i]);
+        try {
+            const result = importer(db, userId, dataRow);
+            if (result && result.activity) activities.push(result.activity);
+            imported++;
+            const k = String(userId);
+            byUser[k] = (byUser[k] || 0) + 1;
+        } catch (err) {
+            errors.push({ line, error: err.message || String(err) });
+        }
+    }
+
+    if (imported > 0) {
+        saveDb();
+        for (const fn of activities) {
+            try {
+                await fn();
+            } catch (e) {
+                console.error('Bulk import activity error:', e);
+            }
+        }
+    }
+
+    return { imported, errors, by_user: byUser };
+}
+
+function templateSheetAoA(kind, options = {}) {
+    const multi = !!(options && options.multi);
     const T = {
         sold: [
             ['sold_date', 'item_name', 'quantity', 'earnings'],
@@ -406,11 +555,18 @@ function templateSheetAoA(kind) {
             ['Returned cable', 12.5, 'REF-1', '', 'applied'],
         ],
     };
-    return T[kind] || null;
+    const base = T[kind] || null;
+    if (!base) return null;
+    if (!multi) return base;
+    return base.map((row, i) => {
+        if (i === 0) return ['Client ID', ...row];
+        if (i === 1) return ['0014', ...row];
+        return ['', ...row];
+    });
 }
 
-function buildTemplateBuffer(kind) {
-    const aoa = templateSheetAoA(kind);
+function buildTemplateBuffer(kind, options) {
+    const aoa = templateSheetAoA(kind, options);
     if (!aoa) return null;
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -421,7 +577,10 @@ function buildTemplateBuffer(kind) {
 module.exports = {
     parseSpreadsheetBuffer,
     runBulkImport,
+    runBulkImportMulti,
     buildTemplateBuffer,
+    resolveUserIdFromClientSpecifier,
+    extractClientSpecifier,
     MAX_ROWS,
     KINDS: Object.keys(IMPORTERS),
 };

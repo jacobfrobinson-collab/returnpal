@@ -143,8 +143,61 @@ async function main() {
             throw new Error('Imported sold row not found in /api/admin/users/:id/sold');
         }
 
+        // Multi-client bulk import (Client ID column routes rows)
+        let clientId2;
+        {
+            const res = await fetch(`${BASE}/api/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: `e2e-client2-${ts}@returnpal.test`,
+                    password,
+                    full_name: 'E2E Client Two',
+                    company_name: 'E2E Co',
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.status !== 201) throw new Error(`Client2 register failed: ${res.status} ${JSON.stringify(data)}`);
+            clientId2 = data.user && data.user.id;
+            if (!clientId2) throw new Error('No client2 id from register');
+        }
+        const padded1 = String(parseInt(clientId, 10) || 0).padStart(4, '0');
+        const csvMulti =
+            `client_id,sold_date,item_name,quantity,earnings\n` +
+            `${padded1},2026-03-28,E2E-Multi-One,1,11\n` +
+            `${clientId2},2026-03-28,E2E-Multi-Two,1,13\n`;
+        const formMulti = new FormData();
+        formMulti.append('kind', 'sold');
+        formMulti.append('file', new Blob([csvMulti], { type: 'text/csv' }), 'bulk-sold-multi.csv');
+        const importMultiRes = await fetch(`${BASE}/api/admin/bulk-import-multi`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${adminToken}` },
+            body: formMulti,
+        });
+        const importMultiBody = await importMultiRes.json().catch(() => ({}));
+        if (!importMultiRes.ok) {
+            throw new Error(`Bulk import multi failed: ${importMultiRes.status} ${JSON.stringify(importMultiBody)}`);
+        }
+        if (!importMultiBody.imported || importMultiBody.imported !== 2) {
+            throw new Error(`Expected imported === 2, got ${JSON.stringify(importMultiBody)}`);
+        }
+        for (const [uid, label] of [
+            [clientId, 'E2E-Multi-One'],
+            [clientId2, 'E2E-Multi-Two'],
+        ]) {
+            const sr = await fetch(`${BASE}/api/admin/users/${uid}/sold`, {
+                headers: { Authorization: `Bearer ${adminToken}` },
+            });
+            const sd = await sr.json().catch(() => ({}));
+            if (!sr.ok) throw new Error(`GET sold multi failed for ${uid}: ${sr.status}`);
+            const list = sd.items || [];
+            if (!list.some((it) => String(it.product || '').includes(label))) {
+                throw new Error(`Multi import product ${label} not found for user ${uid}`);
+            }
+        }
+
         console.log('E2E admin bulk import: OK');
-        console.log('  (register client + admin, set-admin, POST bulk-import sold CSV, verify sold list)');
+        console.log('  (single-client + multi-client Client ID routing, verify sold lists)');
     } finally {
         if (serverProc && !serverProc.killed) {
             try {

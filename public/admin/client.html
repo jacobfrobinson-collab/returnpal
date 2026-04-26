@@ -36,6 +36,10 @@
                     </div>
                     <div class="card-body">
                         <p class="small text-muted mb-2">Upload an Excel (.xlsx, .xls) or CSV file with one row per item. Use the template so column names match. <strong>Record sales</strong> uses: sold_date, item_name, quantity, earnings. Reimbursement imports are text-only (no photos).</p>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bulk-import-multi" />
+                            <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the client list); rows are applied to that client’s dashboard.</label>
+                        </div>
                         <div class="row g-2 align-items-end">
                             <div class="col-md-5">
                                 <label class="form-label small mb-0">Import type</label>
@@ -1369,10 +1373,13 @@
 
         $('#bulk-import-template-btn').on('click', async function() {
             var kind = $('#bulk-import-kind').val();
+            var multi = document.getElementById('bulk-import-multi').checked;
             var token = API.getToken();
             if (!token) return alert('Not logged in');
             try {
-                var res = await fetch(API.getApiBase() + '/admin/bulk-import-template/' + encodeURIComponent(kind), {
+                var url = API.getApiBase() + '/admin/bulk-import-template/' + encodeURIComponent(kind);
+                if (multi) url += '?multi=1';
+                var res = await fetch(url, {
                     headers: { Authorization: 'Bearer ' + token }
                 });
                 if (!res.ok) {
@@ -1382,7 +1389,7 @@
                 var blob = await res.blob();
                 var a = document.createElement('a');
                 a.href = URL.createObjectURL(blob);
-                a.download = 'returnpal-import-' + kind + '.xlsx';
+                a.download = 'returnpal-import-' + kind + (multi ? '-multi-client' : '') + '.xlsx';
                 a.click();
                 URL.revokeObjectURL(a.href);
             } catch (e) {
@@ -1394,11 +1401,17 @@
             var f = document.getElementById('bulk-import-file').files[0];
             if (!f) return alert('Choose a spreadsheet file');
             var kind = $('#bulk-import-kind').val();
+            var multi = document.getElementById('bulk-import-multi').checked;
             var $btn = $(this).prop('disabled', true);
             var $out = $('#bulk-import-result').addClass('d-none').text('');
             try {
-                var data = await API.adminBulkImportUser(clientId, kind, f);
+                var data = multi
+                    ? await API.adminBulkImportMulti(kind, f)
+                    : await API.adminBulkImportUser(clientId, kind, f);
                 var txt = 'Imported ' + (data.imported || 0) + ' row(s).';
+                if (multi && data.by_user && Object.keys(data.by_user).length) {
+                    txt += '\n\nPer client (user id → rows): ' + JSON.stringify(data.by_user);
+                }
                 if (data.errors && data.errors.length) {
                     txt += '\n\nRow errors:\n' + data.errors.map(function(e) { return 'Line ' + e.line + ': ' + e.error; }).join('\n');
                 }
