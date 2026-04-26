@@ -2043,7 +2043,7 @@ const Dashboard = {
             const rawInvoices = data.invoices || [];
             if (rawInvoices.length === 0) {
                 $('.seco-title').text('0 invoices');
-                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No invoices yet. Monthly invoices appear here after you have sales.</p><a href="sold-items.html" class="btn btn-primary">View Sold Items</a></td></tr>');
+                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No monthly statements yet. One appears for each calendar month where you have sales (by <strong>sold date</strong>) or applied returns — including past months if you add or import sales later.</p><a href="sold-items.html" class="btn btn-primary">View Sold Items</a></td></tr>');
                 return;
             }
 
@@ -2051,20 +2051,27 @@ const Dashboard = {
             const byMonth = {};
             const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
             rawInvoices.forEach(inv => {
-                const dateStr = inv.date_issued || inv.due_date || inv.sold_date;
-                const d = dateStr ? new Date(dateStr) : new Date();
-                const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                let key = null;
+                if (inv.period && /^\d{4}-\d{2}$/.test(String(inv.period))) {
+                    key = String(inv.period);
+                } else {
+                    const dateStr = inv.date_issued || inv.due_date || inv.sold_date;
+                    const d = dateStr ? new Date(dateStr) : new Date();
+                    key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                }
                 if (!byMonth[key]) {
-                    const payoutDate = new Date(d.getFullYear(), d.getMonth() + 2, 0);
+                    const [py, pm] = key.split('-').map(Number);
+                    const payoutDate = new Date(py, pm - 1 + 2, 0);
+                    const d0 = new Date(py, pm - 1, 1);
                     byMonth[key] = {
                         key,
-                        year: d.getFullYear(),
-                        month: d.getMonth(),
+                        year: py,
+                        month: pm - 1,
                         amount: 0,
                         items_count: 0,
                         vat_amount: 0,
                         status: inv.status,
-                        date_issued: dateStr,
+                        date_issued: inv.date_issued || d0.toISOString().slice(0, 10),
                         payout_date: payoutDate
                     };
                 }
@@ -2620,14 +2627,18 @@ const Dashboard = {
             const periodLabel = data.period_label || (monthNames[(m || 1) - 1] + ' ' + (y || new Date().getFullYear()));
 
             const today = new Date();
-            const invoiceDate = this.formatDateUK(today);
-            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            const dueDate = this.formatDateUK(lastDay);
+            const [iy, im] = period.split('-').map(Number);
+            const invoiceDate = data.date_issued
+                ? this.formatDateUK(data.date_issued)
+                : this.formatDateUK(today);
+            const dueDate = Number.isFinite(iy) && Number.isFinite(im)
+                ? this.formatDateUK(new Date(iy, im + 1, 0))
+                : this.formatDateUK(new Date(today.getFullYear(), today.getMonth() + 1, 0));
 
             let invoiceNum = sessionStorage.getItem('returnpal_invoice_num_' + period);
             if (!invoiceNum) {
                 const r = Math.floor(1000 + Math.random() * 9000);
-                invoiceNum = 'INV-' + today.getFullYear() + '-' + String(r);
+                invoiceNum = 'INV-' + (Number.isFinite(iy) ? iy : today.getFullYear()) + '-' + String(r);
                 sessionStorage.setItem('returnpal_invoice_num_' + period, invoiceNum);
             }
 
