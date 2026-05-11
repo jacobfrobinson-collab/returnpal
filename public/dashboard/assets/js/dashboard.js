@@ -719,10 +719,15 @@ const Dashboard = {
         }
     },
 
-    // ─── Helper: format date (dd/mm/yyyy, UK day-first parsing for ambiguous strings) ──
+    // ─── Helper: format date (UK English, e.g. 12 Apr 2026 — see RP_DATE.formatNumeric for dd/mm/yyyy) ──
     formatDate(dateStr) {
         if (!dateStr) return '-';
         return RP_DATE.format(dateStr);
+    },
+
+    formatDateNumeric(dateStr) {
+        if (!dateStr) return '-';
+        return RP_DATE.formatNumeric(dateStr);
     },
 
     // ─── Helper: status badge (design token colors) ───────────
@@ -2555,8 +2560,8 @@ const Dashboard = {
         monthly.forEach(m => {
             rows.push([
                 monthNames[m.month] + ' ' + m.year,
-                this.formatDate(m.date_issued),
-                this.formatDate(m.payout_date),
+                this.formatDateNumeric(m.date_issued),
+                this.formatDateNumeric(m.payout_date),
                 '£' + Number(m.amount).toFixed(2),
                 m.items_count,
                 m.status || ''
@@ -2580,7 +2585,7 @@ const Dashboard = {
         if (vatNumber) csv += 'VAT number: ' + vatNumber + '\n';
         csv += '\nPeriod,Date issued,Payout date,Amount (£),VAT (£),Items,Status\n';
         monthly.forEach(m => {
-            csv += '"' + (monthNames[m.month] + ' ' + m.year) + '",' + this.formatDate(m.date_issued) + ',' + this.formatDate(m.payout_date) + ',' + Number(m.amount).toFixed(2) + ',' + Number(m.vat_amount || 0).toFixed(2) + ',' + m.items_count + ',"' + (m.status || '') + '"\n';
+            csv += '"' + (monthNames[m.month] + ' ' + m.year) + '",' + this.formatDateNumeric(m.date_issued) + ',' + this.formatDateNumeric(m.payout_date) + ',' + Number(m.amount).toFixed(2) + ',' + Number(m.vat_amount || 0).toFixed(2) + ',' + m.items_count + ',"' + (m.status || '') + '"\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
@@ -2595,7 +2600,7 @@ const Dashboard = {
         let csv = '*Date,*Amount,*Description\n';
         monthly.forEach(m => {
             const label = monthNames[m.month] + ' ' + m.year + ' - ReturnPal recovery';
-            csv += this.formatDate(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '"\n';
+            csv += this.formatDateNumeric(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '"\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
@@ -2610,7 +2615,7 @@ const Dashboard = {
         let csv = 'Date,Amount,Description,Memo\n';
         monthly.forEach(m => {
             const label = monthNames[m.month] + ' ' + m.year + ' - ReturnPal recovery';
-            csv += this.formatDate(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '","Returns recovery payout"\n';
+            csv += this.formatDateNumeric(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '","Returns recovery payout"\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');

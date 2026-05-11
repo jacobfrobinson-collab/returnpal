@@ -1,8 +1,9 @@
 /**
- * UK date handling: parse and display as dd/mm/yyyy.
- * Slashed dates like 10/08/2025 default to day/month/year (UK).
+ * UK date handling: parse with UK-first rules; display as en-GB (e.g. 12 Apr 2026) so dates
+ * are never mistaken for US mm/dd. Use formatNumeric() for dd/mm/yyyy (e.g. CSV).
+ * Slashed inputs like 10/08/2025 default to day/month/year (UK).
  * If both parts are ≤ 12 (e.g. 04/12/2026), set window.RETURNPAL_AMBIGUOUS_DATE_ORDER = 'MDY'
- * before this script to treat as US month/day (matches server RETURNPAL_AMBIGUOUS_DATE_ORDER).
+ * before this script for US month/day (matches server RETURNPAL_AMBIGUOUS_DATE_ORDER).
  */
 (function (w) {
     'use strict';
@@ -98,9 +99,19 @@
 
     /**
      * @param {unknown} input
-     * @returns {string} dd/mm/yyyy or '-'
+     * @returns {string} UK English, e.g. 12 Apr 2026, or '-'
      */
     function format(input) {
+        const d = parse(input);
+        if (!d) return '-';
+        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    /**
+     * @param {unknown} input
+     * @returns {string} dd/mm/yyyy or '-'
+     */
+    function formatNumeric(input) {
         const d = parse(input);
         if (!d) return '-';
         return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
@@ -108,12 +119,11 @@
 
     /**
      * @param {unknown} input
-     * @returns {string} e.g. 10 Aug 2025
+     * @returns {string} e.g. 10 Aug 2025 (same as format, empty string if missing)
      */
     function formatShortMonth(input) {
-        const d = parse(input);
-        if (!d) return '';
-        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        const s = format(input);
+        return s === '-' ? '' : s;
     }
 
     /**
@@ -135,5 +145,12 @@
         return d ? d.getTime() : 0;
     }
 
-    w.RP_DATE = { parse: parse, format: format, formatShortMonth: formatShortMonth, formatLongMonth: formatLongMonth, getTime: getTime };
+    w.RP_DATE = {
+        parse: parse,
+        format: format,
+        formatNumeric: formatNumeric,
+        formatShortMonth: formatShortMonth,
+        formatLongMonth: formatLongMonth,
+        getTime: getTime
+    };
 })(typeof window !== 'undefined' ? window : global);
