@@ -74,15 +74,56 @@ function aliasKey(k) {
         order_no: 'order_number',
         order_num: 'order_number',
         orderid: 'order_number',
+        date_sold: 'sold_date',
+        datesold: 'sold_date',
+        saledate: 'sold_date',
+        sale_date: 'sold_date',
     };
     return m[k] || k;
+}
+
+function isZipBasedSpreadsheet(buf) {
+    return (
+        buf.length >= 4 &&
+        buf[0] === 0x50 &&
+        buf[1] === 0x4b &&
+        (buf[2] === 0x03 || buf[2] === 0x05 || buf[2] === 0x07 || buf[2] === 0x09)
+    );
+}
+
+function isOleCompoundFile(buf) {
+    return buf.length >= 8 && buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0;
+}
+
+/** Pick CSV field separator when SheetJS would otherwise treat ";" files as one column. */
+function inferCsvFieldSeparator(buf) {
+    const str = buf.toString('utf8');
+    const firstNl = str.search(/\r?\n/);
+    const firstLine = (firstNl === -1 ? str : str.slice(0, firstNl)).trim();
+    if (/^sep=/i.test(firstLine) && firstLine.length > 4) {
+        return firstLine.charAt(4);
+    }
+    const commas = (firstLine.match(/,/g) || []).length;
+    const semis = (firstLine.match(/;/g) || []).length;
+    const tabs = (firstLine.match(/\t/g) || []).length;
+    if (semis > commas && semis > 0) return ';';
+    if (tabs > commas && tabs > semis && tabs > 0) return '\t';
+    return ',';
+}
+
+function readSpreadsheetWorkbook(buf) {
+    const base = { type: 'buffer', cellDates: true };
+    if (isZipBasedSpreadsheet(buf) || isOleCompoundFile(buf)) {
+        return XLSX.read(buf, base);
+    }
+    return XLSX.read(buf, { ...base, FS: inferCsvFieldSeparator(buf) });
 }
 
 /**
  * @returns {Array<Record<string, unknown>>}
  */
 function parseSpreadsheetBuffer(buffer) {
-    const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+    const wb = readSpreadsheetWorkbook(buffer);
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const arr = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
     if (!arr.length) return [];
@@ -185,6 +226,39 @@ function pad2(n) {
     return n < 10 ? '0' + n : String(n);
 }
 
+const SOLD_DATE_MONTHS = {
+    jan: 1,
+    feb: 2,
+    mar: 3,
+    apr: 4,
+    may: 5,
+    jun: 6,
+    jul: 7,
+    aug: 8,
+    sep: 9,
+    oct: 10,
+    nov: 11,
+    dec: 12,
+};
+
+/** Trim Excel text marker, NBSP, optional clock time (e.g. "05/02/2026 00:00:00"). */
+function preprocessSoldDateString(s) {
+    let s0 = String(s || '')
+        .replace(/^\uFEFF/, '')
+        .trim()
+        .replace(/\u00A0/g, ' ')
+        .replace(/\u2007/g, ' ');
+    if (s0.startsWith("'")) s0 = s0.slice(1).trim();
+    if (s0.length >= 2 && s0.startsWith('"') && s0.endsWith('"')) s0 = s0.slice(1, -1).trim();
+    const tIdx = s0.indexOf('T');
+    if (tIdx !== -1) s0 = s0.slice(0, tIdx).trim();
+    else if (/^\d{4}-\d{2}-\d{2}\s/.test(s0)) s0 = s0.match(/^(\d{4}-\d{2}-\d{2})/)[1];
+    if (/\d{1,2}:\d{2}/.test(s0)) {
+        s0 = s0.replace(/\s+\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(\s*[AaPp][Mm])?.*$/, '').trim();
+    }
+    return s0;
+}
+
 /**
  * Normalize sold_date from spreadsheet to YYYY-MM-DD.
  * UK-first: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (day before month when both parts ≤ 12).
@@ -196,7 +270,8 @@ function pad2(n) {
 function normalizeSoldDateForDb(v) {
     if (v == null || v === '') return null;
     if (typeof v === 'number' && Number.isFinite(v) && v > 20000 && v < 120000) {
-        const epochMs = Date.UTC(1899, 11, 30) + Math.round(v) * 86400000;
+        const serial = Math.floor(v);
+        const epochMs = Date.UTC(1899, 11, 30) + serial * 86400000;
         const d = new Date(epochMs);
         if (!isNaN(d.getTime())) {
             return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
@@ -205,19 +280,24 @@ function normalizeSoldDateForDb(v) {
     if (v instanceof Date && !isNaN(v.getTime())) {
         return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate());
     }
-    let s0 = str(v).replace(/^\uFEFF/, '').trim();
-    s0 = s0.split(/[T ]/)[0].trim();
-    const serialStr = s0.match(/^(\d{5,6})(?:\.0+)?$/);
-    if (serialStr) {
-        const sn = parseInt(serialStr[1], 10);
-        if (sn > 20000 && sn < 120000) {
-            const epochMs = Date.UTC(1899, 11, 30) + sn * 86400000;
-            const d = new Date(epochMs);
-            if (!isNaN(d.getTime())) {
-                return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
-            }
+    let s0 = preprocessSoldDateString(str(v));
+    if (!s0) return null;
+
+    const serialFloat = parseFloat(s0);
+    if (
+        Number.isFinite(serialFloat) &&
+        serialFloat > 20000 &&
+        serialFloat < 120000 &&
+        /^-?\d{5,6}(\.\d+)?$/.test(s0.trim())
+    ) {
+        const serial = Math.floor(serialFloat);
+        const epochMs = Date.UTC(1899, 11, 30) + serial * 86400000;
+        const d = new Date(epochMs);
+        if (!isNaN(d.getTime())) {
+            return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
         }
     }
+
     const iso = s0.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (iso) return s0;
 
@@ -253,26 +333,23 @@ function normalizeSoldDateForDb(v) {
         }
     }
 
-    const MONTHS = {
-        jan: 1,
-        feb: 2,
-        mar: 3,
-        apr: 4,
-        may: 5,
-        jun: 6,
-        jul: 7,
-        aug: 8,
-        sep: 9,
-        oct: 10,
-        nov: 11,
-        dec: 12,
-    };
     const txt = s0.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/);
     if (txt) {
         const day = parseInt(txt[1], 10);
         const monKey = txt[2].toLowerCase().slice(0, 3);
-        const mo = MONTHS[monKey];
+        const mo = SOLD_DATE_MONTHS[monKey];
         const y = parseInt(txt[3], 10);
+        if (mo && y >= 1900 && y <= 2100 && day >= 1 && day <= 31) {
+            return y + '-' + pad2(mo) + '-' + pad2(day);
+        }
+    }
+
+    const usTxt = s0.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})$/);
+    if (usTxt) {
+        const monKey = usTxt[1].toLowerCase().slice(0, 3);
+        const mo = SOLD_DATE_MONTHS[monKey];
+        const day = parseInt(usTxt[2], 10);
+        const y = parseInt(usTxt[3], 10);
         if (mo && y >= 1900 && y <= 2100 && day >= 1 && day <= 31) {
             return y + '-' + pad2(mo) + '-' + pad2(day);
         }
@@ -704,8 +781,10 @@ function previewBulkImport(db, opts) {
         }
         const warnings = [];
         if (kind === 'sold' && dataRow.sold_date != null && dataRow.sold_date !== '' && !normalizeSoldDateForDb(dataRow.sold_date)) {
+            const rawShow = str(dataRow.sold_date).replace(/\s+/g, ' ').slice(0, 48);
             warnings.push(
-                'sold_date not recognised (use UK DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, or e.g. 5 Feb 2026); if imported, today’s date will be used'
+                'sold_date not recognised (use UK DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, or e.g. 5 Feb 2026); if imported, today’s date will be used' +
+                    (rawShow ? ` — cell was: ${rawShow}` : '')
             );
         }
         try {
@@ -931,6 +1010,7 @@ module.exports = {
     buildTemplateBuffer,
     resolveUserIdFromClientSpecifier,
     extractClientSpecifier,
+    normalizeSoldDateForDb,
     MAX_ROWS,
     KINDS: Object.keys(IMPORTERS),
 };

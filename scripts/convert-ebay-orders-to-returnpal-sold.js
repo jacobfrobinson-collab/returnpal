@@ -2,45 +2,12 @@
  * One-off / reusable: map EVERY EBAY ORDER SHEET layout → ReturnPal multi-client sold import.
  *
  * ReturnPal template row: A=Client ID, B=sold_date, C=item_name, D=quantity, E=earnings.
- * eBay order sheet row: A=sold date ("5 Feb 2026" → YYYY-MM-DD for template column B), B=order id, C=title,
+ * eBay order sheet row: A=sold date (any format accepted by bulk import → column B as YYYY-MM-DD), B=order id, C=title,
  *   D=sku line, E=qty, F=?, G=earnings, H=client id (maps to template column A).
  */
 const XLSX = require('xlsx');
 const fs = require('fs');
-
-const MONTHS = {
-    jan: 1,
-    feb: 2,
-    mar: 3,
-    apr: 4,
-    may: 5,
-    jun: 6,
-    jul: 7,
-    aug: 8,
-    sep: 9,
-    oct: 10,
-    nov: 11,
-    dec: 12,
-};
-
-function pad2(n) {
-    return n < 10 ? '0' + n : String(n);
-}
-
-function parseEbayDate(cell) {
-    let s = String(cell == null ? '' : cell)
-        .replace(/^\uFEFF/, '')
-        .trim();
-    if (!s) return null;
-    const m = s.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
-    if (!m) return null;
-    const day = parseInt(m[1], 10);
-    const monKey = m[2].toLowerCase();
-    const mo = MONTHS[monKey.slice(0, 3)];
-    const y = parseInt(m[3], 10);
-    if (!mo || !y || day < 1 || day > 31) return null;
-    return `${y}-${pad2(mo)}-${pad2(day)}`;
-}
+const { normalizeSoldDateForDb } = require('../src/utils/adminBulkImport');
 
 function parseMoney(v) {
     if (v == null || v === '') return 0;
@@ -56,9 +23,16 @@ function sanitizeCell(v) {
     return String(v).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ' ').trim();
 }
 
+/**
+ * Emit sold_date as quoted YYYY-MM-DD so Excel “Save As CSV” and the importer
+ * always see an unambiguous literal (matches normalizeSoldDateForDb on upload).
+ */
 function rowToCsvLine(cells) {
     return cells
-        .map((c) => {
+        .map((c, i) => {
+            if (i === 1 && /^\d{4}-\d{2}-\d{2}$/.test(String(c == null ? '' : c).trim())) {
+                return '"' + String(c).trim() + '"';
+            }
             const s = String(c == null ? '' : c);
             if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
             return s;
@@ -78,25 +52,26 @@ function main() {
         process.exit(1);
     }
 
-    const wb = XLSX.readFile(ebayPath);
+    const wb = XLSX.readFile(ebayPath, { cellDates: true });
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+    const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
 
     const header = ['Client ID', 'sold_date', 'item_name', 'quantity', 'earnings'];
     const out = [header];
     let skipped = 0;
-    const skipReasons = { noClient: 0, noDate: 0, noProduct: 0, badQty: 0 };
+    const skipReasons = { empty: 0, noClient: 0, noDate: 0, noProduct: 0, badQty: 0 };
 
     for (let i = 0; i < aoa.length; i++) {
         const row = aoa[i];
         if (!row || !row.some((c) => c !== '' && c != null && String(c).trim() !== '')) {
+            skipReasons.empty++;
             skipped++;
             continue;
         }
         const clientId = String(row[7] == null ? '' : row[7])
             .replace(/^\uFEFF/, '')
             .trim();
-        const soldDate = parseEbayDate(row[0]);
+        const soldDate = normalizeSoldDateForDb(row[0]);
         const product = String(row[2] == null ? '' : row[2]).trim();
         const qtyRaw = row[4];
         const qty = Math.max(1, parseInt(String(qtyRaw).trim(), 10) || 0);
