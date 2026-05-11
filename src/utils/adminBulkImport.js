@@ -389,6 +389,19 @@ function normalizeSoldDateForDb(v) {
     return null;
 }
 
+/**
+ * Label for admin preview “Sold date” column (Record sales).
+ * @param {Record<string, unknown>} dataRow
+ * @returns {string}
+ */
+function soldDatePreviewLabel(dataRow) {
+    const n = normalizeSoldDateForDb(dataRow.sold_date);
+    if (n) return n;
+    const raws = str(dataRow.sold_date);
+    if (!raws) return 'empty → today on import';
+    return raws.length > 44 ? raws.slice(0, 44) + '…' : raws;
+}
+
 /** @returns {{ reference: string, product: string, qty: number, soldDateParam: string|null, unit: number, total: number, profit: number, margin: number, orderNumber: string }} */
 function parseSoldRowFields(row) {
     const product = str(row.product);
@@ -794,13 +807,26 @@ function previewBulkImport(db, opts) {
         if (multi) {
             const spec = extractClientSpecifier(rows[i]);
             if (spec == null || spec === '') {
-                out.push({ line, ok: false, error: 'Missing Client ID or Old Client ID column for this row', summary: '' });
+                out.push({
+                    line,
+                    ok: false,
+                    error: 'Missing Client ID or Old Client ID column for this row',
+                    summary: '',
+                    ...(kind === 'sold' ? { sold_date_preview: soldDatePreviewLabel(rows[i]) } : {}),
+                });
                 bad++;
                 continue;
             }
             const res = resolveUserIdFromClientSpecifier(db, spec);
             if (res.error) {
-                out.push({ line, ok: false, error: res.error, specifier: String(spec), summary: '' });
+                out.push({
+                    line,
+                    ok: false,
+                    error: res.error,
+                    specifier: String(spec),
+                    summary: '',
+                    ...(kind === 'sold' ? { sold_date_preview: soldDatePreviewLabel(rows[i]) } : {}),
+                });
                 bad++;
                 continue;
             }
@@ -831,6 +857,7 @@ function previewBulkImport(db, opts) {
                 resolved_name: resolved ? resolved.name : null,
                 legacy_client_id: resolved ? resolved.legacy_client_id : null,
                 summary: summarizeRow(kind, dataRow),
+                ...(kind === 'sold' ? { sold_date_preview: soldDatePreviewLabel(dataRow) } : {}),
             });
         } catch (e) {
             bad++;
@@ -842,6 +869,7 @@ function previewBulkImport(db, opts) {
                 resolved_email: resolved ? resolved.email : null,
                 resolved_name: resolved ? resolved.name : null,
                 summary: summarizeRow(kind, dataRow),
+                ...(kind === 'sold' ? { sold_date_preview: soldDatePreviewLabel(dataRow) } : {}),
             });
         }
     }

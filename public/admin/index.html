@@ -88,7 +88,7 @@
                     <div class="small fw-semibold mb-1">Preview (not saved)</div>
                     <div class="table-responsive border rounded" style="max-height:260px;overflow:auto">
                         <table class="table table-sm table-striped mb-0">
-                            <thead class="table-light"><tr><th>Line</th><th>OK</th><th>Client</th><th>Warnings / error</th><th>Row</th></tr></thead>
+                            <thead class="table-light" id="bulk-import-preview-thead"><tr><th>Line</th><th>OK</th><th>Client</th><th>Warnings / error</th><th>Row</th></tr></thead>
                             <tbody id="bulk-import-preview-tbody"></tbody>
                         </table>
                     </div>
@@ -472,6 +472,12 @@
             try {
                 var prev = await API.adminBulkImportPreview(kind, f, { multi: multi, userId: targetId });
                 $('#bulk-import-preview-wrap').removeClass('d-none');
+                var isSold = kind === 'sold';
+                $('#bulk-import-preview-thead').html(
+                    '<tr><th>Line</th><th>OK</th><th>Client</th>' +
+                        (isSold ? '<th>Sold date</th>' : '') +
+                        '<th>Warnings / error</th><th>Row</th></tr>'
+                );
                 var $tb = $('#bulk-import-preview-tbody').empty();
                 (prev.rows || []).forEach(function(r) {
                     var ok = r.ok ? 'Yes' : 'No';
@@ -480,8 +486,17 @@
                         : r.user_id
                           ? 'ID ' + String(r.user_id).padStart(4, '0')
                           : '—';
+                    var soldCell = '';
+                    if (isSold) {
+                        var sd = r.sold_date_preview != null && r.sold_date_preview !== '' ? r.sold_date_preview : '—';
+                        soldCell = '</td><td class="small text-nowrap">' + escapeHtml(sd);
+                    }
                     var issue =
-                        r.warnings && r.warnings.length ? escapeHtml(r.warnings.join('; ')) : r.error ? escapeHtml(r.error) : '—';
+                        r.warnings && r.warnings.length
+                            ? escapeHtml(r.warnings.join('; '))
+                            : r.error
+                              ? escapeHtml(r.error)
+                              : '<span class="text-muted">No issues</span>';
                     $tb.append(
                         '<tr><td>' +
                             r.line +
@@ -489,6 +504,7 @@
                             ok +
                             '</td><td class="small">' +
                             client +
+                            soldCell +
                             '</td><td class="small">' +
                             issue +
                             '</td><td class="small">' +
