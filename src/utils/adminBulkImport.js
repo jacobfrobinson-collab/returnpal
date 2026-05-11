@@ -318,9 +318,6 @@ function normalizeSoldDateForDb(v) {
         }
     }
 
-    const iso = s0.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (iso) return s0;
-
     const ymd = s0.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/);
     if (ymd) {
         const y = parseInt(ymd[1], 10);

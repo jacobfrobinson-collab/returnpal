@@ -1,6 +1,7 @@
 /**
  * UK date handling: parse with UK-first rules; display as en-GB (e.g. 12 Apr 2026) so dates
  * are never mistaken for US mm/dd. Use formatNumeric() for dd/mm/yyyy, formatIso() for YYYY-MM-DD (CSV/Excel).
+ * Accepts year-first dates with 1–2 digit month/day (2026-4-5), Excel serials (44927), and slash dates.
  * Slashed inputs like 10/08/2025 default to day/month/year (UK).
  * If both parts are ≤ 12 (e.g. 04/12/2026), set window.RETURNPAL_AMBIGUOUS_DATE_ORDER = 'MDY'
  * before this script for US month/day (matches server RETURNPAL_AMBIGUOUS_DATE_ORDER).
@@ -27,17 +28,37 @@
         if (input instanceof Date) {
             return isNaN(input.getTime()) ? null : input;
         }
+        if (typeof input === 'number' && Number.isFinite(input)) {
+            const x = input;
+            if (x > 20000 && x < 120000) {
+                const serial = Math.floor(x);
+                const epochMs = Date.UTC(1899, 11, 30) + serial * 86400000;
+                const dt = new Date(epochMs);
+                return isNaN(dt.getTime()) ? null : dt;
+            }
+        }
         const s0 = String(input).trim();
         if (!s0) return null;
-        const head = s0.split(/[T ]/)[0];
+        const head = s0.split(/[T ]/)[0].trim();
 
-        let m = head.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (/^-?\d{5,6}(\.\d+)?$/.test(head)) {
+            const serial = Math.floor(parseFloat(head, 10));
+            if (serial > 20000 && serial < 120000) {
+                const epochMs = Date.UTC(1899, 11, 30) + serial * 86400000;
+                const dt = new Date(epochMs);
+                return isNaN(dt.getTime()) ? null : dt;
+            }
+        }
+
+        let m = head.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/);
         if (m) {
             const y = parseInt(m[1], 10);
             const mo = parseInt(m[2], 10);
             const d = parseInt(m[3], 10);
-            const dt = new Date(y, mo - 1, d);
-            return isNaN(dt.getTime()) ? null : dt;
+            if (y >= 1900 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+                const dt = new Date(y, mo - 1, d);
+                return isNaN(dt.getTime()) ? null : dt;
+            }
         }
 
         m = head.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);

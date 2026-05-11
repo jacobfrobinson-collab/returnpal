@@ -462,11 +462,9 @@
 
         function toDateInputVal(v) {
             if (v == null || v === '') return '';
-            var d = new Date(v);
-            if (isNaN(d.getTime())) return String(v).slice(0, 10);
-            var m = (d.getMonth() + 1).toString().padStart(2, '0');
-            var day = d.getDate().toString().padStart(2, '0');
-            return d.getFullYear() + '-' + m + '-' + day;
+            var iso = RP_DATE.formatIso(v);
+            if (iso !== '-') return iso;
+            return String(v).slice(0, 10);
         }
 
         function resetCheckinForNew() {
