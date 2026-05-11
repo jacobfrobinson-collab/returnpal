@@ -21,7 +21,7 @@ const router = express.Router();
 
 const bulkSpreadsheetUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 15 * 1024 * 1024 },
+    limits: { fileSize: 32 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const name = (file.originalname || '').toLowerCase();
         cb(null, /\.(xlsx|xls|csv)$/.test(name));
@@ -300,6 +300,7 @@ router.post('/reimbursement-claims', reimbursementMulter.array('photos', 10), as
         const itemDescription = (req.body.item_description || '').toString().trim();
         const reimbursementType = (req.body.reimbursement_type || '').toString().trim();
         const notes = (req.body.notes || '').toString().trim();
+        const orderNumber = (req.body.order_number != null ? String(req.body.order_number) : '').trim().slice(0, 200);
 
         if (isNaN(userId) || !packageReference || !itemDescription) {
             return res.status(400).json({ error: 'user_id, package_reference, and item_description are required' });
@@ -312,8 +313,8 @@ router.post('/reimbursement-claims', reimbursementMulter.array('photos', 10), as
         }
 
         db.run(
-            'INSERT INTO reimbursement_claims (user_id, package_reference, item_description, reimbursement_type, notes) VALUES (?, ?, ?, ?, ?)',
-            [userId, packageReference, itemDescription, reimbursementType, notes]
+            'INSERT INTO reimbursement_claims (user_id, package_reference, item_description, reimbursement_type, notes, order_number) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, packageReference, itemDescription, reimbursementType, notes, orderNumber]
         );
         const claimIdResult = db.exec('SELECT last_insert_rowid() as id');
         const claimId = claimIdResult[0].values[0][0];
@@ -360,21 +361,31 @@ router.put('/reimbursement-claims/:id', async (req, res) => {
         const rows = parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]));
         if (!rows.length) return res.status(404).json({ error: 'Claim not found' });
 
-        const { package_reference, item_description, reimbursement_type, notes } = req.body;
+        const { package_reference, item_description, reimbursement_type, notes, order_number } = req.body;
         const cur = rows[0];
         const pkg = package_reference !== undefined ? String(package_reference || '').trim() : cur.package_reference;
         const item = item_description !== undefined ? String(item_description || '').trim() : cur.item_description;
         const rtype = reimbursement_type !== undefined ? String(reimbursement_type || '').trim() : cur.reimbursement_type;
         const note = notes !== undefined ? String(notes || '').trim() : cur.notes;
+        const orderUpd = Object.prototype.hasOwnProperty.call(req.body, 'order_number')
+            ? String(order_number == null ? '' : order_number).trim().slice(0, 200)
+            : null;
 
         if (!pkg || !item) {
             return res.status(400).json({ error: 'package_reference and item_description are required' });
         }
 
-        db.run(
-            'UPDATE reimbursement_claims SET package_reference = ?, item_description = ?, reimbursement_type = ?, notes = ? WHERE id = ?',
-            [pkg, item, rtype, note, claimId]
-        );
+        if (orderUpd !== null) {
+            db.run(
+                'UPDATE reimbursement_claims SET package_reference = ?, item_description = ?, reimbursement_type = ?, notes = ?, order_number = ? WHERE id = ?',
+                [pkg, item, rtype, note, orderUpd, claimId]
+            );
+        } else {
+            db.run(
+                'UPDATE reimbursement_claims SET package_reference = ?, item_description = ?, reimbursement_type = ?, notes = ? WHERE id = ?',
+                [pkg, item, rtype, note, claimId]
+            );
+        }
         saveDb();
         const updated = parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0];
         updated.photos = parseResults(db.exec('SELECT id, file_path FROM reimbursement_claim_photos WHERE claim_id = ?', [claimId]));
@@ -484,8 +495,9 @@ router.post('/users/:id/return-adjustments', async (req, res) => {
         if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
         const product = (req.body.product || '').toString().trim();
         const reference = (req.body.reference || '').toString().trim();
+        const onum = (req.body.order_number != null ? String(req.body.order_number) : '').trim().slice(0, 200);
         const amount = parseFloat(req.body.amount);
-        const linked = req.body.linked_sold_item_id != null ? parseInt(req.body.linked_sold_item_id, 10) : null;
+        let linked = req.body.linked_sold_item_id != null ? parseInt(req.body.linked_sold_item_id, 10) : null;
         const notes = (req.body.notes || '').toString().trim();
         const status = req.body.status === 'pending' ? 'pending' : 'applied';
         if (!product || !Number.isFinite(amount) || amount <= 0) {
@@ -497,11 +509,36 @@ router.post('/users/:id/return-adjustments', async (req, res) => {
         if (!ucheck.length || !ucheck[0].values.length) {
             return res.status(404).json({ error: 'User not found' });
         }
+        if (!Number.isFinite(linked) && onum) {
+            const matchByOn = parseResults(
+                db.exec(
+                    `SELECT id FROM sold_items
+                     WHERE user_id = ? AND order_number = ?
+                     ORDER BY sold_date DESC, id DESC
+                     LIMIT 1`,
+                    [userId, onum]
+                )
+            );
+            if (matchByOn.length) linked = matchByOn[0].id;
+        }
+        if (!Number.isFinite(linked) && reference) {
+            const match = parseResults(
+                db.exec(
+                    `SELECT id FROM sold_items
+                     WHERE user_id = ? AND reference = ?
+                     ORDER BY sold_date DESC, id DESC
+                     LIMIT 1`,
+                    [userId, reference]
+                )
+            );
+            if (match.length) linked = match[0].id;
+        }
+        if (!Number.isFinite(linked)) linked = null;
 
         db.run(
-            `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [userId, product, reference, amount, Number.isFinite(linked) ? linked : null, status, notes]
+            `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes, order_number)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [userId, product, reference, amount, linked, status, notes, onum]
         );
         saveDb();
         const rid = db.exec('SELECT last_insert_rowid() as id');

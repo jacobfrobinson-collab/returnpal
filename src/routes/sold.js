@@ -2,6 +2,7 @@ const express = require('express');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
+const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 
 const router = express.Router();
 
@@ -39,7 +40,7 @@ router.get('/returns', authMiddleware, async (req, res) => {
         const db = await getDb();
         const rows = parseResults(
             db.exec(
-                `SELECT r.id, r.product, r.reference, r.amount, r.status, r.notes, r.created_at,
+                `SELECT r.id, r.product, r.reference, r.amount, r.status, r.notes, r.created_at, r.order_number,
                         r.linked_sold_item_id, s.product AS sold_product, s.sold_date
                  FROM return_adjustments r
                  LEFT JOIN sold_items s ON s.id = r.linked_sold_item_id
@@ -48,7 +49,8 @@ router.get('/returns', authMiddleware, async (req, res) => {
                 [req.user.id]
             )
         );
-        res.json({ items: rows, total: rows.length });
+        const items = clientIsAdmin(req) ? rows : redactOrderNumberForClientRows(rows);
+        res.json({ items, total: items.length });
     } catch (err) {
         console.error('Get sold returns error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -108,8 +110,9 @@ router.get('/', authMiddleware, async (req, res) => {
             };
         });
 
+        const outItems = clientIsAdmin(req) ? itemsWithPromo : itemsWithPromo.map((row) => redactOrderNumberForClientRow(row));
         res.json({
-            items: itemsWithPromo,
+            items: outItems,
             stats,
             total: items.length,
             monthly_free_processing: {
@@ -128,7 +131,7 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
-        const { reference, product, quantity, unit_price, total_revenue, profit, margin, user_id, sold_date, earnings } = req.body;
+        const { reference, product, quantity, unit_price, total_revenue, profit, margin, user_id, sold_date, earnings, order_number } = req.body;
 
         let targetUserId = user_id != null ? parseInt(user_id, 10) : req.user.id;
         if (targetUserId !== req.user.id && !req.user.is_admin) {
@@ -155,11 +158,15 @@ router.post('/', authMiddleware, async (req, res) => {
         }
         const soldDateStr =
             sold_date != null && String(sold_date).trim() !== '' ? String(sold_date).trim() : null;
+        const orderNumber =
+            clientIsAdmin(req) && order_number != null && String(order_number).trim() !== ''
+                ? String(order_number).trim().slice(0, 200)
+                : '';
 
         db.run(
-            `INSERT INTO sold_items (user_id, reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
-            [targetUserId, ref, product, qty, u || 0, total || 0, p || 0, m || 0, soldDateStr]
+            `INSERT INTO sold_items (user_id, reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date, order_number)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?)`,
+            [targetUserId, ref, product, qty, u || 0, total || 0, p || 0, m || 0, soldDateStr, orderNumber]
         );
         saveDb();
 
@@ -202,7 +209,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (row === null) return res.status(404).json({ error: 'Not found' });
         if (row === false) return res.status(403).json({ error: 'Not authorized' });
 
-        const { reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date, earnings } = req.body;
+        const { reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date, earnings, order_number } = req.body;
         if (product != null && String(product).trim() === '') {
             return res.status(400).json({ error: 'Product cannot be empty' });
         }
@@ -236,12 +243,24 @@ router.put('/:id', authMiddleware, async (req, res) => {
         } else {
             soldDateVal = row.sold_date;
         }
+        const orderUpd =
+            clientIsAdmin(req) && Object.prototype.hasOwnProperty.call(req.body, 'order_number')
+                ? String(order_number == null ? '' : order_number).trim().slice(0, 200)
+                : null;
 
-        db.run(
-            `UPDATE sold_items SET reference = ?, product = ?, quantity = ?, unit_price = ?, total_revenue = ?, profit = ?, margin = ?, sold_date = ?
-             WHERE id = ?`,
-            [ref, prod, qty, u || 0, total || 0, p || 0, m || 0, soldDateVal, id]
-        );
+        if (orderUpd !== null) {
+            db.run(
+                `UPDATE sold_items SET reference = ?, product = ?, quantity = ?, unit_price = ?, total_revenue = ?, profit = ?, margin = ?, sold_date = ?, order_number = ?
+                 WHERE id = ?`,
+                [ref, prod, qty, u || 0, total || 0, p || 0, m || 0, soldDateVal, orderUpd, id]
+            );
+        } else {
+            db.run(
+                `UPDATE sold_items SET reference = ?, product = ?, quantity = ?, unit_price = ?, total_revenue = ?, profit = ?, margin = ?, sold_date = ?
+                 WHERE id = ?`,
+                [ref, prod, qty, u || 0, total || 0, p || 0, m || 0, soldDateVal, id]
+            );
+        }
         saveDb();
         res.json({ message: 'Sold item updated' });
     } catch (err) {

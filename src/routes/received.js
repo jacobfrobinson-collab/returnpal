@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 
 const router = express.Router();
 
@@ -101,11 +102,12 @@ router.get('/', authMiddleware, async (req, res) => {
             db.exec('SELECT * FROM received_items WHERE user_id = ? ORDER BY date_received DESC', [req.user.id])
         );
         const packages = buildPackages(db, req.user.id, items);
+        const itemsOut = clientIsAdmin(req) ? items : redactOrderNumberForClientRows(items);
         res.json({
-            items,
+            items: itemsOut,
             packages,
             total: packages.length,
-            items_total: items.length
+            items_total: itemsOut.length
         });
     } catch (err) {
         console.error('Get received error:', err);
@@ -125,7 +127,8 @@ router.get('/:id', authMiddleware, async (req, res) => {
         if (items.length === 0) {
             return res.status(404).json({ error: 'Item not found' });
         }
-        res.json({ item: items[0] });
+        const item = clientIsAdmin(req) ? items[0] : redactOrderNumberForClientRow(items[0]);
+        res.json({ item });
     } catch (err) {
         console.error('Get received item error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -136,7 +139,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
-        const { reference, items_description, quantity, notes, user_id } = req.body;
+        const { reference, items_description, quantity, notes, user_id, order_number } = req.body;
 
         const ref = (reference != null ? String(reference).trim() : '');
         const desc = (items_description != null ? String(items_description).trim() : '');
@@ -156,10 +159,14 @@ router.post('/', authMiddleware, async (req, res) => {
             db.exec('SELECT id FROM packages WHERE user_id = ? AND reference = ? LIMIT 1', [targetUserId, ref.slice(0, 255)])
         );
         const packageId = pkgMatch[0] ? pkgMatch[0].id : null;
+        const onum =
+            clientIsAdmin(req) && order_number != null && String(order_number).trim() !== ''
+                ? String(order_number).trim().slice(0, 200)
+                : '';
 
         db.run(
-            'INSERT INTO received_items (user_id, package_id, reference, items_description, quantity, notes) VALUES (?, ?, ?, ?, ?, ?)',
-            [targetUserId, packageId, ref.slice(0, 255), desc.slice(0, 1000), qty, (notes != null ? String(notes).slice(0, 2000) : '')]
+            'INSERT INTO received_items (user_id, package_id, reference, items_description, quantity, notes, order_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [targetUserId, packageId, ref.slice(0, 255), desc.slice(0, 1000), qty, (notes != null ? String(notes).slice(0, 2000) : ''), onum]
         );
         saveDb();
 
@@ -225,7 +232,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (access === null) return res.status(404).json({ error: 'Not found' });
         if (access === false) return res.status(403).json({ error: 'Not authorized' });
 
-        const { reference, items_description, quantity, notes, status } = req.body;
+        const { reference, items_description, quantity, notes, status, order_number } = req.body;
         const rows = parseResults(db.exec('SELECT * FROM received_items WHERE id = ?', [id]));
         const cur = rows[0];
         const ref = reference !== undefined ? String(reference || '').trim().slice(0, 255) : cur.reference;
@@ -234,15 +241,26 @@ router.put('/:id', authMiddleware, async (req, res) => {
         const note = notes !== undefined ? String(notes || '').slice(0, 2000) : cur.notes;
         let st = cur.status;
         if (status != null && RECEIVED_STATUSES.includes(status)) st = status;
+        const orderUpd =
+            clientIsAdmin(req) && Object.prototype.hasOwnProperty.call(req.body, 'order_number')
+                ? String(order_number == null ? '' : order_number).trim().slice(0, 200)
+                : null;
 
         if (!ref || !desc) {
             return res.status(400).json({ error: 'Reference and items description are required' });
         }
 
-        db.run(
-            'UPDATE received_items SET reference = ?, items_description = ?, quantity = ?, notes = ?, status = ? WHERE id = ?',
-            [ref, desc, qty, note, st, id]
-        );
+        if (orderUpd !== null) {
+            db.run(
+                'UPDATE received_items SET reference = ?, items_description = ?, quantity = ?, notes = ?, status = ?, order_number = ? WHERE id = ?',
+                [ref, desc, qty, note, st, orderUpd, id]
+            );
+        } else {
+            db.run(
+                'UPDATE received_items SET reference = ?, items_description = ?, quantity = ?, notes = ?, status = ? WHERE id = ?',
+                [ref, desc, qty, note, st, id]
+            );
+        }
         saveDb();
         res.json({ message: 'Received item updated' });
     } catch (err) {

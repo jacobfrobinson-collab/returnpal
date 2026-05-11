@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 
 const router = express.Router();
 
@@ -37,7 +38,8 @@ router.get('/', authMiddleware, async (req, res) => {
             pending_count: 0, total_quantity: 0, oldest_date: null
         };
 
-        res.json({ items, stats, total: items.length });
+        const itemsOut = clientIsAdmin(req) ? items : redactOrderNumberForClientRows(items);
+        res.json({ items: itemsOut, stats, total: itemsOut.length });
     } catch (err) {
         console.error('Get pending items error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -48,7 +50,7 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
-        const { reference, product, quantity, current_stage, est_completion, notes, user_id } = req.body;
+        const { reference, product, quantity, current_stage, est_completion, notes, user_id, order_number } = req.body;
 
         let targetUserId = user_id != null ? parseInt(user_id, 10) : req.user.id;
         if (targetUserId !== req.user.id && !req.user.is_admin) {
@@ -56,11 +58,15 @@ router.post('/', authMiddleware, async (req, res) => {
         }
         if (isNaN(targetUserId)) targetUserId = req.user.id;
 
+        const onum =
+            clientIsAdmin(req) && order_number != null && String(order_number).trim() !== ''
+                ? String(order_number).trim().slice(0, 200)
+                : '';
         db.run(
-            `INSERT INTO pending_items (user_id, reference, product, quantity, current_stage, est_completion, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO pending_items (user_id, reference, product, quantity, current_stage, est_completion, notes, order_number)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [targetUserId, reference, product, quantity || 1,
-             current_stage || 'Initial Inspection', est_completion || '', notes || '']
+             current_stage || 'Initial Inspection', est_completion || '', notes || '', onum]
         );
         saveDb();
 
@@ -94,7 +100,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
         const row = assertPendingAccess(db, req, req.params.id);
         if (row === null) return res.status(404).json({ error: 'Item not found' });
         if (row === false) return res.status(403).json({ error: 'Not authorized' });
-        res.json({ item: row });
+        res.json({ item: clientIsAdmin(req) ? row : redactOrderNumberForClientRow(row) });
     } catch (err) {
         console.error('Get pending item error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -135,22 +141,33 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (row === null) return res.status(404).json({ error: 'Item not found' });
         if (row === false) return res.status(403).json({ error: 'Not authorized' });
 
-        const { reference, product, quantity, current_stage, est_completion, notes } = req.body;
+        const { reference, product, quantity, current_stage, est_completion, notes, order_number } = req.body;
         const ref = reference !== undefined ? String(reference || '').trim() : row.reference;
         const prod = product !== undefined ? String(product || '').trim() : row.product;
         const qty = quantity != null ? Math.max(1, parseInt(quantity, 10) || 1) : row.quantity;
         const stage = current_stage != null && PENDING_STAGES.includes(current_stage) ? current_stage : row.current_stage;
         const est = est_completion !== undefined ? String(est_completion || '').trim() : row.est_completion;
         const note = notes !== undefined ? String(notes || '').trim() : row.notes;
+        const orderUpd =
+            clientIsAdmin(req) && Object.prototype.hasOwnProperty.call(req.body, 'order_number')
+                ? String(order_number == null ? '' : order_number).trim().slice(0, 200)
+                : null;
 
         if (!prod) {
             return res.status(400).json({ error: 'Product is required' });
         }
 
-        db.run(
-            'UPDATE pending_items SET reference = ?, product = ?, quantity = ?, current_stage = ?, est_completion = ?, notes = ? WHERE id = ?',
-            [ref, prod, qty, stage, est, note, req.params.id]
-        );
+        if (orderUpd !== null) {
+            db.run(
+                'UPDATE pending_items SET reference = ?, product = ?, quantity = ?, current_stage = ?, est_completion = ?, notes = ?, order_number = ? WHERE id = ?',
+                [ref, prod, qty, stage, est, note, orderUpd, req.params.id]
+            );
+        } else {
+            db.run(
+                'UPDATE pending_items SET reference = ?, product = ?, quantity = ?, current_stage = ?, est_completion = ?, notes = ? WHERE id = ?',
+                [ref, prod, qty, stage, est, note, req.params.id]
+            );
+        }
         saveDb();
         res.json({ message: 'Pending item updated' });
     } catch (err) {

@@ -4,7 +4,8 @@
 const XLSX = require('xlsx');
 const { saveDb, pushActivity } = require('../database');
 
-const MAX_ROWS = 500;
+/** Large multi-client marketplace sheets (e.g. eBay exports) — keep bounded for sql.js memory. */
+const MAX_ROWS = 15000;
 
 const PENDING_STAGES = ['Initial Inspection', 'Quality Check', 'Return Verification', 'Listing', 'Ready for Sale'];
 const REIMB_TYPES = [
@@ -41,6 +42,9 @@ const CLIENT_SPECIFIER_KEYS = [
     'old_client_id',
     'oldclientid',
     'clientid',
+    'dashboard_client_id',
+    'ebay_client_id',
+    'client_code',
 ];
 
 function aliasKey(k) {
@@ -66,6 +70,10 @@ function aliasKey(k) {
         pkg_id: 'package_id',
         amount: 'amount',
         item_name: 'product',
+        item_nam: 'product',
+        order_no: 'order_number',
+        order_num: 'order_number',
+        orderid: 'order_number',
     };
     return m[k] || k;
 }
@@ -152,8 +160,11 @@ function lookupUserBrief(db, userId) {
 
 function summarizeRow(kind, row) {
     switch (kind) {
-        case 'sold':
-            return str(row.product) || '(product)';
+        case 'sold': {
+            const p = str(row.product) || '(product)';
+            const o = str(row.order_number);
+            return o ? p + ' (order ' + o + ')' : p;
+        }
         case 'received':
             return (str(row.reference) || '(ref)') + ' — ' + (str(row.items_description).slice(0, 60) || '(desc)');
         case 'pending':
@@ -206,7 +217,7 @@ function normalizeSoldDateForDb(v) {
     return null;
 }
 
-/** @returns {{ reference: string, product: string, qty: number, soldDateParam: string|null, unit: number, total: number, profit: number, margin: number }} */
+/** @returns {{ reference: string, product: string, qty: number, soldDateParam: string|null, unit: number, total: number, profit: number, margin: number, orderNumber: string }} */
 function parseSoldRowFields(row) {
     const product = str(row.product);
     if (!product) throw new Error('item name (product) is required');
@@ -237,16 +248,17 @@ function parseSoldRowFields(row) {
         profit = num(row.profit, 0);
         margin = num(row.margin, 0);
     }
-    return { reference, product, qty, soldDateParam, unit, total, profit, margin };
+    const orderNumber = str(row.order_number).slice(0, 200);
+    return { reference, product, qty, soldDateParam, unit, total, profit, margin, orderNumber };
 }
 
 function importSoldRow(db, userId, row) {
-    const { reference, product, qty, soldDateParam, unit, total, profit, margin } = parseSoldRowFields(row);
+    const { reference, product, qty, soldDateParam, unit, total, profit, margin, orderNumber } = parseSoldRowFields(row);
 
     db.run(
-        `INSERT INTO sold_items (user_id, reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
-        [userId, reference, product, qty, unit, total, profit, margin, soldDateParam]
+        `INSERT INTO sold_items (user_id, reference, product, quantity, unit_price, total_revenue, profit, margin, sold_date, order_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?)`,
+        [userId, reference, product, qty, unit, total, profit, margin, soldDateParam, orderNumber]
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     const amount = total || unit * qty;
@@ -265,13 +277,14 @@ function importReceivedRow(db, userId, row) {
     if (!reference || !desc) throw new Error('reference and items_description are required');
     const qty = Math.max(1, parseInt(row.quantity, 10) || 1);
     const notes = str(row.notes);
+    const onum = str(row.order_number).slice(0, 200);
     const pkgMatch = parseResults(
         db.exec('SELECT id FROM packages WHERE user_id = ? AND reference = ? LIMIT 1', [userId, reference.slice(0, 255)])
     );
     const packageId = pkgMatch[0] ? pkgMatch[0].id : null;
     db.run(
-        'INSERT INTO received_items (user_id, package_id, reference, items_description, quantity, notes) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, packageId, reference.slice(0, 255), desc.slice(0, 1000), qty, notes.slice(0, 2000)]
+        'INSERT INTO received_items (user_id, package_id, reference, items_description, quantity, notes, order_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [userId, packageId, reference.slice(0, 255), desc.slice(0, 1000), qty, notes.slice(0, 2000), onum]
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     const msg = 'Package received: ' + reference + (desc ? ' – ' + desc.slice(0, 80) : '');
@@ -295,10 +308,11 @@ function importPendingRow(db, userId, row) {
     }
     const est = str(row.est_completion);
     const notes = str(row.notes);
+    const onum = str(row.order_number).slice(0, 200);
     db.run(
-        `INSERT INTO pending_items (user_id, reference, product, quantity, current_stage, est_completion, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [userId, reference, product, qty, stage, est, notes]
+        `INSERT INTO pending_items (user_id, reference, product, quantity, current_stage, est_completion, notes, order_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, reference, product, qty, stage, est, notes, onum]
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     const msg = 'Item added to pending: ' + (product || reference || '');
@@ -329,7 +343,16 @@ function importMarkDeliveredRow(db, userId, row) {
     }
     const statusRows = parseResults(db.exec('SELECT status FROM packages WHERE id = ?', [pkg.id]));
     const previousStatus = statusRows[0] && statusRows[0].status ? String(statusRows[0].status) : 'In Transit';
-    db.run(`UPDATE packages SET status = ?, updated_at = datetime('now') WHERE id = ?`, ['Delivered', pkg.id]);
+    const onum = str(row.order_number).slice(0, 200);
+    if (onum) {
+        db.run(`UPDATE packages SET status = ?, updated_at = datetime('now'), order_number = ? WHERE id = ?`, [
+            'Delivered',
+            onum,
+            pkg.id,
+        ]);
+    } else {
+        db.run(`UPDATE packages SET status = ?, updated_at = datetime('now') WHERE id = ?`, ['Delivered', pkg.id]);
+    }
     const msg = 'Package ' + (pkg.reference || '') + ' marked as delivered';
     return {
         id: pkg.id,
@@ -349,9 +372,10 @@ function importReimbursementRow(db, userId, row) {
         reimbType = f || 'Damaged Inventory';
     }
     const notes = str(row.notes);
+    const onum = str(row.order_number).slice(0, 200);
     db.run(
-        'INSERT INTO reimbursement_claims (user_id, package_reference, item_description, reimbursement_type, notes) VALUES (?, ?, ?, ?, ?)',
-        [userId, packageReference, itemDescription, reimbType, notes]
+        'INSERT INTO reimbursement_claims (user_id, package_reference, item_description, reimbursement_type, notes, order_number) VALUES (?, ?, ?, ?, ?, ?)',
+        [userId, packageReference, itemDescription, reimbType, notes, onum]
     );
     const claimId = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     return {
@@ -374,11 +398,24 @@ function importReturnAdjustmentRow(db, userId, row) {
     if (!product || !Number.isFinite(amount) || amount <= 0) throw new Error('product and a positive amount are required');
     const reference = str(row.reference);
     const notes = str(row.notes);
+    const onum = str(row.order_number).slice(0, 200);
     const status = str(row.status).toLowerCase() === 'pending' ? 'pending' : 'applied';
     let linkedSoldItemId = null;
     if (row.linked_sold_item_id != null && row.linked_sold_item_id !== '') {
         const parsed = parseInt(row.linked_sold_item_id, 10);
         if (Number.isFinite(parsed)) linkedSoldItemId = parsed;
+    }
+    if (!linkedSoldItemId && onum) {
+        const matchByOn = parseResults(
+            db.exec(
+                `SELECT id FROM sold_items
+                 WHERE user_id = ? AND order_number = ?
+                 ORDER BY sold_date DESC, id DESC
+                 LIMIT 1`,
+                [userId, onum]
+            )
+        );
+        if (matchByOn.length) linkedSoldItemId = matchByOn[0].id;
     }
     if (!linkedSoldItemId && reference) {
         const match = parseResults(
@@ -393,9 +430,9 @@ function importReturnAdjustmentRow(db, userId, row) {
         if (match.length) linkedSoldItemId = match[0].id;
     }
     db.run(
-        `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [userId, product, reference, amount, linkedSoldItemId, status, notes]
+        `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes, order_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, product, reference, amount, linkedSoldItemId, status, notes, onum]
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     if (status === 'applied') {
@@ -773,32 +810,32 @@ function templateSheetAoA(kind, options = {}) {
     const multi = !!(options && options.multi);
     const T = {
         sold: [
-            ['sold_date', 'item_name', 'quantity', 'earnings'],
-            ['2026-03-01', 'Widget A', 1, 29.99],
+            ['sold_date', 'order_number', 'item_name', 'quantity', 'earnings'],
+            ['2026-03-01', 'ORD-1001', 'Widget A', 1, 29.99],
         ],
         received: [
-            ['reference', 'items_description', 'quantity', 'notes'],
-            ['TRACK-001', 'Cable x2', 2, ''],
+            ['reference', 'order_number', 'items_description', 'quantity', 'notes'],
+            ['TRACK-001', 'ORD-1001', 'Cable x2', 2, ''],
         ],
         pending: [
-            ['reference', 'product', 'quantity', 'current_stage', 'est_completion', 'notes'],
-            ['TRACK-001', 'Widget', 1, 'Listing', '2026-04-15', ''],
+            ['reference', 'order_number', 'product', 'quantity', 'current_stage', 'est_completion', 'notes'],
+            ['TRACK-001', 'ORD-1001', 'Widget', 1, 'Listing', '2026-04-15', ''],
         ],
         mark_delivered: [
-            ['reference', 'package_id'],
-            ['TRACK-001', ''],
+            ['reference', 'package_id', 'order_number'],
+            ['TRACK-001', '', 'ORD-1001'],
         ],
         reimbursement: [
-            ['package_reference', 'item_description', 'reimbursement_type', 'notes'],
-            ['TRACK-001', 'Damaged unit', 'Damaged Inventory', ''],
+            ['package_reference', 'order_number', 'item_description', 'reimbursement_type', 'notes'],
+            ['TRACK-001', 'ORD-1001', 'Damaged unit', 'Damaged Inventory', ''],
         ],
         return_adjustment: [
-            ['product', 'amount', 'reference', 'linked_sold_item_id', 'notes', 'status'],
-            ['Returned cable', 12.5, 'REF-1', '', '', 'applied'],
+            ['order_number', 'product', 'amount', 'reference', 'linked_sold_item_id', 'notes', 'status'],
+            ['ORD-1001', 'Returned cable', 12.5, 'REF-1', '', '', 'applied'],
         ],
         refunds: [
-            ['product', 'amount', 'reference', 'linked_sold_item_id', 'notes', 'status'],
-            ['Returned cable', 12.5, 'REF-1', '', '', 'applied'],
+            ['order_number', 'product', 'amount', 'reference', 'linked_sold_item_id', 'notes', 'status'],
+            ['ORD-1001', 'Returned cable', 12.5, 'REF-1', '', '', 'applied'],
         ],
     };
     const base = T[kind] || null;

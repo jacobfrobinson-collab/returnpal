@@ -1,3 +1,3 @@
-client_id,sold_date,item_name,quantity,earnings
-0014,2026-04-01,Example sale for client 0014,1,30.00
-0020,2026-04-01,Example sale for client 0020,2,45.00
+client_id,sold_date,order_number,item_name,quantity,earnings
+0014,2026-04-01,ORD-1001,Example sale for client 0014,1,30.00
+0020,2026-04-01,ORD-2001,Example sale for client 0020,2,45.00

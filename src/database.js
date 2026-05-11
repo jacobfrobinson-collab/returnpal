@@ -110,6 +110,7 @@ async function getDb() {
             notes TEXT DEFAULT '',
             date_added TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
+            order_number TEXT DEFAULT '',
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     `);
@@ -149,6 +150,7 @@ async function getDb() {
             status TEXT DEFAULT 'Processing' CHECK(status IN ('Processing', 'Processed', 'Quality Check', 'Rejected')),
             notes TEXT DEFAULT '',
             date_received TEXT DEFAULT (datetime('now')),
+            order_number TEXT DEFAULT '',
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     `);
@@ -166,6 +168,7 @@ async function getDb() {
             margin REAL DEFAULT 0,
             sold_date TEXT DEFAULT (datetime('now')),
             status TEXT DEFAULT 'Completed' CHECK(status IN ('Completed', 'Pending', 'Refunded')),
+            order_number TEXT DEFAULT '',
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     `);
@@ -181,6 +184,7 @@ async function getDb() {
             current_stage TEXT DEFAULT 'Initial Inspection' CHECK(current_stage IN ('Initial Inspection', 'Quality Check', 'Return Verification', 'Listing', 'Ready for Sale')),
             est_completion TEXT,
             notes TEXT DEFAULT '',
+            order_number TEXT DEFAULT '',
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     `);
@@ -234,6 +238,7 @@ async function getDb() {
             reimbursement_type TEXT DEFAULT '',
             notes TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now')),
+            order_number TEXT DEFAULT '',
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     `);
@@ -259,6 +264,7 @@ async function getDb() {
             status TEXT DEFAULT 'pending' CHECK(status IN ('pending','applied')),
             notes TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now')),
+            order_number TEXT DEFAULT '',
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     `);
@@ -300,11 +306,28 @@ async function getDb() {
         // ignore migration errors on empty DB
     }
 
+    const orderNumberAlters = [
+        "ALTER TABLE packages ADD COLUMN order_number TEXT DEFAULT ''",
+        "ALTER TABLE received_items ADD COLUMN order_number TEXT DEFAULT ''",
+        "ALTER TABLE sold_items ADD COLUMN order_number TEXT DEFAULT ''",
+        "ALTER TABLE pending_items ADD COLUMN order_number TEXT DEFAULT ''",
+        "ALTER TABLE reimbursement_claims ADD COLUMN order_number TEXT DEFAULT ''",
+        "ALTER TABLE return_adjustments ADD COLUMN order_number TEXT DEFAULT ''",
+    ];
+    for (const sql of orderNumberAlters) {
+        try {
+            db.run(sql);
+        } catch (e) {
+            // Column already exists
+        }
+    }
+
     // Create indexes
     db.run('CREATE INDEX IF NOT EXISTS idx_packages_user ON packages(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_received_user ON received_items(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_received_package ON received_items(package_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_sold_user ON sold_items(user_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_sold_user_order_num ON sold_items(user_id, order_number)');
     db.run('CREATE INDEX IF NOT EXISTS idx_pending_user ON pending_items(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_activities_user ON activities(user_id)');

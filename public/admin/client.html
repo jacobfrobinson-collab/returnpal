@@ -31,7 +31,7 @@
             <div class="col-lg-8">
                 <div class="section-card alert alert-info border-0 py-3 mb-0">
                     <strong>Bulk spreadsheet imports</strong> (sales, received, pending, refunds, multi-client files, templates, preview, and undo) are on the
-                    <a href="/admin/index.html#bulk-import-spreadsheet" class="alert-link" id="link-bulk-upload-home">Clients home page</a>.
+                    <a href="/admin/index.html?all_client_sales=1#bulk-import-spreadsheet" class="alert-link" id="link-bulk-upload-home">Clients home page</a>.
                     Open this client there under <strong>Apply to client</strong> for single-file uploads, or use a multi-client spreadsheet with Client ID per row.
                 </div>
                 <div class="section-card card">
@@ -71,7 +71,7 @@
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th style="width:36px"><input type="checkbox" id="packages-select-all" aria-label="Select all packages"></th><th>Reference</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="packages-select-all" aria-label="Select all packages"></th><th>Reference</th><th>Order #</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="packages-tbody"></tbody>
                             </table>
                         </div>
@@ -104,7 +104,7 @@
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th style="width:36px"><input type="checkbox" id="received-select-all" aria-label="Select all received"></th><th>Reference</th><th>Items</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="received-select-all" aria-label="Select all received"></th><th>Reference</th><th>Order #</th><th>Items</th><th>Status</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="received-tbody"></tbody>
                             </table>
                         </div>
@@ -129,7 +129,7 @@
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th style="width:36px"><input type="checkbox" id="sold-select-all" aria-label="Select all sales"></th><th>Sold Date</th><th>Item name</th><th>Quantity</th><th>Earnings</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="sold-select-all" aria-label="Select all sales"></th><th>Sold Date</th><th>Order #</th><th>Item name</th><th>Quantity</th><th>Earnings</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="sold-tbody"></tbody>
                             </table>
                         </div>
@@ -172,7 +172,7 @@
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th style="width:36px"><input type="checkbox" id="pending-select-all" aria-label="Select all pending"></th><th>Product</th><th>Stage</th><th>Est. completion</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="pending-select-all" aria-label="Select all pending"></th><th>Order #</th><th>Product</th><th>Stage</th><th>Est. completion</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="pending-tbody"></tbody>
                             </table>
                         </div>
@@ -200,7 +200,7 @@
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th style="width:36px"><input type="checkbox" id="reimb-select-all" aria-label="Select all reimbursement claims"></th><th>Package ref</th><th>Item</th><th>Type</th><th>Photos</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="reimb-select-all" aria-label="Select all reimbursement claims"></th><th>Package ref</th><th>Order #</th><th>Item</th><th>Type</th><th>Photos</th><th>Date</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="reimbursement-tbody"></tbody>
                             </table>
                         </div>
@@ -275,6 +275,7 @@
                         </select>
                     </div>
                     <div class="mb-2"><label class="form-label">Reference</label><input type="text" class="form-control" id="checkin-reference" placeholder="e.g. TRACK-123" /></div>
+                    <div class="mb-2"><label class="form-label">Order #</label><input type="text" class="form-control" id="checkin-order-number" placeholder="e.g. Amazon order id (internal only)" /></div>
                     <div class="mb-2"><label class="form-label">Items description</label><input type="text" class="form-control" id="checkin-items" placeholder="e.g. iPhone case x2, Cable x1" /></div>
                     <div class="mb-2"><label class="form-label">Quantity</label><input type="number" class="form-control" id="checkin-qty" value="1" min="1" /></div>
                     <div class="mb-2"><label class="form-label">Notes</label><input type="text" class="form-control" id="checkin-notes" /></div>
@@ -294,6 +295,7 @@
                 <div class="modal-body">
                     <input type="hidden" id="sale-edit-id" value="" />
                     <div class="mb-2"><label class="form-label">Sold Date</label><input type="date" class="form-control" id="sale-sold-date" /></div>
+                    <div class="mb-2"><label class="form-label">Order #</label><input type="text" class="form-control" id="sale-order-number" placeholder="e.g. marketplace order id" /></div>
                     <div class="mb-2"><label class="form-label">Item name</label><input type="text" class="form-control" id="sale-product" placeholder="Product name" /></div>
                     <div class="mb-2"><label class="form-label">Quantity</label><input type="number" class="form-control" id="sale-qty" value="1" min="1" /></div>
                     <div class="mb-2"><label class="form-label">Earnings (£)</label><input type="number" step="0.01" class="form-control" id="sale-earnings" placeholder="29.74" /></div>
@@ -313,6 +315,7 @@
                 <div class="modal-body">
                     <input type="hidden" id="pending-edit-id" value="" />
                     <div class="mb-2"><label class="form-label">Reference</label><input type="text" class="form-control" id="pending-reference" placeholder="e.g. TRACK-123" /></div>
+                    <div class="mb-2"><label class="form-label">Order #</label><input type="text" class="form-control" id="pending-order-number" placeholder="Optional" /></div>
                     <div class="mb-2"><label class="form-label">Product</label><input type="text" class="form-control" id="pending-product" placeholder="Product name" /></div>
                     <div class="mb-2"><label class="form-label">Quantity</label><input type="number" class="form-control" id="pending-qty" value="1" min="1" /></div>
                     <div class="mb-2"><label class="form-label">Current stage</label>
@@ -348,6 +351,7 @@
                         <input type="text" class="form-control mt-1" id="reimb-package-reference-text" placeholder="Or enter reference e.g. TRACK-123" />
                     </div>
                     <div class="mb-2"><label class="form-label">Item description</label><input type="text" class="form-control" id="reimb-item-description" placeholder="e.g. Damaged widget, FNSKU xyz" /></div>
+                    <div class="mb-2"><label class="form-label">Order #</label><input type="text" class="form-control" id="reimb-order-number" placeholder="Optional" /></div>
                     <div class="mb-2">
                         <label class="form-label">Reimbursement type</label>
                         <select class="form-select" id="reimb-type">
@@ -379,6 +383,7 @@
                 <div class="modal-body">
                     <input type="hidden" id="package-edit-id" value="" />
                     <div class="mb-2"><label class="form-label">Reference</label><input type="text" class="form-control" id="package-edit-reference" /></div>
+                    <div class="mb-2"><label class="form-label">Order #</label><input type="text" class="form-control" id="package-edit-order-number" placeholder="Optional" /></div>
                     <div class="mb-2"><label class="form-label">Status</label>
                         <select class="form-select" id="package-edit-status">
                             <option value="In Transit">In Transit</option>
@@ -405,6 +410,7 @@
                 <div class="modal-body">
                     <input type="hidden" id="reimb-edit-id" value="" />
                     <div class="mb-2"><label class="form-label">Package reference</label><input type="text" class="form-control" id="reimb-edit-package-reference" /></div>
+                    <div class="mb-2"><label class="form-label">Order #</label><input type="text" class="form-control" id="reimb-edit-order-number" placeholder="Optional" /></div>
                     <div class="mb-2"><label class="form-label">Item description</label><input type="text" class="form-control" id="reimb-edit-item-description" /></div>
                     <div class="mb-2">
                         <label class="form-label">Reimbursement type</label>
@@ -468,7 +474,7 @@
             $('#checkin-modal-title').text('Check in items (received)');
             $('#checkin-btn-label').text('Check in');
             $('#checkin-status-row').addClass('d-none');
-            $('#checkin-reference, #checkin-items, #checkin-notes').val('');
+            $('#checkin-reference, #checkin-items, #checkin-notes, #checkin-order-number').val('');
             $('#checkin-qty').val(1);
             $('#checkin-status').val('Processing');
         }
@@ -690,7 +696,7 @@
                     var isDelivered = p.status === 'Delivered';
                     var checked = selectedPackageIds.has(String(p.id)) ? ' checked' : '';
                     var checkboxHtml = '<input type="checkbox" class="package-select form-check-input m-0" data-id="' + p.id + '"' + checked + ' aria-label="Select package ' + refEsc + '">';
-                    $tr.append('<td class="text-center">' + checkboxHtml + '</td><td>' + refEsc + '</td><td><span class="badge bg-secondary">' + escapeHtml(p.status || '') + '</span></td><td>' + fmtDate(p.date_added) + '</td>');
+                    $tr.append('<td class="text-center">' + checkboxHtml + '</td><td>' + refEsc + '</td><td class="text-muted small">' + escapeHtml(p.order_number || '') + '</td><td><span class="badge bg-secondary">' + escapeHtml(p.status || '') + '</span></td><td>' + fmtDate(p.date_added) + '</td>');
                     var $tdAct = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm" role="group"></div>');
                     if (!isDelivered) {
@@ -700,6 +706,7 @@
                     $edit.on('click', function() {
                         $('#package-edit-id').val(p.id);
                         $('#package-edit-reference').val(ref);
+                        $('#package-edit-order-number').val(p.order_number || '');
                         $('#package-edit-status').val(p.status || 'In Transit');
                         $('#package-edit-notes').val(p.notes || '');
                         new bootstrap.Modal(document.getElementById('modal-edit-package')).show();
@@ -714,10 +721,10 @@
                     $tr.append($tdAct);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">No packages</td></tr>');
+                if (list.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">No packages</td></tr>');
                 updatePackageSelectionUi();
             }).catch(function() {
-                $('#packages-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>');
+                $('#packages-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load</td></tr>');
                 updatePackageSelectionUi();
             });
         }
@@ -737,13 +744,14 @@
                     var idStr = String(c.id);
                     var chk = selectedReimbIds.has(idStr) ? ' checked' : '';
                     $tr.append('<td class="text-center"><input type="checkbox" class="reimb-select form-check-input m-0" data-id="' + c.id + '"' + chk + ' /></td>');
-                    $tr.append('<td>' + escapeHtml(c.package_reference || '') + '</td><td>' + escapeHtml(c.item_description || '') + '</td><td><span class="badge bg-info">' + escapeHtml(c.reimbursement_type || '') + '</span></td><td>' + photoLinks + '</td><td>' + fmtDate(c.created_at) + '</td>');
+                    $tr.append('<td>' + escapeHtml(c.package_reference || '') + '</td><td class="text-muted small">' + escapeHtml(c.order_number || '') + '</td><td>' + escapeHtml(c.item_description || '') + '</td><td><span class="badge bg-info">' + escapeHtml(c.reimbursement_type || '') + '</span></td><td>' + photoLinks + '</td><td>' + fmtDate(c.created_at) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
                     var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
                     $ed.on('click', function() {
                         $('#reimb-edit-id').val(c.id);
                         $('#reimb-edit-package-reference').val(c.package_reference || '');
+                        $('#reimb-edit-order-number').val(c.order_number || '');
                         $('#reimb-edit-item-description').val(c.item_description || '');
                         $('#reimb-edit-type').val(c.reimbursement_type || 'Destroyed Inventory');
                         $('#reimb-edit-notes').val(c.notes || '');
@@ -759,10 +767,10 @@
                     $tr.append($td);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="7" class="text-muted">None</td></tr>');
+                if (list.length === 0) $tb.append('<tr><td colspan="8" class="text-muted">None</td></tr>');
                 updateReimbSelectionUi();
             }).catch(function() {
-                $('#reimbursement-tbody').html('<tr><td colspan="7" class="text-danger">Failed to load</td></tr>');
+                $('#reimbursement-tbody').html('<tr><td colspan="8" class="text-danger">Failed to load</td></tr>');
                 updateReimbSelectionUi();
             });
         }
@@ -778,7 +786,7 @@
                     var idStr = String(r.id);
                     var chk = selectedReceivedIds.has(idStr) ? ' checked' : '';
                     $tr.append('<td class="text-center"><input type="checkbox" class="received-select form-check-input m-0" data-id="' + r.id + '"' + chk + ' /></td>');
-                    $tr.append('<td>' + escapeHtml(r.reference || '') + '</td><td>' + escapeHtml(r.items_description || '') + '</td><td>' + escapeHtml(r.status || '') + '</td><td>' + fmtDate(r.date_received) + '</td>');
+                    $tr.append('<td>' + escapeHtml(r.reference || '') + '</td><td class="text-muted small">' + escapeHtml(r.order_number || '') + '</td><td>' + escapeHtml(r.items_description || '') + '</td><td>' + escapeHtml(r.status || '') + '</td><td>' + fmtDate(r.date_received) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
                     var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
@@ -788,6 +796,7 @@
                         $('#checkin-btn-label').text('Save');
                         $('#checkin-status-row').removeClass('d-none');
                         $('#checkin-reference').val(r.reference || '');
+                        $('#checkin-order-number').val(r.order_number || '');
                         $('#checkin-items').val(r.items_description || '');
                         $('#checkin-qty').val(r.quantity || 1);
                         $('#checkin-notes').val(r.notes || '');
@@ -804,10 +813,10 @@
                     $tr.append($td);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">None</td></tr>');
+                if (list.length === 0) $tb.append('<tr><td colspan="7" class="text-muted">None</td></tr>');
                 updateReceivedSelectionUi();
             }).catch(function() {
-                $('#received-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load</td></tr>');
+                $('#received-tbody').html('<tr><td colspan="7" class="text-danger">Failed to load</td></tr>');
                 updateReceivedSelectionUi();
             });
         }
@@ -824,7 +833,7 @@
                     var idStr = String(s.id);
                     var chk = selectedSoldIds.has(idStr) ? ' checked' : '';
                     $tr.append('<td class="text-center"><input type="checkbox" class="sold-select form-check-input m-0" data-id="' + s.id + '"' + chk + ' /></td>');
-                    $tr.append('<td>' + fmtDate(s.sold_date) + '</td><td>' + escapeHtml(s.product || '') + '</td><td>' + escapeHtml(String(s.quantity != null ? s.quantity : '')) + '</td><td>£' + earn.toFixed(2) + '</td>');
+                    $tr.append('<td>' + fmtDate(s.sold_date) + '</td><td class="text-muted small">' + escapeHtml(s.order_number || '') + '</td><td>' + escapeHtml(s.product || '') + '</td><td>' + escapeHtml(String(s.quantity != null ? s.quantity : '')) + '</td><td>£' + earn.toFixed(2) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
                     var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
@@ -836,6 +845,7 @@
                         $('#sale-qty').val(s.quantity || 1);
                         $('#sale-earnings').val(earn.toFixed(2));
                         $('#sale-sold-date').val(toDateInputVal(s.sold_date));
+                        $('#sale-order-number').val(s.order_number || '');
                         new bootstrap.Modal(document.getElementById('modal-record-sale')).show();
                     });
                     var $rm = $('<button type="button" class="btn btn-outline-danger">Delete</button>');
@@ -848,10 +858,10 @@
                     $tr.append($td);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">None</td></tr>');
+                if (list.length === 0) $tb.append('<tr><td colspan="7" class="text-muted">None</td></tr>');
                 updateSoldSelectionUi();
             }).catch(function() {
-                $('#sold-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load</td></tr>');
+                $('#sold-tbody').html('<tr><td colspan="7" class="text-danger">Failed to load</td></tr>');
                 updateSoldSelectionUi();
             });
         }
@@ -871,7 +881,7 @@
                     var idStr = String(p.id);
                     var chk = selectedPendingIds.has(idStr) ? ' checked' : '';
                     $tr.append('<td class="text-center"><input type="checkbox" class="pending-select form-check-input m-0" data-id="' + p.id + '"' + chk + ' /></td>');
-                    $tr.append('<td>' + escapeHtml(p.product || '') + '</td><td>' + escapeHtml(p.current_stage || '') + '</td><td>' + fmtDate(p.est_completion) + '</td>');
+                    $tr.append('<td class="text-muted small">' + escapeHtml(p.order_number || '') + '</td><td>' + escapeHtml(p.product || '') + '</td><td>' + escapeHtml(p.current_stage || '') + '</td><td>' + fmtDate(p.est_completion) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
                     var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
@@ -880,6 +890,7 @@
                         $('#pending-modal-title').text('Edit pending item');
                         $('#pending-btn-label').text('Save');
                         $('#pending-reference').val(p.reference || '');
+                        $('#pending-order-number').val(p.order_number || '');
                         $('#pending-product').val(p.product || '');
                         $('#pending-qty').val(p.quantity || 1);
                         $('#pending-stage').val(p.current_stage || 'Initial Inspection');
@@ -897,10 +908,10 @@
                     $tr.append($td);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="5" class="text-muted">None</td></tr>');
+                if (list.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">None</td></tr>');
                 updatePendingSelectionUi();
             }).catch(function() {
-                $('#pending-tbody').html('<tr><td colspan="5" class="text-danger">Failed to load</td></tr>');
+                $('#pending-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load</td></tr>');
                 updatePendingSelectionUi();
             });
         }
@@ -1209,8 +1220,9 @@
             var editId = $('#checkin-edit-id').val();
             var qty = parseInt($('#checkin-qty').val(), 10) || 1;
             var notes = $('#checkin-notes').val().trim();
+            var oNum = $('#checkin-order-number').val().trim();
             if (editId) {
-                var body = { reference: ref, items_description: items, quantity: qty, notes: notes, status: $('#checkin-status').val() };
+                var body = { reference: ref, items_description: items, quantity: qty, notes: notes, status: $('#checkin-status').val(), order_number: oNum };
                 API.request('/received/' + editId, { method: 'PUT', body: body })
                     .then(function() {
                         bootstrap.Modal.getInstance(document.getElementById('modal-checkin')).hide();
@@ -1219,7 +1231,7 @@
                     })
                     .catch(function(e) { alert(e.error || 'Failed'); });
             } else {
-                API.request('/received', { method: 'POST', body: { user_id: parseInt(clientId, 10), reference: ref, items_description: items, quantity: qty, notes: notes } })
+                API.request('/received', { method: 'POST', body: { user_id: parseInt(clientId, 10), reference: ref, items_description: items, quantity: qty, notes: notes, order_number: oNum } })
                     .then(function() {
                         bootstrap.Modal.getInstance(document.getElementById('modal-checkin')).hide();
                         resetCheckinForNew();
@@ -1240,7 +1252,7 @@
             $('#sale-edit-id').val('');
             $('#sale-modal-title').text('Record sale');
             $('#sale-btn-label').text('Record sale');
-            $('#sale-product').val('');
+            $('#sale-order-number, #sale-product').val('');
             $('#sale-qty').val(1);
             $('#sale-earnings').val('');
             $('#sale-sold-date').val(todayISODate());
@@ -1265,8 +1277,9 @@
             if (!product) return alert('Item name required');
             if (!Number.isFinite(earnings)) return alert('Earnings required (valid number)');
             var editId = $('#sale-edit-id').val();
+            var saleOn = ($('#sale-order-number').val() || '').trim();
             if (editId) {
-                var b = { product: product, quantity: qty, earnings: earnings };
+                var b = { product: product, quantity: qty, earnings: earnings, order_number: saleOn };
                 if (soldDate) b.sold_date = soldDate;
                 API.request('/sold/' + editId, { method: 'PUT', body: b })
                     .then(function() {
@@ -1276,7 +1289,7 @@
                     })
                     .catch(function(e) { alert(e.error || 'Failed'); });
             } else {
-                var body = { user_id: parseInt(clientId, 10), product: product, quantity: qty, earnings: earnings };
+                var body = { user_id: parseInt(clientId, 10), product: product, quantity: qty, earnings: earnings, order_number: saleOn };
                 if (soldDate) body.sold_date = soldDate;
                 API.request('/sold', { method: 'POST', body: body })
                     .then(function() {
@@ -1292,7 +1305,7 @@
             $('#pending-edit-id').val('');
             $('#pending-modal-title').text('Add pending item');
             $('#pending-btn-label').text('Add');
-            $('#pending-product, #pending-reference, #pending-est, #pending-notes').val('');
+            $('#pending-product, #pending-reference, #pending-est, #pending-notes, #pending-order-number').val('');
             $('#pending-qty').val(1);
             $('#pending-stage').val('Initial Inspection');
         }
@@ -1319,7 +1332,8 @@
                 quantity: parseInt($('#pending-qty').val(), 10) || 1,
                 current_stage: $('#pending-stage').val(),
                 est_completion: $('#pending-est').val().trim(),
-                notes: $('#pending-notes').val().trim()
+                notes: $('#pending-notes').val().trim(),
+                order_number: $('#pending-order-number').val().trim()
             };
             if (editId) {
                 API.request('/pending/' + editId, { method: 'PUT', body: common })
@@ -1349,7 +1363,8 @@
                 body: {
                     reference: $('#package-edit-reference').val().trim(),
                     status: $('#package-edit-status').val(),
-                    notes: $('#package-edit-notes').val().trim()
+                    notes: $('#package-edit-notes').val().trim(),
+                    order_number: $('#package-edit-order-number').val().trim()
                 }
             })
                 .then(function() {
@@ -1366,6 +1381,7 @@
                 method: 'PUT',
                 body: {
                     package_reference: $('#reimb-edit-package-reference').val().trim(),
+                    order_number: $('#reimb-edit-order-number').val().trim(),
                     item_description: $('#reimb-edit-item-description').val().trim(),
                     reimbursement_type: $('#reimb-edit-type').val(),
                     notes: $('#reimb-edit-notes').val().trim()
@@ -1389,12 +1405,13 @@
             form.append('item_description', itemDesc);
             form.append('reimbursement_type', $('#reimb-type').val());
             form.append('notes', $('#reimb-notes').val().trim());
+            form.append('order_number', $('#reimb-order-number').val().trim());
             for (var i = 0; i < files.length; i++) form.append('photos', files[i]);
             var $btn = $('#btn-add-reimbursement').prop('disabled', true);
             API.request('/admin/reimbursement-claims', { method: 'POST', body: form })
                 .then(function() {
                     bootstrap.Modal.getInstance(document.getElementById('modal-add-reimbursement')).hide();
-                    $('#reimb-package-reference-text, #reimb-item-description, #reimb-notes').val(''); document.getElementById('reimb-photos').value = '';
+                    $('#reimb-package-reference-text, #reimb-item-description, #reimb-notes, #reimb-order-number').val(''); document.getElementById('reimb-photos').value = '';
                     refreshAll();
                 })
                 .catch(function(e) { alert(e.error || 'Failed'); })
@@ -1432,9 +1449,9 @@
             else if (filt === 'delivered') list = list.filter(function(p) { return p.status === 'Delivered'; });
             downloadCsv(
                 'client-' + clientId + '-packages.csv',
-                ['Reference', 'Status', 'Date added', 'Notes'],
+                ['Reference', 'Order #', 'Status', 'Date added', 'Notes'],
                 list.map(function(p) {
-                    return [p.reference || '', p.status || '', p.date_added || '', p.notes || ''];
+                    return [p.reference || '', p.order_number || '', p.status || '', p.date_added || '', p.notes || ''];
                 })
             );
         });
@@ -1442,10 +1459,11 @@
             var list = window._adminReceivedList || [];
             downloadCsv(
                 'client-' + clientId + '-received.csv',
-                ['Reference', 'Items', 'Status', 'Quantity', 'Date received', 'Notes'],
+                ['Reference', 'Order #', 'Items', 'Status', 'Quantity', 'Date received', 'Notes'],
                 list.map(function(r) {
                     return [
                         r.reference || '',
+                        r.order_number || '',
                         r.items_description || '',
                         r.status || '',
                         r.quantity != null ? r.quantity : '',
@@ -1459,10 +1477,10 @@
             var list = window._adminSoldList || [];
             downloadCsv(
                 'client-' + clientId + '-sold.csv',
-                ['Sold date', 'Product', 'Quantity', 'Earnings', 'Reference'],
+                ['Sold date', 'Order #', 'Product', 'Quantity', 'Earnings', 'Reference'],
                 list.map(function(s) {
                     var earn = Number(s.profit != null ? s.profit : 0);
-                    return [s.sold_date || '', s.product || '', s.quantity != null ? s.quantity : '', earn.toFixed(2), s.reference || ''];
+                    return [s.sold_date || '', s.order_number || '', s.product || '', s.quantity != null ? s.quantity : '', earn.toFixed(2), s.reference || ''];
                 })
             );
         });
@@ -1472,9 +1490,10 @@
             if (pf !== 'all') list = list.filter(function(p) { return (p.current_stage || '') === pf; });
             downloadCsv(
                 'client-' + clientId + '-pending.csv',
-                ['Product', 'Stage', 'Est completion', 'Reference', 'Quantity', 'Notes'],
+                ['Order #', 'Product', 'Stage', 'Est completion', 'Reference', 'Quantity', 'Notes'],
                 list.map(function(p) {
                     return [
+                        p.order_number || '',
                         p.product || '',
                         p.current_stage || '',
                         p.est_completion || '',
@@ -1489,9 +1508,9 @@
             var list = window._adminReimbList || [];
             downloadCsv(
                 'client-' + clientId + '-reimbursement.csv',
-                ['Package ref', 'Item', 'Type', 'Notes', 'Created'],
+                ['Package ref', 'Order #', 'Item', 'Type', 'Notes', 'Created'],
                 list.map(function(c) {
-                    return [c.package_reference || '', c.item_description || '', c.reimbursement_type || '', c.notes || '', c.created_at || ''];
+                    return [c.package_reference || '', c.order_number || '', c.item_description || '', c.reimbursement_type || '', c.notes || '', c.created_at || ''];
                 })
             );
         });

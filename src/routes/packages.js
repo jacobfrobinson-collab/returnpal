@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 
 const router = express.Router();
 
@@ -33,8 +34,8 @@ router.get('/', authMiddleware, async (req, res) => {
         }
 
         const inTransitCount = packages.filter(p => p.status === 'In Transit').length;
-
-        res.json({ packages, in_transit_count: inTransitCount, total: packages.length });
+        const packagesOut = clientIsAdmin(req) ? packages : redactOrderNumberForClientRows(packages);
+        res.json({ packages: packagesOut, in_transit_count: inTransitCount, total: packagesOut.length });
     } catch (err) {
         console.error('Get packages error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -58,8 +59,8 @@ router.get('/:id', authMiddleware, async (req, res) => {
             db.exec('SELECT * FROM package_products WHERE package_id = ?', [pkg.id])
         );
         pkg.total_qty = pkg.products.reduce((sum, p) => sum + p.quantity, 0);
-
-        res.json({ package: pkg });
+        const pkgOut = clientIsAdmin(req) ? pkg : redactOrderNumberForClientRow(pkg);
+        res.json({ package: pkgOut });
     } catch (err) {
         console.error('Get package error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -80,7 +81,7 @@ router.post('/', authMiddleware, [
         }
 
         const db = await getDb();
-        const { reference, products, notes, user_id } = req.body;
+        const { reference, products, notes, user_id, order_number } = req.body;
 
         let targetUserId = user_id != null ? parseInt(user_id, 10) : req.user.id;
         if (targetUserId !== req.user.id && !req.user.is_admin) {
@@ -88,9 +89,13 @@ router.post('/', authMiddleware, [
         }
         if (isNaN(targetUserId)) targetUserId = req.user.id;
 
+        const onum =
+            clientIsAdmin(req) && order_number != null && String(order_number).trim() !== ''
+                ? String(order_number).trim().slice(0, 200)
+                : '';
         db.run(
-            'INSERT INTO packages (user_id, reference, notes) VALUES (?, ?, ?)',
-            [targetUserId, reference, notes || '']
+            'INSERT INTO packages (user_id, reference, notes, order_number) VALUES (?, ?, ?, ?)',
+            [targetUserId, reference, notes || '', onum]
         );
 
         const pkgResult = db.exec('SELECT last_insert_rowid() as id');
@@ -145,6 +150,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (reference !== undefined && reference !== null) { updates.push('reference = ?'); params.push(String(reference).trim() || pkg.reference); }
         if (notes !== undefined) { updates.push('notes = ?'); params.push(notes); }
         if (status) { updates.push('status = ?'); params.push(status); }
+        if (clientIsAdmin(req) && Object.prototype.hasOwnProperty.call(req.body, 'order_number')) {
+            updates.push('order_number = ?');
+            params.push(String(order_number == null ? '' : order_number).trim().slice(0, 200));
+        }
         updates.push("updated_at = datetime('now')");
         params.push(req.params.id);
 

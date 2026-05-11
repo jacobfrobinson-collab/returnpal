@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 
 const router = express.Router();
 
@@ -30,7 +31,8 @@ router.get('/claims', async (req, res) => {
             );
             c.photos = photos;
         }
-        res.json({ claims });
+        const out = clientIsAdmin(req) ? claims : redactOrderNumberForClientRows(claims);
+        res.json({ claims: out });
     } catch (err) {
         console.error('Reimbursement list error:', err);
         res.status(500).json({ error: 'Server error' });

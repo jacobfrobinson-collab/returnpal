@@ -41,6 +41,13 @@
                 <button type="button" class="btn btn-sm btn-outline-primary" id="bulk-import-template-btn">Download template</button>
             </div>
             <div class="card-body">
+                <div class="alert alert-info py-2 px-3 small mb-3" role="region" aria-label="Marketplace orders upload">
+                    <div class="fw-semibold mb-1">Marketplace / eBay — all clients in one file</div>
+                    <p class="mb-2">Upload a <strong>.csv</strong> or <strong>.xlsx</strong> where each row is one sale. The <strong>Client ID</strong> column must match either the client’s <strong>dashboard ID</strong> (e.g. <code>14</code> or <code>0014</code>) or their <strong>Old Client ID</strong> from the table below (e.g. <code>AC</code>, <code>SM</code>). Matching rows are saved as <strong>sales</strong> on that client’s dashboard immediately (visible after refresh).</p>
+                    <p class="mb-2 text-muted mb-0">Columns: <code>Client ID</code> (or <code>Old Client ID</code> / <code>legacy_client_id</code>), <code>sold_date</code> (YYYY-MM-DD), <code>item_name</code>, <code>quantity</code>, <code>earnings</code>. Optional: <code>order_number</code>.</p>
+                    <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-marketplace-sales-setup">Use marketplace sales upload</button>
+                    <span class="text-muted ms-2">Sets <strong>Record sales</strong> + <strong>Multi-client file</strong>, then scrolls here.</span>
+                </div>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="bulk-import-multi" />
                     <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the list below); rows are applied to that client’s dashboard.</label>
@@ -208,8 +215,14 @@
                 $sel.append($('<option></option>').attr('value', String(id)).text(label));
             });
             if (prev && $sel.find('option[value="' + prev + '"]').length) $sel.val(prev);
-            var bc = new URLSearchParams(window.location.search || '').get('bulk_client');
-            if (bc && $sel.find('option[value="' + bc + '"]').length) {
+            var sp = new URLSearchParams(window.location.search || '');
+            var marketplace = sp.get('all_client_sales') === '1' || sp.get('marketplace_orders') === '1';
+            var bc = sp.get('bulk_client');
+            if (marketplace) {
+                $('#bulk-import-kind').val('sold');
+                document.getElementById('bulk-import-multi').checked = true;
+                syncBulkImportMultiUi();
+            } else if (bc && $sel.find('option[value="' + bc + '"]').length) {
                 $sel.val(bc);
                 document.getElementById('bulk-import-multi').checked = false;
                 syncBulkImportMultiUi();
@@ -317,7 +330,8 @@
             }
             $('#admin-table-wrap').removeClass('d-none');
             populateBulkImportClientSelect(users);
-            if (window.location.hash === '#bulk-import-spreadsheet') {
+            var q = new URLSearchParams(window.location.search || '');
+            if (window.location.hash === '#bulk-import-spreadsheet' || q.get('all_client_sales') === '1' || q.get('marketplace_orders') === '1') {
                 setTimeout(function() {
                     var el = document.getElementById('bulk-import-spreadsheet');
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -401,6 +415,20 @@
                     btn.text('Save').prop('disabled', false);
                 });
         });
+
+        function prepareMarketplaceSalesUpload() {
+            $('#bulk-import-kind').val('sold');
+            document.getElementById('bulk-import-multi').checked = true;
+            syncBulkImportMultiUi();
+            var el = document.getElementById('bulk-import-spreadsheet');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setTimeout(function() {
+                var f = document.getElementById('bulk-import-file');
+                if (f) f.focus();
+            }, 400);
+        }
+
+        $('#btn-marketplace-sales-setup').on('click', prepareMarketplaceSalesUpload);
 
         $('#bulk-import-multi').on('change', syncBulkImportMultiUi);
         syncBulkImportMultiUi();
