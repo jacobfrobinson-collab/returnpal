@@ -186,7 +186,10 @@ function pad2(n) {
 }
 
 /**
- * Normalize sold_date from spreadsheet to YYYY-MM-DD (UK dd/mm/yyyy first).
+ * Normalize sold_date from spreadsheet to YYYY-MM-DD.
+ * UK-first: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (day before month when both parts ≤ 12).
+ * If the middle value is > 12, treat as M/D/Y (e.g. 03/25/2026 → 25 Mar) so the date is still valid.
+ * Also accepts YYYY-MM-DD, YYYY/MM/DD, Excel serial, Date objects, and "5 Feb 2026" style.
  * @param {unknown} v
  * @returns {string|null}
  */
@@ -202,18 +205,79 @@ function normalizeSoldDateForDb(v) {
     if (v instanceof Date && !isNaN(v.getTime())) {
         return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate());
     }
-    const s0 = str(v).split(/[T ]/)[0];
+    let s0 = str(v).replace(/^\uFEFF/, '').trim();
+    s0 = s0.split(/[T ]/)[0].trim();
+    const serialStr = s0.match(/^(\d{5,6})(?:\.0+)?$/);
+    if (serialStr) {
+        const sn = parseInt(serialStr[1], 10);
+        if (sn > 20000 && sn < 120000) {
+            const epochMs = Date.UTC(1899, 11, 30) + sn * 86400000;
+            const d = new Date(epochMs);
+            if (!isNaN(d.getTime())) {
+                return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+            }
+        }
+    }
     const iso = s0.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (iso) return s0;
-    const uk = s0.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
-    if (uk) {
-        const day = parseInt(uk[1], 10);
-        const mo = parseInt(uk[2], 10);
-        const y = parseInt(uk[3], 10);
-        if (mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
+
+    const ymd = s0.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/);
+    if (ymd) {
+        const y = parseInt(ymd[1], 10);
+        const mo = parseInt(ymd[2], 10);
+        const day = parseInt(ymd[3], 10);
+        if (y >= 1900 && y <= 2100 && mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
             return y + '-' + pad2(mo) + '-' + pad2(day);
         }
     }
+
+    const dmy = s0.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+    if (dmy) {
+        const a = parseInt(dmy[1], 10);
+        const b = parseInt(dmy[2], 10);
+        const y = parseInt(dmy[3], 10);
+        let day;
+        let mo;
+        if (b > 12) {
+            mo = a;
+            day = b;
+        } else if (a > 12) {
+            day = a;
+            mo = b;
+        } else {
+            day = a;
+            mo = b;
+        }
+        if (y >= 1900 && y <= 2100 && mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
+            return y + '-' + pad2(mo) + '-' + pad2(day);
+        }
+    }
+
+    const MONTHS = {
+        jan: 1,
+        feb: 2,
+        mar: 3,
+        apr: 4,
+        may: 5,
+        jun: 6,
+        jul: 7,
+        aug: 8,
+        sep: 9,
+        oct: 10,
+        nov: 11,
+        dec: 12,
+    };
+    const txt = s0.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/);
+    if (txt) {
+        const day = parseInt(txt[1], 10);
+        const monKey = txt[2].toLowerCase().slice(0, 3);
+        const mo = MONTHS[monKey];
+        const y = parseInt(txt[3], 10);
+        if (mo && y >= 1900 && y <= 2100 && day >= 1 && day <= 31) {
+            return y + '-' + pad2(mo) + '-' + pad2(day);
+        }
+    }
+
     return null;
 }
 
@@ -640,7 +704,9 @@ function previewBulkImport(db, opts) {
         }
         const warnings = [];
         if (kind === 'sold' && dataRow.sold_date != null && dataRow.sold_date !== '' && !normalizeSoldDateForDb(dataRow.sold_date)) {
-            warnings.push('sold_date not recognised; if imported, today’s date will be used');
+            warnings.push(
+                'sold_date not recognised (use UK DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, or e.g. 5 Feb 2026); if imported, today’s date will be used'
+            );
         }
         try {
             dryValidateRow(db, kind, effUser, dataRow);
