@@ -1477,10 +1477,12 @@
             var list = window._adminSoldList || [];
             downloadCsv(
                 'client-' + clientId + '-sold.csv',
-                ['Sold date', 'Order #', 'Product', 'Quantity', 'Earnings', 'Reference'],
+                ['Sold date (YYYY-MM-DD)', 'Order #', 'Product', 'Quantity', 'Earnings', 'Reference'],
                 list.map(function(s) {
                     var earn = Number(s.profit != null ? s.profit : 0);
-                    return [s.sold_date || '', s.order_number || '', s.product || '', s.quantity != null ? s.quantity : '', earn.toFixed(2), s.reference || ''];
+                    var sd = RP_DATE.formatIso(s.sold_date);
+                    if (sd === '-') sd = String(s.sold_date || '');
+                    return [sd, s.order_number || '', s.product || '', s.quantity != null ? s.quantity : '', earn.toFixed(2), s.reference || ''];
                 })
             );
         });

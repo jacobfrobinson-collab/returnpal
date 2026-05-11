@@ -1,6 +1,6 @@
 /**
  * UK date handling: parse with UK-first rules; display as en-GB (e.g. 12 Apr 2026) so dates
- * are never mistaken for US mm/dd. Use formatNumeric() for dd/mm/yyyy (e.g. CSV).
+ * are never mistaken for US mm/dd. Use formatNumeric() for dd/mm/yyyy, formatIso() for YYYY-MM-DD (CSV/Excel).
  * Slashed inputs like 10/08/2025 default to day/month/year (UK).
  * If both parts are ≤ 12 (e.g. 04/12/2026), set window.RETURNPAL_AMBIGUOUS_DATE_ORDER = 'MDY'
  * before this script for US month/day (matches server RETURNPAL_AMBIGUOUS_DATE_ORDER).
@@ -119,6 +119,16 @@
 
     /**
      * @param {unknown} input
+     * @returns {string} YYYY-MM-DD (unambiguous for Excel/Sheets) or '-'
+     */
+    function formatIso(input) {
+        const d = parse(input);
+        if (!d) return '-';
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    }
+
+    /**
+     * @param {unknown} input
      * @returns {string} e.g. 10 Aug 2025 (same as format, empty string if missing)
      */
     function formatShortMonth(input) {
@@ -149,6 +159,7 @@
         parse: parse,
         format: format,
         formatNumeric: formatNumeric,
+        formatIso: formatIso,
         formatShortMonth: formatShortMonth,
         formatLongMonth: formatLongMonth,
         getTime: getTime

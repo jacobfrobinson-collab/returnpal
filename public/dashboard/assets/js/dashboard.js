@@ -457,6 +457,7 @@ const Dashboard = {
         $('#sold-recovery-filter').on('change', () => this.loadSold());
         $('#sold-search').on('input', () => this.loadSold());
         $('#sold-search-by').on('change', () => this.loadSold());
+        $('#sold-export-csv').off('click').on('click', () => this.exportSoldItemsCsv());
         $('#pending-recovery-filter').on('change', () => this.loadPending());
         $('#pending-search').on('input', () => this.loadPending());
         $('#pending-search-by').on('change', () => this.loadPending());
@@ -728,6 +729,12 @@ const Dashboard = {
     formatDateNumeric(dateStr) {
         if (!dateStr) return '-';
         return RP_DATE.formatNumeric(dateStr);
+    },
+
+    /** YYYY-MM-DD for CSV / Excel (avoids US vs UK mis-reading of numeric dates). */
+    formatDateIso(dateStr) {
+        if (!dateStr) return '-';
+        return RP_DATE.formatIso(dateStr);
     },
 
     // ─── Helper: status badge (design token colors) ───────────
@@ -2556,12 +2563,12 @@ const Dashboard = {
     exportInvoicesCsv() {
         const monthly = window._lastInvoicesData || [];
         const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        const rows = [['Period', 'Date issued', 'Payout date', 'Amount', 'Items', 'Status']];
+        const rows = [['Period', 'Date issued (YYYY-MM-DD)', 'Payout date (YYYY-MM-DD)', 'Amount', 'Items', 'Status']];
         monthly.forEach(m => {
             rows.push([
                 monthNames[m.month] + ' ' + m.year,
-                this.formatDateNumeric(m.date_issued),
-                this.formatDateNumeric(m.payout_date),
+                this.formatDateIso(m.date_issued),
+                this.formatDateIso(m.payout_date),
                 '£' + Number(m.amount).toFixed(2),
                 m.items_count,
                 m.status || ''
@@ -2581,11 +2588,11 @@ const Dashboard = {
         const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
         const vatNumber = localStorage.getItem('returnpal_vat_number') || '';
         let csv = 'ReturnPal - Invoice summary for accountant\n';
-        csv += 'Exported: ' + new Date().toISOString().slice(0, 10) + '\n';
+        csv += 'Exported: ' + this.formatDateIso(new Date()) + '\n';
         if (vatNumber) csv += 'VAT number: ' + vatNumber + '\n';
-        csv += '\nPeriod,Date issued,Payout date,Amount (£),VAT (£),Items,Status\n';
+        csv += '\nPeriod,Date issued (YYYY-MM-DD),Payout date (YYYY-MM-DD),Amount (£),VAT (£),Items,Status\n';
         monthly.forEach(m => {
-            csv += '"' + (monthNames[m.month] + ' ' + m.year) + '",' + this.formatDateNumeric(m.date_issued) + ',' + this.formatDateNumeric(m.payout_date) + ',' + Number(m.amount).toFixed(2) + ',' + Number(m.vat_amount || 0).toFixed(2) + ',' + m.items_count + ',"' + (m.status || '') + '"\n';
+            csv += '"' + (monthNames[m.month] + ' ' + m.year) + '",' + this.formatDateIso(m.date_issued) + ',' + this.formatDateIso(m.payout_date) + ',' + Number(m.amount).toFixed(2) + ',' + Number(m.vat_amount || 0).toFixed(2) + ',' + m.items_count + ',"' + (m.status || '') + '"\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
@@ -2597,10 +2604,10 @@ const Dashboard = {
     exportInvoicesXero() {
         const monthly = window._lastInvoicesData || [];
         const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        let csv = '*Date,*Amount,*Description\n';
+        let csv = '*Date (YYYY-MM-DD),*Amount,*Description\n';
         monthly.forEach(m => {
             const label = monthNames[m.month] + ' ' + m.year + ' - ReturnPal recovery';
-            csv += this.formatDateNumeric(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '"\n';
+            csv += this.formatDateIso(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '"\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
@@ -2612,10 +2619,10 @@ const Dashboard = {
     exportInvoicesQuickBooks() {
         const monthly = window._lastInvoicesData || [];
         const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        let csv = 'Date,Amount,Description,Memo\n';
+        let csv = 'Date (YYYY-MM-DD),Amount,Description,Memo\n';
         monthly.forEach(m => {
             const label = monthNames[m.month] + ' ' + m.year + ' - ReturnPal recovery';
-            csv += this.formatDateNumeric(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '","Returns recovery payout"\n';
+            csv += this.formatDateIso(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '","Returns recovery payout"\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
@@ -2623,6 +2630,36 @@ const Dashboard = {
         a.download = 'returnpal-quickbooks-' + new Date().toISOString().slice(0, 10) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
+    },
+    exportSoldItemsCsv() {
+        const items = this._soldListFiltered;
+        if (!items || !items.length) {
+            this.showToast('No sold items to export.', 'error');
+            return;
+        }
+        const escCell = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+        const rows = [['Sold date (YYYY-MM-DD)', 'Item name', 'Quantity', 'Gross earnings (£)', 'Returns deducted (£)', 'Net after returns (£)']];
+        items.forEach((item) => {
+            const gross = Number(item.profit != null ? item.profit : 0);
+            const ret = Number(item.returns_deducted != null ? item.returns_deducted : 0);
+            const net = Number(item.net_after_returns != null ? item.net_after_returns : gross - ret);
+            rows.push([
+                this.formatDateIso(item.sold_date),
+                item.product || '',
+                String(item.quantity != null ? item.quantity : ''),
+                gross.toFixed(2),
+                ret > 0 ? ret.toFixed(2) : '',
+                net.toFixed(2)
+            ]);
+        });
+        const csv = rows.map((r) => r.map((c) => escCell(c)).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'returnpal-sold-items-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        this.showToast('Sold items CSV downloaded');
     },
     async downloadInvoiceMonth(period) {
         try {
