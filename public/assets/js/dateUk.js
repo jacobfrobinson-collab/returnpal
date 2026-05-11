@@ -1,12 +1,20 @@
 /**
  * UK date handling: parse and display as dd/mm/yyyy.
- * Slashed dates like 10/08/2025 are interpreted as day/month/year (not US month/day).
+ * Slashed dates like 10/08/2025 default to day/month/year (UK).
+ * If both parts are ≤ 12 (e.g. 04/12/2026), set window.RETURNPAL_AMBIGUOUS_DATE_ORDER = 'MDY'
+ * before this script to treat as US month/day (matches server RETURNPAL_AMBIGUOUS_DATE_ORDER).
  */
 (function (w) {
     'use strict';
 
     function pad2(n) {
         return String(n).padStart(2, '0');
+    }
+
+    function ambiguousSlashOrderMdy() {
+        return String(w.RETURNPAL_AMBIGUOUS_DATE_ORDER || '')
+            .trim()
+            .toUpperCase() === 'MDY';
     }
 
     /**
@@ -33,9 +41,24 @@
 
         m = head.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
         if (m) {
-            const day = parseInt(m[1], 10);
-            const mo = parseInt(m[2], 10);
+            const a = parseInt(m[1], 10);
+            const b = parseInt(m[2], 10);
             const y = parseInt(m[3], 10);
+            let mo;
+            let day;
+            if (b > 12) {
+                mo = a;
+                day = b;
+            } else if (a > 12) {
+                day = a;
+                mo = b;
+            } else if (ambiguousSlashOrderMdy()) {
+                mo = a;
+                day = b;
+            } else {
+                day = a;
+                mo = b;
+            }
             if (mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
                 const dt = new Date(y, mo - 1, day);
                 return isNaN(dt.getTime()) ? null : dt;
@@ -44,10 +67,25 @@
 
         m = head.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{2})$/);
         if (m) {
-            const day = parseInt(m[1], 10);
-            const mo = parseInt(m[2], 10);
+            const a = parseInt(m[1], 10);
+            const b = parseInt(m[2], 10);
             let y = parseInt(m[3], 10);
             y += y >= 70 ? 1900 : 2000;
+            let mo;
+            let day;
+            if (b > 12) {
+                mo = a;
+                day = b;
+            } else if (a > 12) {
+                day = a;
+                mo = b;
+            } else if (ambiguousSlashOrderMdy()) {
+                mo = a;
+                day = b;
+            } else {
+                day = a;
+                mo = b;
+            }
             if (mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
                 const dt = new Date(y, mo - 1, day);
                 return isNaN(dt.getTime()) ? null : dt;

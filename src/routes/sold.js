@@ -3,6 +3,7 @@ const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
+const { normalizeSoldDateForDb } = require('../utils/adminBulkImport');
 
 const router = express.Router();
 
@@ -156,8 +157,10 @@ router.post('/', authMiddleware, async (req, res) => {
             u = qty ? earningsNum / qty : 0;
             m = 0;
         }
-        const soldDateStr =
+        const soldRaw =
             sold_date != null && String(sold_date).trim() !== '' ? String(sold_date).trim() : null;
+        const soldNorm = soldRaw ? normalizeSoldDateForDb(soldRaw) : null;
+        const soldDateStr = soldNorm != null ? soldNorm : soldRaw;
         const orderNumber =
             clientIsAdmin(req) && order_number != null && String(order_number).trim() !== ''
                 ? String(order_number).trim().slice(0, 200)
@@ -238,8 +241,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
         const prod = product != null ? String(product).trim() : row.product;
         let soldDateVal;
         if (sold_date !== undefined) {
-            soldDateVal =
-                sold_date != null && String(sold_date).trim() !== '' ? String(sold_date).trim() : row.sold_date;
+            const raw =
+                sold_date != null && String(sold_date).trim() !== '' ? String(sold_date).trim() : '';
+            if (raw) {
+                const n = normalizeSoldDateForDb(raw);
+                soldDateVal = n != null ? n : raw;
+            } else {
+                soldDateVal = row.sold_date;
+            }
         } else {
             soldDateVal = row.sold_date;
         }

@@ -267,10 +267,23 @@ function preprocessSoldDateString(s) {
 }
 
 /**
+ * When a slash/dash date has both numeric parts ≤ 12 (e.g. 04/12/2026), order is ambiguous.
+ * DMY: 04/12/2026 → 4 Dec (UK). MDY: 04/12/2026 → 12 Apr (US / many eBay exports).
+ * @returns {'DMY' | 'MDY'}
+ */
+function ambiguousSlashDateOrder() {
+    const v = String(process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER || 'DMY')
+        .trim()
+        .toUpperCase();
+    return v === 'MDY' ? 'MDY' : 'DMY';
+}
+
+/**
  * Normalize sold_date from spreadsheet to YYYY-MM-DD.
- * UK-first: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (day before month when both parts ≤ 12).
+ * UK-first by default: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (day before month when both parts ≤ 12).
  * If the middle value is > 12, treat as M/D/Y (e.g. 03/25/2026 → 25 Mar) so the date is still valid.
- * Also accepts two-digit years (e.g. 1/15/26, 15/1/26) with the same UK-first rules.
+ * Also accepts two-digit years (e.g. 1/15/26, 15/1/26) with the same rules.
+ * Set process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER=MDY if ambiguous dates are month/day (US style).
  * @param {unknown} v
  * @returns {string|null}
  */
@@ -331,6 +344,9 @@ function normalizeSoldDateForDb(v) {
         } else if (a > 12) {
             day = a;
             mo = b;
+        } else if (ambiguousSlashDateOrder() === 'MDY') {
+            mo = a;
+            day = b;
         } else {
             day = a;
             mo = b;
@@ -354,6 +370,9 @@ function normalizeSoldDateForDb(v) {
             } else if (a > 12) {
                 day = a;
                 mo = b;
+            } else if (ambiguousSlashDateOrder() === 'MDY') {
+                mo = a;
+                day = b;
             } else {
                 day = a;
                 mo = b;
