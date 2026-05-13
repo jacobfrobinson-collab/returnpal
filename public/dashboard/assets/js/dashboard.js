@@ -720,14 +720,15 @@ const Dashboard = {
         }
     },
 
-    /** Sales month column: first day of that month as a full readable date (e.g. April 1st 2026). */
+    /** Sales month column only: e.g. "April 2026" (no day — statement is for the whole calendar month). */
     formatStatementPeriodLabel(ymKey) {
         if (!ymKey || !/^\d{4}-\d{2}$/.test(String(ymKey))) return '-';
         const parts = String(ymKey).split('-').map(Number);
         const y = parts[0];
         const mo = parts[1];
         if (!y || !mo || mo < 1 || mo > 12) return '-';
-        return RP_DATE.formatOrdinalEnGb(y + '-' + String(mo).padStart(2, '0') + '-01');
+        const d = new Date(y, mo - 1, 1);
+        return d.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
     },
 
     // ─── Helper: human-readable calendar date (e.g. May 1st 2026). CSV / APIs use formatDateIso. ──
