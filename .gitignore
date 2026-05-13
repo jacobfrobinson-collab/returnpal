@@ -9,3 +9,50 @@ uploads/
 *-missing-order-links.csv
 .ebay-list-audit-downloads/
 .orders-sync-state.json
+
+# Local env inside script subfolders
+scripts/auction-valuation/.env
+
+# IDE / local browser profiles
+.cursor/
+.ebay-chrome-profile/
+.ebay-payout-checkpoint.json
+
+# Local logs and one-off dumps at repo root
+debug*.log
+roat-mining-ocr-diag.csv
+farming-vision-templates/
+
+# Python
+scripts/__pycache__/
+
+# Roat / PKZ / calibration / trading-post (not ReturnPal product code)
+scripts/roat-*
+scripts/calibration-*
+scripts/trading-post-*
+scripts/recorded-script-*
+scripts/farming-*
+scripts/roat-failshots/
+
+# eBay payout bot run outputs (timestamped); keep source .js / .example when committed
+scripts/ebay-payout-debug/
+scripts/ebay-payout-*Z.csv
+scripts/ebay-payout-*Z.json
+
+# John Pye valuation run caches and exports
+scripts/john-pye-actuals.json
+scripts/john-pye-run.json
+scripts/john-pye-valuation-cache.json
+scripts/john-pye-rank-test*
+scripts/john-pye-ranked-20*
+scripts/john-pye-lot-photos-*.json
+
+# Local scratch scripts (not the tracked ReturnPal converter)
+scripts/_gen-order-details-read.js
+scripts/click-script-recorder.py
+scripts/universal-listed-buy.py
+scripts/run-calibration-input-player.cmd
+scripts/run-calibration-input-player.ps1
+scripts/ebay-order-details-read.js
+scripts/pallet-comp-pricing.js
+scripts/debug-*.log
