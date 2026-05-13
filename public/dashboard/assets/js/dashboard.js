@@ -6,6 +6,49 @@
 
 /* global RP_DATE */
 
+/**
+ * Normalise product title for invoice print merging (fee suffix, NBSP, curly apostrophes).
+ * @param {string} s
+ */
+function rpNormalizeInvoiceLineTitle(s) {
+    return String(s || '')
+        .replace(/\u00a0/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .replace(/[\u2019\u2018\u201b\u2032]/g, "'")
+        .replace(/\s*Fee waived\s*$/i, '')
+        .trim();
+}
+
+/**
+ * Merge printable invoice rows by normalised product title (case-insensitive).
+ * File-level so print flow never depends on `this` binding.
+ * @param {Array<{ description?: string, quantity?: unknown, amount?: unknown }>} lineItems
+ */
+function rpConsolidateInvoiceLineItemsForPrint(lineItems) {
+    const list = Array.isArray(lineItems) ? lineItems : [];
+    const byKey = new Map();
+    let anon = 0;
+    for (const i of list) {
+        const raw = rpNormalizeInvoiceLineTitle(i.description || '');
+        const key = raw ? raw.toLowerCase() : '__nodesc_' + anon++;
+        const qty = Number(i.quantity) || 1;
+        const netPerUnit = Number(i.amount || 0);
+        const lineTotal = netPerUnit * qty;
+        if (!byKey.has(key)) {
+            byKey.set(key, { description: raw || 'Item', totalQty: 0, sumAmount: 0 });
+        }
+        const b = byKey.get(key);
+        b.totalQty += qty;
+        b.sumAmount += lineTotal;
+    }
+    return Array.from(byKey.values()).map((b) => ({
+        description: b.description,
+        quantity: b.totalQty,
+        amount: b.totalQty > 0 ? b.sumAmount / b.totalQty : 0
+    }));
+}
+
 const Dashboard = {
     getClientIdFromToken() {
         try {
@@ -2205,7 +2248,7 @@ const Dashboard = {
             });
             $tbody.find('.invoice-download-btn').on('click', function() {
                 const period = $(this).data('period');
-                if (period) Dashboard.downloadInvoiceMonth(period);
+                if (period) Dashboard.downloadInvoiceMonth.call(Dashboard, period);
             });
         } catch(err) {
             console.error('Load invoices error:', err);
@@ -2721,35 +2764,6 @@ const Dashboard = {
         a.click();
         URL.revokeObjectURL(a.href);
     },
-    /**
-     * Merge printable invoice rows by product title (trimmed, case-insensitive).
-     * Quantity and amount columns are totals; price shows weighted-average net per unit.
-     */
-    consolidateInvoiceLineItemsForPrint(lineItems) {
-        const list = Array.isArray(lineItems) ? lineItems : [];
-        const byKey = new Map();
-        for (const i of list) {
-            const raw = String(i.description || '')
-                .trim()
-                .replace(/\s+/g, ' ');
-            const key = raw.toLowerCase();
-            const qty = Number(i.quantity) || 1;
-            const netPerUnit = Number(i.amount || 0);
-            const lineTotal = netPerUnit * qty;
-            if (!byKey.has(key)) {
-                byKey.set(key, { description: raw || 'Item', totalQty: 0, sumAmount: 0 });
-            }
-            const b = byKey.get(key);
-            b.totalQty += qty;
-            b.sumAmount += lineTotal;
-        }
-        return Array.from(byKey.values()).map((b) => ({
-            description: b.description,
-            quantity: b.totalQty,
-            amount: b.totalQty > 0 ? b.sumAmount / b.totalQty : 0
-        }));
-    },
-
     exportSoldItemsCsv() {
         const items = this._soldListFiltered;
         if (!items || !items.length) {
@@ -2788,18 +2802,20 @@ const Dashboard = {
                 data.period_label ||
                 (Number.isFinite(y) && Number.isFinite(m) ? y + '-' + String(m).padStart(2, '0') + '-01' : period);
             const periodDisplay =
-                /^\d{4}-\d{2}$/.test(String(period || '').trim()) ? this.formatStatementPeriodLabel(String(period).trim()) : this.formatDateUK(periodLabel);
+                /^\d{4}-\d{2}$/.test(String(period || '').trim())
+                    ? Dashboard.formatStatementPeriodLabel(String(period).trim())
+                    : Dashboard.formatDateUK(periodLabel);
 
             const today = new Date();
             const [iy, im] = period.split('-').map(Number);
             const invoiceDate = data.date_issued
-                ? this.formatDateUK(data.date_issued)
-                : this.formatDateUK(today);
+                ? Dashboard.formatDateUK(data.date_issued)
+                : Dashboard.formatDateUK(today);
             const dueDate = data.due_date
-                ? this.formatDateUK(data.due_date)
+                ? Dashboard.formatDateUK(data.due_date)
                 : Number.isFinite(iy) && Number.isFinite(im)
-                    ? this.formatDateUK(new Date(iy, im + 1, 0))
-                    : this.formatDateUK(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+                    ? Dashboard.formatDateUK(new Date(iy, im + 1, 0))
+                    : Dashboard.formatDateUK(new Date(today.getFullYear(), today.getMonth() + 1, 0));
 
             let invoiceNum = sessionStorage.getItem('returnpal_invoice_num_' + period);
             if (!invoiceNum) {
@@ -2812,7 +2828,7 @@ const Dashboard = {
             const isVatRegistered = !!vatNumber;
             const lineItemsRaw = data.line_items || [];
             const subtotalNet = lineItemsRaw.reduce((s, i) => s + (Number(i.amount || 0) * (Number(i.quantity) || 1)), 0);
-            const lineItemsForTable = this.consolidateInvoiceLineItemsForPrint(lineItemsRaw);
+            const lineItemsForTable = rpConsolidateInvoiceLineItemsForPrint(lineItemsRaw);
             const vatAmount = isVatRegistered ? (subtotalNet * 0.2) : 0;
             const totalGBP = isVatRegistered ? (subtotalNet + vatAmount) : (subtotalNet * 0.8);
             let amountDue = totalGBP;
@@ -2913,7 +2929,7 @@ const Dashboard = {
             setTimeout(() => { w.print(); }, 250);
         } catch (err) {
             console.error('Download invoice error:', err);
-            alert(err.error || 'Unable to load invoice.');
+            alert(err.error || err.message || 'Unable to load invoice.');
         }
     },
     formatDateUK(d) {

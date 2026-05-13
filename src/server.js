@@ -87,6 +87,18 @@ app.get(/^\/admin\/[^/]+\.html$/, (req, res, next) => {
     res.sendFile(full);
 });
 
+// Dashboard bundled scripts: no-store so invoice/print UI updates are not stuck behind disk cache
+app.get(/^\/dashboard\/assets\/js\/[\w.-]+\.js$/, (req, res, next) => {
+    if (req.path.includes('..')) return next();
+    const rel = req.path.replace(/^\/+/, '');
+    const full = path.resolve(path.join(__dirname, '../public', rel));
+    const pub = path.resolve(path.join(__dirname, '../public'));
+    if (!full.startsWith(pub + path.sep) && full !== pub) return next();
+    if (!fs.existsSync(full)) return next();
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.sendFile(full);
+});
+
 // ─── Static Files (serve frontend) ──────────────────────────
 // Serve the main frontend
 app.use(express.static(path.join(__dirname, '../public')));
