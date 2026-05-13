@@ -720,7 +720,7 @@ const Dashboard = {
         }
     },
 
-    // ─── Helper: format date as YYYY-MM-DD (same as spreadsheets / invoices; see RP_DATE.formatNumeric for dd/mm/yyyy) ──
+    // ─── Helper: format date as YYYY-MM-DD (RP_DATE; local calendar — never UTC slice) ──
     formatDate(dateStr) {
         if (!dateStr) return '-';
         return RP_DATE.formatIso(dateStr);
@@ -735,6 +735,25 @@ const Dashboard = {
     formatDateIso(dateStr) {
         if (!dateStr) return '-';
         return RP_DATE.formatIso(dateStr);
+    },
+
+    /**
+     * Normalised YYYY-MM-DD for sold rows (API may send sold_date_display; optional window repair on client).
+     */
+    _soldDateRepairedIso(item) {
+        if (item.sold_date_display) return RP_DATE.formatIso(item.sold_date_display);
+        let iso = RP_DATE.formatIso(item.sold_date);
+        if (iso === '-') return '-';
+        if (String(typeof window !== 'undefined' ? window.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO : '').trim() === '1') {
+            const m = iso.match(/^(\d{4})-12-(0[2-9]|1[01])$/);
+            if (m) iso = m[1] + '-' + m[2] + '-12';
+        }
+        return iso;
+    },
+
+    soldDateDisplayValue(item) {
+        const iso = this._soldDateRepairedIso(item);
+        return iso === '-' ? this.formatDate(item.sold_date) : this.formatDate(iso);
     },
 
     // ─── Helper: status badge (design token colors) ───────────
@@ -1063,7 +1082,7 @@ const Dashboard = {
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'returnpal-overview-' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.download = 'returnpal-overview-' + RP_DATE.formatIso(new Date()) + '.csv';
             a.click();
             URL.revokeObjectURL(a.href);
             Dashboard.showToast('Report downloaded');
@@ -1080,7 +1099,7 @@ const Dashboard = {
         if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
         if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
         if (sec < 604800) return Math.floor(sec / 86400) + 'd ago';
-        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        return RP_DATE.formatIso(d);
     },
 
     // ─── PACKAGES PAGE ───────────────────────────────────────
@@ -1777,8 +1796,8 @@ const Dashboard = {
                 const p = ym.split('-');
                 const y = parseInt(p[0], 10);
                 const m = parseInt(p[1], 10);
-                if (!Number.isFinite(y) || !Number.isFinite(m)) return ym;
-                return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+                if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return ym;
+                return y + '-' + String(m).padStart(2, '0');
             };
             const productCell = (item) => {
                 let badge = '';
@@ -1797,7 +1816,7 @@ const Dashboard = {
                     : '<td class="text-muted">—</td>';
                 return (
                     '<tr>' +
-                    '<td>' + this.formatDate(item.sold_date) + '</td>' +
+                    '<td>' + this.soldDateDisplayValue(item) + '</td>' +
                     '<td>' + productCell(item) + '</td>' +
                     '<td>' + esc(String(item.quantity)) + '</td>' +
                     '<td class="text-success">£' + gross.toFixed(2) + '</td>' +
@@ -2055,13 +2074,12 @@ const Dashboard = {
             const rawInvoices = data.invoices || [];
             if (rawInvoices.length === 0) {
                 $('.seco-title').text('0 invoices');
-                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No monthly statements yet. One appears for each calendar month where you have sales (by <strong>sold date</strong>) or applied returns. Statements are only shown through the <strong>current calendar month</strong> — future months are hidden.</p><a href="sold-items.html" class="btn btn-primary">View Sold Items</a></td></tr>');
+                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No monthly statements yet. One appears for each <strong>completed</strong> calendar month where you have sales (by <strong>sold date</strong>) or applied returns. The <strong>current</strong> month is excluded until it ends. Future months are never shown.</p><a href="sold-items.html" class="btn btn-primary">View Sold Items</a></td></tr>');
                 return;
             }
 
             // Group by month (one invoice per month): key = "YYYY-MM"
             const byMonth = {};
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
             for (const inv of rawInvoices) {
                 let key = null;
                 if (inv.period && /^\d{4}-\d{2}$/.test(String(inv.period))) {
@@ -2076,8 +2094,16 @@ const Dashboard = {
                 }
                 if (!byMonth[key]) {
                     const [py, pm] = key.split('-').map(Number);
-                    const payoutDate = new Date(py, pm, 0);
-                    const d0 = new Date(py, pm - 1, 1);
+                    const payoutDate = inv.due_date
+                        ? new Date(String(inv.due_date).replace(/-/g, '/') + ' 12:00:00')
+                        : new Date(py, pm + 1, 0);
+                    let issueY = py;
+                    let issueM = pm + 1;
+                    if (issueM > 12) {
+                        issueM = 1;
+                        issueY += 1;
+                    }
+                    const fallbackIssueStr = issueY + '-' + String(issueM).padStart(2, '0') + '-01';
                     byMonth[key] = {
                         key,
                         year: py,
@@ -2086,7 +2112,7 @@ const Dashboard = {
                         items_count: 0,
                         vat_amount: 0,
                         status: inv.status,
-                        date_issued: inv.date_issued || d0.toISOString().slice(0, 10),
+                        date_issued: inv.date_issued || fallbackIssueStr,
                         payout_date: payoutDate
                     };
                 }
@@ -2100,23 +2126,37 @@ const Dashboard = {
                 return (b.year - a.year) || (b.month - a.month);
             });
 
-            const capKey =
-                data.statement_period_cap_ym ||
-                (() => {
-                    try {
-                        return new Intl.DateTimeFormat('en-CA', {
-                            timeZone: 'Europe/London',
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit'
-                        })
-                            .format(new Date())
-                            .slice(0, 7);
-                    } catch (e) {
-                        const d = new Date();
-                        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+            let capKey = data.statement_period_cap_ym;
+            if (!capKey) {
+                const tz = String(data.statement_period_cap_tz || 'Europe/London').trim() || 'Europe/London';
+                let currentYm;
+                try {
+                    currentYm = new Intl.DateTimeFormat('en-CA', {
+                        timeZone: tz,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    })
+                        .format(new Date())
+                        .slice(0, 7);
+                } catch (e) {
+                    const d = new Date();
+                    currentYm = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                }
+                const pr = String(currentYm).split('-').map(Number);
+                let cy = pr[0];
+                let mo = pr[1];
+                if (cy && mo >= 1 && mo <= 12) {
+                    mo -= 1;
+                    if (mo < 1) {
+                        mo = 12;
+                        cy -= 1;
                     }
-                })();
+                    capKey = cy + '-' + String(mo).padStart(2, '0');
+                } else {
+                    capKey = currentYm;
+                }
+            }
             monthly = monthly.filter((m) => m.key <= capKey);
 
             const range = $('#invoices-date-range').val() || 'all';
@@ -2136,7 +2176,8 @@ const Dashboard = {
             }
 
             monthly.forEach(m => {
-                const periodLabel = monthNames[m.month] + ' ' + m.year;
+                const periodStartIso = m.key ? m.key + '-01' : '';
+                const periodLabel = periodStartIso ? this.formatDate(periodStartIso) : '-';
                 $tbody.append(`
                     <tr>
                         <td><strong>${periodLabel}</strong></td>
@@ -2298,7 +2339,7 @@ const Dashboard = {
             const days = parseInt(range, 10);
             const end = new Date();
             const start = new Date(); start.setDate(start.getDate() - days);
-            params = { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
+            params = { from: RP_DATE.formatIso(start), to: RP_DATE.formatIso(end) };
         } else if (range === 'custom') {
             const from = $('#roi-report-from').val();
             const to = $('#roi-report-to').val();
@@ -2577,18 +2618,18 @@ const Dashboard = {
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'returnpal-analytics-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.download = 'returnpal-analytics-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
     },
 
     exportInvoicesCsv() {
         const monthly = window._lastInvoicesData || [];
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        const rows = [['Period', 'Date issued (YYYY-MM-DD)', 'Payout date (YYYY-MM-DD)', 'Amount', 'Items', 'Status']];
+        const rows = [['Period (YYYY-MM-DD)', 'Date issued (YYYY-MM-DD)', 'Payout date (YYYY-MM-DD)', 'Amount', 'Items', 'Status']];
         monthly.forEach(m => {
+            const periodStartIso = m.key ? m.key + '-01' : '';
             rows.push([
-                monthNames[m.month] + ' ' + m.year,
+                this.formatDateIso(periodStartIso),
                 this.formatDateIso(m.date_issued),
                 this.formatDateIso(m.payout_date),
                 '£' + Number(m.amount).toFixed(2),
@@ -2600,56 +2641,68 @@ const Dashboard = {
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'returnpal-invoices-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.download = 'returnpal-invoices-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
     },
 
     exportInvoicesForAccountant() {
         const monthly = window._lastInvoicesData || [];
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
         const vatNumber = localStorage.getItem('returnpal_vat_number') || '';
         let csv = 'ReturnPal - Invoice summary for accountant\n';
         csv += 'Exported: ' + this.formatDateIso(new Date()) + '\n';
         if (vatNumber) csv += 'VAT number: ' + vatNumber + '\n';
-        csv += '\nPeriod,Date issued (YYYY-MM-DD),Payout date (YYYY-MM-DD),Amount (£),VAT (£),Items,Status\n';
+        csv += '\nPeriod (YYYY-MM-DD),Date issued (YYYY-MM-DD),Payout date (YYYY-MM-DD),Amount (£),VAT (£),Items,Status\n';
         monthly.forEach(m => {
-            csv += '"' + (monthNames[m.month] + ' ' + m.year) + '",' + this.formatDateIso(m.date_issued) + ',' + this.formatDateIso(m.payout_date) + ',' + Number(m.amount).toFixed(2) + ',' + Number(m.vat_amount || 0).toFixed(2) + ',' + m.items_count + ',"' + (m.status || '') + '"\n';
+            const periodStartIso = m.key ? m.key + '-01' : '';
+            csv +=
+                this.formatDateIso(periodStartIso) +
+                ',' +
+                this.formatDateIso(m.date_issued) +
+                ',' +
+                this.formatDateIso(m.payout_date) +
+                ',' +
+                Number(m.amount).toFixed(2) +
+                ',' +
+                Number(m.vat_amount || 0).toFixed(2) +
+                ',' +
+                m.items_count +
+                ',"' +
+                (m.status || '') +
+                '"\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'returnpal-accountant-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.download = 'returnpal-accountant-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
     },
     exportInvoicesXero() {
         const monthly = window._lastInvoicesData || [];
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
         let csv = '*Date (YYYY-MM-DD),*Amount,*Description\n';
         monthly.forEach(m => {
-            const label = monthNames[m.month] + ' ' + m.year + ' - ReturnPal recovery';
+            const label = (m.key || '') + ' - ReturnPal recovery';
             csv += this.formatDateIso(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '"\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'returnpal-xero-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.download = 'returnpal-xero-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
     },
     exportInvoicesQuickBooks() {
         const monthly = window._lastInvoicesData || [];
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
         let csv = 'Date (YYYY-MM-DD),Amount,Description,Memo\n';
         monthly.forEach(m => {
-            const label = monthNames[m.month] + ' ' + m.year + ' - ReturnPal recovery';
+            const label = (m.key || '') + ' - ReturnPal recovery';
             csv += this.formatDateIso(m.date_issued) + ',' + Number(m.amount).toFixed(2) + ',"' + label + '","Returns recovery payout"\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'returnpal-quickbooks-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.download = 'returnpal-quickbooks-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
     },
@@ -2666,7 +2719,7 @@ const Dashboard = {
             const ret = Number(item.returns_deducted != null ? item.returns_deducted : 0);
             const net = Number(item.net_after_returns != null ? item.net_after_returns : gross - ret);
             rows.push([
-                this.formatDateIso(item.sold_date),
+                this.formatDateIso(this._soldDateRepairedIso(item)),
                 item.product || '',
                 String(item.quantity != null ? item.quantity : ''),
                 gross.toFixed(2),
@@ -2678,7 +2731,7 @@ const Dashboard = {
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'returnpal-sold-items-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.download = 'returnpal-sold-items-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
         this.showToast('Sold items CSV downloaded');
@@ -2686,18 +2739,21 @@ const Dashboard = {
     async downloadInvoiceMonth(period) {
         try {
             const data = await API.getInvoiceDetail(period);
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
             const [y, m] = period.split('-').map(Number);
-            const periodLabel = data.period_label || (monthNames[(m || 1) - 1] + ' ' + (y || new Date().getFullYear()));
+            const periodLabel =
+                data.period_label ||
+                (Number.isFinite(y) && Number.isFinite(m) ? y + '-' + String(m).padStart(2, '0') + '-01' : period);
 
             const today = new Date();
             const [iy, im] = period.split('-').map(Number);
             const invoiceDate = data.date_issued
                 ? this.formatDateUK(data.date_issued)
                 : this.formatDateUK(today);
-            const dueDate = Number.isFinite(iy) && Number.isFinite(im)
-                ? this.formatDateUK(new Date(iy, im, 0))
-                : this.formatDateUK(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+            const dueDate = data.due_date
+                ? this.formatDateUK(data.due_date)
+                : Number.isFinite(iy) && Number.isFinite(im)
+                    ? this.formatDateUK(new Date(iy, im + 1, 0))
+                    : this.formatDateUK(new Date(today.getFullYear(), today.getMonth() + 1, 0));
 
             let invoiceNum = sessionStorage.getItem('returnpal_invoice_num_' + period);
             if (!invoiceNum) {

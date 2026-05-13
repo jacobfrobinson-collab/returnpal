@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin – Clients – ReturnPal</title>
+    <title>Admin â€“ Clients â€“ ReturnPal</title>
     <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
     <link rel="stylesheet" href="/assets/css/style.css" />
     <style>
@@ -18,7 +18,7 @@
     <header class="admin-header py-3 mb-4">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center">
-                <h1 class="h5 mb-0">ReturnPal Admin – Clients</h1>
+                <h1 class="h5 mb-0">ReturnPal Admin â€“ Clients</h1>
                 <div class="d-flex align-items-center gap-3">
                     <span class="small opacity-75" id="admin-user-email"></span>
                     <a href="/admin/insights.html" class="small">Client insights</a>
@@ -36,21 +36,21 @@
             <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
                     <h2 class="h6 mb-0">Bulk spreadsheet import</h2>
-                    <p class="small text-muted mb-0">All multi-client and single-client file uploads run from here. Use <strong>Preview</strong> to verify Client ID → email before saving.</p>
+                    <p class="small text-muted mb-0">All multi-client and single-client file uploads run from here. Use <strong>Preview</strong> to verify Client ID â†’ email before saving.</p>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-primary" id="bulk-import-template-btn">Download template</button>
             </div>
             <div class="card-body">
                 <div class="alert alert-info py-2 px-3 small mb-3" role="region" aria-label="Marketplace orders upload">
-                    <div class="fw-semibold mb-1">Marketplace / eBay — all clients in one file</div>
-                    <p class="mb-2">Upload a <strong>.csv</strong> or <strong>.xlsx</strong> where each row is one sale. The <strong>Client ID</strong> column must match either the client’s <strong>dashboard ID</strong> (e.g. <code>14</code> or <code>0014</code>) or their <strong>Old Client ID</strong> from the table below (e.g. <code>AC</code>, <code>SM</code>). Matching rows are saved as <strong>sales</strong> on that client’s dashboard immediately (visible after refresh).</p>
+                    <div class="fw-semibold mb-1">Marketplace / eBay â€” all clients in one file</div>
+                    <p class="mb-2">Upload a <strong>.csv</strong> or <strong>.xlsx</strong> where each row is one sale. The <strong>Client ID</strong> column must match either the clientâ€™s <strong>dashboard ID</strong> (e.g. <code>14</code> or <code>0014</code>) or their <strong>Old Client ID</strong> from the table below (e.g. <code>AC</code>, <code>SM</code>). Matching rows are saved as <strong>sales</strong> on that clientâ€™s dashboard immediately (visible after refresh).</p>
                     <p class="mb-2 text-muted mb-0">Columns: <code>Client ID</code> (or <code>Old Client ID</code> / <code>legacy_client_id</code>), <code>sold_date</code> (YYYY-MM-DD), <code>item_name</code>, <code>quantity</code>, <code>earnings</code>. Optional: <code>order_number</code>.</p>
                     <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-marketplace-sales-setup">Use marketplace sales upload</button>
                     <span class="text-muted ms-2">Sets <strong>Record sales</strong> + <strong>Multi-client file</strong>, then scrolls here.</span>
                 </div>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="bulk-import-multi" />
-                    <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the list below); rows are applied to that client’s dashboard.</label>
+                    <label class="form-check-label small" for="bulk-import-multi">Multi-client file â€” each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the list below); rows are applied to that clientâ€™s dashboard.</label>
                 </div>
                 <div class="row g-2 align-items-end">
                     <div class="col-md-4 col-lg-3">
@@ -62,13 +62,13 @@
                             <option value="mark_delivered">Mark packages delivered</option>
                             <option value="reimbursement">Reimbursement claims</option>
                             <option value="return_adjustment">Return / refund adjustments</option>
-                            <option value="refunds">Refunds (same as adjustments — dedicated template)</option>
+                            <option value="refunds">Refunds (same as adjustments â€” dedicated template)</option>
                         </select>
                     </div>
                     <div class="col-md-4 col-lg-4" id="bulk-import-single-client-wrap">
                         <label class="form-label small mb-0">Apply to client <span class="text-muted fw-normal">(single-file only)</span></label>
                         <select class="form-select form-select-sm" id="bulk-import-target-client">
-                            <option value="">— Select client —</option>
+                            <option value="">â€” Select client â€”</option>
                         </select>
                     </div>
                     <div class="col-md-4 col-lg-3">
@@ -124,7 +124,7 @@
                         <tbody id="bulk-import-jobs-tbody"></tbody>
                     </table>
                 </div>
-                <p class="small text-muted mb-0 px-2 py-2 border-top">Undo removes rows created in that import (and restores package status for “mark delivered” rows). Jobs from all clients are listed here.</p>
+                <p class="small text-muted mb-0 px-2 py-2 border-top">Undo removes rows created in that import (and restores package status for â€œmark deliveredâ€ rows). Jobs from all clients are listed here.</p>
             </div>
         </div>
 
@@ -134,7 +134,7 @@
             </div>
             <div class="card-body p-0">
                 <div id="admin-loading" class="p-5 text-center text-muted">
-                    <span class="spinner-border spinner-border-sm me-2"></span>Loading clients…
+                    <span class="spinner-border spinner-border-sm me-2"></span>Loading clientsâ€¦
                 </div>
                 <div id="admin-error" class="p-5 text-center text-danger d-none"></div>
                 <div class="table-responsive d-none" id="admin-table-wrap">
@@ -160,7 +160,7 @@
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp11"></script>
-    <script src="/assets/js/dateUk.js"></script>
+    <script src="/assets/js/dateUk.js?v=rp-dmy-mdy-2026"></script>
     <script>
     $(function() {
         var ao = window.location.origin || '';
@@ -211,7 +211,7 @@
             (users || []).forEach(function(u) {
                 var id = u.id;
                 if (id == null) return;
-                var label = String(id).padStart(4, '0') + ' — ' + (u.full_name || u.email || 'Client');
+                var label = String(id).padStart(4, '0') + ' â€” ' + (u.full_name || u.email || 'Client');
                 $sel.append($('<option></option>').attr('value', String(id)).text(label));
             });
             if (prev && $sel.find('option[value="' + prev + '"]').length) $sel.val(prev);
@@ -250,13 +250,13 @@
                             if (tid != null && tid !== '') {
                                 clientCell = '<a href="/admin/client.html?id=' + encodeURIComponent(tid) + '">ID ' + escapeHtml(String(tid).padStart(4, '0')) + '</a>';
                             } else {
-                                clientCell = '<span class="text-muted">—</span>';
+                                clientCell = '<span class="text-muted">â€”</span>';
                             }
                         }
                         var undone = !j.rolled_back_at && (j.imported_count > 0);
                         var roll = undone
                             ? '<button type="button" class="btn btn-sm btn-outline-danger btn-rollback-job" data-id="' + j.id + '">Undo</button>'
-                            : (j.rolled_back_at ? '<span class="text-muted small">Undone</span>' : '<span class="text-muted">—</span>');
+                            : (j.rolled_back_at ? '<span class="text-muted small">Undone</span>' : '<span class="text-muted">â€”</span>');
                         $tb.append(
                             '<tr><td class="small">' + escapeHtml(fmtDate(j.created_at)) + '</td><td class="small">' + escapeHtml(j.kind || '') +
                             '</td><td class="small">' + (isMulti ? 'Yes' : 'No') + '</td><td class="small">' + clientCell +
@@ -282,7 +282,7 @@
                 var row = $('<div class="mb-1"></div>');
                 row.append(document.createTextNode('Line ' + e.line + ': ' + (e.error || '')));
                 if (e.user_id) {
-                    row.append(' — ');
+                    row.append(' â€” ');
                     var a = $('<a></a>').attr('href', '/admin/client.html?id=' + encodeURIComponent(e.user_id)).text('Open client ' + String(e.user_id).padStart(4, '0'));
                     row.append(a);
                 }
@@ -303,7 +303,7 @@
                     var isAdmin = u.is_admin === true || u.is_admin === 1 || u.is_admin === '1';
                     var emailAttr = escapeHtml(String(u.email || ''));
                     var deleteBtn = isAdmin
-                        ? '<span class="text-muted small me-1" title="Admin accounts cannot be deleted here">—</span>'
+                        ? '<span class="text-muted small me-1" title="Admin accounts cannot be deleted here">â€”</span>'
                         : '<button type="button" class="btn btn-sm btn-outline-danger delete-user-btn me-1" data-id="' + u.id + '" data-email="' + emailAttr + '">Delete</button>';
                     var legRaw = (u.legacy_client_id && String(u.legacy_client_id).trim()) ? String(u.legacy_client_id).trim() : '';
                     var legCell = '' +
@@ -362,7 +362,7 @@
             if (!confirm('Permanently delete this account?\n\n' + email + '\n\nAll packages, inventory, and history for this client will be removed. This cannot be undone.')) {
                 return;
             }
-            btn.prop('disabled', true).text('Deleting…');
+            btn.prop('disabled', true).text('Deletingâ€¦');
             API.adminDeleteUser(id)
                 .then(function() {
                     loadUsers();
@@ -377,7 +377,7 @@
             var id = $(this).data('id');
             var name = $(this).data('name');
             var btn = $(this);
-            btn.prop('disabled', true).text('Opening…');
+            btn.prop('disabled', true).text('Openingâ€¦');
 
             API.request('/admin/impersonate/' + id, { method: 'POST' })
                 .then(function(data) {
@@ -466,7 +466,7 @@
             var multi = document.getElementById('bulk-import-multi').checked;
             var targetId = parseInt($('#bulk-import-target-client').val(), 10);
             if (!multi && !Number.isFinite(targetId)) {
-                return alert('Select a client for single-file import, or enable “Multi-client file”.');
+                return alert('Select a client for single-file import, or enable â€œMulti-client fileâ€.');
             }
             var $btn = $(this).prop('disabled', true);
             try {
@@ -482,13 +482,13 @@
                 (prev.rows || []).forEach(function(r) {
                     var ok = r.ok ? 'Yes' : 'No';
                     var client = r.resolved_email
-                        ? escapeHtml((r.resolved_name || '').trim()) + ' · ' + escapeHtml(r.resolved_email)
+                        ? escapeHtml((r.resolved_name || '').trim()) + ' Â· ' + escapeHtml(r.resolved_email)
                         : r.user_id
                           ? 'ID ' + String(r.user_id).padStart(4, '0')
-                          : '—';
+                          : 'â€”';
                     var soldCell = '';
                     if (isSold) {
-                        var sd = r.sold_date_preview != null && r.sold_date_preview !== '' ? r.sold_date_preview : '—';
+                        var sd = r.sold_date_preview != null && r.sold_date_preview !== '' ? r.sold_date_preview : 'â€”';
                         soldCell = '</td><td class="small text-nowrap">' + escapeHtml(sd);
                     }
                     var issue =
@@ -540,7 +540,7 @@
             var multi = document.getElementById('bulk-import-multi').checked;
             var targetId = parseInt($('#bulk-import-target-client').val(), 10);
             if (!multi && !Number.isFinite(targetId)) {
-                return alert('Select a client for single-file import, or enable “Multi-client file”.');
+                return alert('Select a client for single-file import, or enable â€œMulti-client fileâ€.');
             }
             var $btn = $(this).prop('disabled', true);
             var $out = $('#bulk-import-result').addClass('d-none').text('');
@@ -552,10 +552,10 @@
                 var txt = 'Imported ' + (data.imported || 0) + ' row(s).';
                 if (data.job_id) txt += ' Job #' + data.job_id + ' (you can Undo from Recent imports).';
                 if (multi && data.by_user && Object.keys(data.by_user).length) {
-                    txt += '\n\nPer client (user id → rows): ' + JSON.stringify(data.by_user);
+                    txt += '\n\nPer client (user id â†’ rows): ' + JSON.stringify(data.by_user);
                 }
                 if (data.errors && data.errors.length) {
-                    txt += '\n\nRow errors (summary): ' + data.errors.length + ' — see links below.';
+                    txt += '\n\nRow errors (summary): ' + data.errors.length + ' â€” see links below.';
                 }
                 $out.text(txt).removeClass('d-none');
                 renderBulkImportErrorsHtml(data.errors || []);
@@ -575,3 +575,4 @@
     </script>
 </body>
 </html>
+

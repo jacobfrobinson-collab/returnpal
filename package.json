@@ -10,7 +10,7 @@
     "create-admin": "node create-admin-user.js",
     "set-admin": "node set-admin.js",
     "test": "node test/api.test.js",
-    "test:unit": "node test/sold-date-calendar.test.js",
+    "test:unit": "node test/sold-date-calendar.test.js && node test/computed-monthly-statements.test.js",
     "test:e2e": "node test/e2e/client-smoke.js",
     "test:e2e:admin": "node test/e2e/admin-bulk-import.js",
     "auction:valuate": "node scripts/auction-valuation/index.js",

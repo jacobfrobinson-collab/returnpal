@@ -4,6 +4,9 @@
  * ReturnPal template row: A=Client ID, B=sold_date, C=item_name, D=quantity, E=earnings.
  * eBay order sheet row: A=sold date (any format accepted by bulk import → column B as YYYY-MM-DD), B=order id, C=title,
  *   D=sku line, E=qty, F=?, G=earnings, H=client id (maps to template column A).
+ *
+ * Ambiguous numeric dates (both parts ≤12, e.g. 04/12/2026): server default is UK DMY unless
+ * process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER=MDY (US MM/DD). Set before running if your sheet is US-style.
  */
 const XLSX = require('xlsx');
 const fs = require('fs');

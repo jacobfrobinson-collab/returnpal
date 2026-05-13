@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Manage client – ReturnPal Admin</title>
+    <title>Manage client â€“ ReturnPal Admin</title>
     <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
     <link rel="stylesheet" href="/assets/css/style.css" />
     <style>
@@ -19,7 +19,7 @@
     <header class="admin-header py-3 mb-4">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center">
-                <h1 class="h5 mb-0"><a href="/admin/index.html" class="text-decoration-none text-white">← Clients</a> – <span id="client-name">Client</span> <span class="badge bg-light text-dark ms-2" id="admin-client-id-badge">ID 0000</span> <span id="client-legacy-wrap" class="d-none"><span class="badge bg-info text-dark ms-1" id="client-legacy-badge">Legacy —</span></span></h1>
+                <h1 class="h5 mb-0"><a href="/admin/index.html" class="text-decoration-none text-white">â† Clients</a> â€“ <span id="client-name">Client</span> <span class="badge bg-light text-dark ms-2" id="admin-client-id-badge">ID 0000</span> <span id="client-legacy-wrap" class="d-none"><span class="badge bg-info text-dark ms-1" id="client-legacy-badge">Legacy â€”</span></span></h1>
                 <a href="/admin/index.html" class="btn btn-sm btn-outline-light">Back to list</a>
             </div>
         </div>
@@ -64,7 +64,7 @@
                         <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
                             <div class="d-flex flex-wrap align-items-center gap-2">
                                 <span class="small fw-semibold text-secondary text-nowrap">Bulk actions</span>
-                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modal-mark-delivered">Mark one delivered…</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modal-mark-delivered">Mark one deliveredâ€¦</button>
                                 <button type="button" class="btn btn-sm btn-outline-success" id="btn-mark-delivered-selected" disabled>Mark selected delivered</button>
                                 <label class="small text-muted mb-0">Set status</label>
                                 <select class="form-select form-select-sm" id="packages-bulk-status" style="width:auto;min-width:130px;max-width:200px">
@@ -260,7 +260,7 @@
                 <div class="modal-header"><h6 class="modal-title">Mark package as delivered</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
                     <label class="form-label">Package</label>
-                    <select class="form-select" id="deliver-package-id"><option value="">Select package…</option></select>
+                    <select class="form-select" id="deliver-package-id"><option value="">Select packageâ€¦</option></select>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -308,7 +308,7 @@
                     <div class="mb-2"><label class="form-label">Order #</label><input type="text" class="form-control" id="sale-order-number" placeholder="e.g. marketplace order id" /></div>
                     <div class="mb-2"><label class="form-label">Item name</label><input type="text" class="form-control" id="sale-product" placeholder="Product name" /></div>
                     <div class="mb-2"><label class="form-label">Quantity</label><input type="number" class="form-control" id="sale-qty" value="1" min="1" /></div>
-                    <div class="mb-2"><label class="form-label">Earnings (£)</label><input type="number" step="0.01" class="form-control" id="sale-earnings" placeholder="29.74" /></div>
+                    <div class="mb-2"><label class="form-label">Earnings (Â£)</label><input type="number" step="0.01" class="form-control" id="sale-earnings" placeholder="29.74" /></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -446,7 +446,7 @@
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp11"></script>
-    <script src="/assets/js/dateUk.js"></script>
+    <script src="/assets/js/dateUk.js?v=rp-dmy-mdy-2026"></script>
     <script>
     $(function() {
         var ao = window.location.origin || '';
@@ -465,7 +465,7 @@
 
         $('#btn-invoice-month-sources').on('click', function() {
             var $pre = $('#invoice-month-sources-pre');
-            $pre.removeClass('d-none').text('Loading…');
+            $pre.removeClass('d-none').text('Loadingâ€¦');
             API.request('/admin/users/' + encodeURIComponent(clientId) + '/invoice-month-sources')
                 .then(function(data) { $pre.text(JSON.stringify(data, null, 2)); })
                 .catch(function(e) { $pre.text(e && e.error ? e.error : String(e)); });
@@ -532,7 +532,7 @@
                 var u = (data.users || []).find(function(x) { return String(x.id) === String(clientId); });
                 if (u) {
                     $('#client-name').text(u.full_name || u.email || 'Client');
-                    document.title = 'Manage ' + (u.full_name || u.email) + ' – ReturnPal Admin';
+                    document.title = 'Manage ' + (u.full_name || u.email) + ' â€“ ReturnPal Admin';
                     var leg = u.legacy_client_id && String(u.legacy_client_id).trim();
                     if (leg) {
                         $('#client-legacy-wrap').removeClass('d-none');
@@ -706,7 +706,7 @@
                 list.forEach(function(p) {
                     var ref = p.reference || p.id || '';
                     var refEsc = escapeHtml(ref);
-                    $sel.append('<option value="' + p.id + '">' + refEsc + ' – ' + escapeHtml(p.status || '') + '</option>');
+                    $sel.append('<option value="' + p.id + '">' + refEsc + ' â€“ ' + escapeHtml(p.status || '') + '</option>');
                     $reimbSel.append('<option value="' + escapeHtml(ref) + '">' + refEsc + '</option>');
                     var $tr = $('<tr>');
                     var isDelivered = p.status === 'Delivered';
@@ -849,7 +849,7 @@
                     var idStr = String(s.id);
                     var chk = selectedSoldIds.has(idStr) ? ' checked' : '';
                     $tr.append('<td class="text-center"><input type="checkbox" class="sold-select form-check-input m-0" data-id="' + s.id + '"' + chk + ' /></td>');
-                    $tr.append('<td>' + fmtDate(s.sold_date) + '</td><td class="text-muted small">' + escapeHtml(s.order_number || '') + '</td><td>' + escapeHtml(s.product || '') + '</td><td>' + escapeHtml(String(s.quantity != null ? s.quantity : '')) + '</td><td>£' + earn.toFixed(2) + '</td>');
+                    $tr.append('<td>' + fmtDate(s.sold_date) + '</td><td class="text-muted small">' + escapeHtml(s.order_number || '') + '</td><td>' + escapeHtml(s.product || '') + '</td><td>' + escapeHtml(String(s.quantity != null ? s.quantity : '')) + '</td><td>Â£' + earn.toFixed(2) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
                     var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
@@ -1020,7 +1020,7 @@
             var st = $('#packages-bulk-status').val();
             showBulkConfirmModal(
                 'Update package status?',
-                'Set status to “' + st + '” for ' + ids.length + ' selected package(s).',
+                'Set status to â€œ' + st + 'â€ for ' + ids.length + ' selected package(s).',
                 'btn-primary',
                 async function() {
                     var failures = [];
@@ -1064,7 +1064,7 @@
             var st = $('#received-bulk-status').val();
             showBulkConfirmModal(
                 'Update status on selected rows?',
-                'Set status to “' + st + '” for ' + ids.length + ' received line(s).',
+                'Set status to â€œ' + st + 'â€ for ' + ids.length + ' received line(s).',
                 'btn-primary',
                 async function() {
                     var failures = [];
@@ -1156,7 +1156,7 @@
             var st = $('#pending-bulk-stage').val();
             showBulkConfirmModal(
                 'Update stage on selected items?',
-                'Set stage to “' + st + '” for ' + ids.length + ' pending item(s).',
+                'Set stage to â€œ' + st + 'â€ for ' + ids.length + ' pending item(s).',
                 'btn-primary',
                 async function() {
                     var failures = [];
@@ -1540,3 +1540,4 @@
     </script>
 </body>
 </html>
+

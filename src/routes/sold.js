@@ -3,7 +3,7 @@ const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
-const { normalizeSoldDateForDb } = require('../utils/adminBulkImport');
+const { normalizeSoldDateForDb, repairDecemberIsoMisimportForDisplay } = require('../utils/adminBulkImport');
 
 const router = express.Router();
 
@@ -102,8 +102,11 @@ router.get('/', authMiddleware, async (req, res) => {
             const w = promo.winner_by_item_id[String(row.id)];
             const ret = returnsBySold[String(row.id)] || 0;
             const profit = Number(row.profit) || 0;
+            const canon = normalizeSoldDateForDb(row.sold_date);
+            const sold_date_display = repairDecemberIsoMisimportForDisplay(canon || String(row.sold_date || '').trim());
             return {
                 ...row,
+                sold_date_display: sold_date_display || row.sold_date,
                 is_monthly_free_processing: !!w,
                 monthly_free_processing_month: w ? w.year_month : null,
                 returns_deducted: ret,

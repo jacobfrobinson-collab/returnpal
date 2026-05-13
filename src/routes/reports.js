@@ -4,6 +4,30 @@ const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
+const DEFAULT_REPORT_TZ =
+    String(process.env.RETURNPAL_INVOICE_CAP_TZ || process.env.RETURNPAL_REPORT_TZ || 'Europe/London').trim() ||
+    'Europe/London';
+
+/** YYYY-MM-DD in business timezone (matches invoice cap). */
+function ymdInReportTz(d = new Date()) {
+    try {
+        return new Intl.DateTimeFormat('en-CA', {
+            timeZone: DEFAULT_REPORT_TZ,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).format(d);
+    } catch {
+        return (
+            d.getFullYear() +
+            '-' +
+            String(d.getMonth() + 1).padStart(2, '0') +
+            '-' +
+            String(d.getDate()).padStart(2, '0')
+        );
+    }
+}
+
 function parseResults(result) {
     if (!result || result.length === 0) return [];
     const cols = result[0].columns;
@@ -22,12 +46,8 @@ router.get('/roi', authMiddleware, async (req, res) => {
         let from = req.query.from;
         let to = req.query.to;
         const now = new Date();
-        if (!to) to = now.toISOString().slice(0, 10);
-        if (!from) {
-            const start = new Date(now);
-            start.setDate(1);
-            from = start.toISOString().slice(0, 10);
-        }
+        if (!to) to = ymdInReportTz(now);
+        if (!from) from = ymdInReportTz(now).slice(0, 7) + '-01';
 
         const items = parseResults(
             db.exec(

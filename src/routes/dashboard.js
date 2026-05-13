@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { getComputedDashboardInvoiceAggregates } = require('../utils/computedMonthlyStatements');
 
 const router = express.Router();
 
@@ -59,9 +60,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
             db.exec('SELECT COALESCE(SUM(total_revenue), 0) as total FROM sold_items WHERE user_id = ?', [userId])
         );
 
-        const unpaidInvoices = parseResults(
-            db.exec("SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM invoices WHERE user_id = ? AND status = 'Pending'", [userId])
-        );
+        const { unpaid_invoices_count, unpaid_invoices_total } = getComputedDashboardInvoiceAggregates(db, userId);
 
         res.json({
             packages_in_transit: packagesInTransit[0]?.count || 0,
@@ -71,8 +70,8 @@ router.get('/stats', authMiddleware, async (req, res) => {
             total_pending: totalPending[0]?.count || 0,
             total_earnings: totalEarnings[0]?.total || 0,
             total_recovered: totalRecovered[0]?.total || 0,
-            unpaid_invoices_count: unpaidInvoices[0]?.count || 0,
-            unpaid_invoices_total: unpaidInvoices[0]?.total || 0,
+            unpaid_invoices_count,
+            unpaid_invoices_total
         });
     } catch (err) {
         console.error('Dashboard stats error:', err);
@@ -116,13 +115,7 @@ router.get('/summary', authMiddleware, async (req, res) => {
         );
         const top_items = topItems.map(r => ({ id: r.id, name: r.name, value: r.value }));
 
-        const latestPayout = parseResults(
-            db.exec(
-                "SELECT amount, status, date_issued as date FROM invoices WHERE user_id = ? AND status = 'Paid' ORDER BY date_issued DESC LIMIT 1",
-                [userId]
-            )
-        );
-        const latest_payout = latestPayout.length ? latestPayout[0] : null;
+        const { latest_payout } = getComputedDashboardInvoiceAggregates(db, userId);
 
         const weekReceived = parseResults(
             db.exec(

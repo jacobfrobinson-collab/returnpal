@@ -2,6 +2,8 @@ const express = require('express');
 const { getDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { feesDeductedForCalendarMonth } = require('../utils/monthlyFreeProcessing');
+const { getInvoiceCapTz } = require('../utils/computedMonthlyStatements');
+const { calendarYearMonthFromDbDate } = require('../utils/soldDateCalendar');
 
 const router = express.Router();
 
@@ -10,14 +12,27 @@ function parseResults(result) {
     const cols = result[0].columns;
     return result[0].values.map((row) => {
         const obj = {};
-        cols.forEach((col, i) => { obj[col] = row[i]; });
+        cols.forEach((col, i) => {
+            obj[col] = row[i];
+        });
         return obj;
     });
 }
 
-function currentYearMonth() {
+/** Current calendar YYYY-MM in the business timezone (same default as invoice cap). */
+function calendarYearMonthNowInTz(tz) {
     const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    try {
+        return new Intl.DateTimeFormat('en-CA', {
+            timeZone: tz,
+            year: 'numeric',
+            month: '2-digit'
+        })
+            .format(d)
+            .slice(0, 7);
+    } catch {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    }
 }
 
 // GET /api/balance/summary — live balance, payout forecast, MTD breakdown
@@ -25,42 +40,36 @@ router.get('/summary', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
         const userId = req.user.id;
-        const ym = currentYearMonth();
+        const tz = getInvoiceCapTz();
+        const ym = calendarYearMonthNowInTz(tz);
 
         const allSold = parseResults(
             db.exec('SELECT * FROM sold_items WHERE user_id = ? ORDER BY sold_date DESC', [userId])
         );
 
-        const salesMtd = parseResults(
-            db.exec(
-                `SELECT COALESCE(SUM(profit), 0) as total 
-                 FROM sold_items 
-                 WHERE user_id = ? AND strftime('%Y-%m', sold_date) = ? 
-                 AND (status IS NULL OR status != 'Refunded')`,
-                [userId, ym]
-            )
-        );
-        const sales_this_month = Number(salesMtd[0]?.total) || 0;
+        let sales_this_month = 0;
+        let refunds_from_sales_mtd = 0;
+        for (const row of allSold) {
+            const cm = calendarYearMonthFromDbDate(row.sold_date);
+            if (cm !== ym) continue;
+            const p = Number(row.profit) || 0;
+            if (row.status === 'Refunded') refunds_from_sales_mtd += p;
+            else sales_this_month += p;
+        }
 
-        const refundedMtd = parseResults(
+        const appliedAdj = parseResults(
             db.exec(
-                `SELECT COALESCE(SUM(profit), 0) as total, COUNT(*) as cnt
-                 FROM sold_items 
-                 WHERE user_id = ? AND strftime('%Y-%m', sold_date) = ? AND status = 'Refunded'`,
-                [userId, ym]
+                `SELECT amount, created_at FROM return_adjustments 
+                 WHERE user_id = ? AND status = 'applied'`,
+                [userId]
             )
         );
-        const refunds_from_sales_mtd = Number(refundedMtd[0]?.total) || 0;
-
-        const adjApplied = parseResults(
-            db.exec(
-                `SELECT COALESCE(SUM(amount), 0) as total 
-                 FROM return_adjustments 
-                 WHERE user_id = ? AND status = 'applied' AND strftime('%Y-%m', created_at) = ?`,
-                [userId, ym]
-            )
-        );
-        const returns_from_adjustments_mtd = Number(adjApplied[0]?.total) || 0;
+        let returns_from_adjustments_mtd = 0;
+        for (const r of appliedAdj) {
+            if (calendarYearMonthFromDbDate(r.created_at) === ym) {
+                returns_from_adjustments_mtd += Number(r.amount) || 0;
+            }
+        }
 
         const adjPending = parseResults(
             db.exec(

@@ -151,11 +151,11 @@
                                         <option value="product">Product name</option>
                                         <option value="asin">ASIN</option>
                                     </select>
-                                    <input type="text" class="form-control form-control-sm" id="sold-search" placeholder="Search…" style="max-width: 200px;" aria-label="Search sold items" />
+                                    <input type="text" class="form-control form-control-sm" id="sold-search" placeholder="Searchâ€¦" style="max-width: 200px;" aria-label="Search sold items" />
                                     <select id="sold-recovery-filter" class="form-select form-select-sm w-auto" aria-label="Filter by recovery route">
                                         <option value="">All recovery routes</option>
-                                        <option value="resale_sold">Resale – Sold</option>
-                                        <option value="reimbursement_reimbursed">Reimbursement – Reimbursed</option>
+                                        <option value="resale_sold">Resale â€“ Sold</option>
+                                        <option value="reimbursement_reimbursed">Reimbursement â€“ Reimbursed</option>
                                         <option value="not_recoverable">Not recoverable</option>
                                     </select>
                                 </div>
@@ -184,7 +184,7 @@
                                     <div class="d-flex align-items-center justify-content-between">
                                         <div>
                                             <p class="mb-2 fs-15 fw-medium">Net Earnings</p>
-                                            <h3 class="text-dark fw-bold d-flex align-items-center gap-2 mb-0">£0.00</h3>
+                                            <h3 class="text-dark fw-bold d-flex align-items-center gap-2 mb-0">Â£0.00</h3>
                                         </div>
                                         <div>
                                             <div class="avatar-md bg-primary bg-opacity-10 rounded pkey-item">
@@ -218,7 +218,7 @@
                                     <div class="d-flex align-items-center justify-content-between">
                                         <div>
                                             <p class="mb-2 fs-15 fw-medium">Average Earnings</p>
-                                            <h3 class="text-dark fw-bold d-flex align-items-center gap-2 mb-0">£0.00</h3>
+                                            <h3 class="text-dark fw-bold d-flex align-items-center gap-2 mb-0">Â£0.00</h3>
                                         </div>
                                         <div>
                                             <div class="avatar-md bg-warning bg-opacity-10 rounded pkey-item">
@@ -270,7 +270,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="sold-items-tbody">
-                                        <tr><td colspan="6" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>
+                                        <tr><td colspan="6" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loadingâ€¦</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -297,7 +297,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="sold-returns-tbody">
-                                        <tr><td colspan="6" class="text-center py-4 text-muted">Loading…</td></tr>
+                                        <tr><td colspan="6" class="text-center py-4 text-muted">Loadingâ€¦</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -332,9 +332,15 @@
         <!-- App Javascript -->
         <script src="assets/js/app.js"></script>
         <!-- Custom Js -->
-        <script src="/assets/js/api.js"></script>
-        <script src="/assets/js/dateUk.js"></script>
+        <script src="/assets/js/api.js?v=rp-api-2026"></script>
+        <script src="/assets/js/dateUk.js?v=rp-dmy-mdy-2026"></script>
         <script src="assets/js/custom.js"></script>
-        <script src="assets/js/dashboard.js"></script>
+        <!-- Optional client repair for US→UK mis-reads stored as YYYY-12-DD (see RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO on server). Set to '0' to disable. -->
+        <script>window.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO = '1';</script>
+        <script src="assets/js/dashboard.js?v=rp-sold-inv-fix-2026"></script>
     </body>
 </html>
+
+
+
+

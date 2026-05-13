@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
     <head>
         <!-- Title Meta -->
@@ -207,7 +207,7 @@
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Previous / legacy client ID <span class="text-muted">(optional)</span></label>
-                                        <input type="text" class="form-control" id="settings-legacy-client-id" placeholder="e.g. BD — if you had an ID on an older system" maxlength="64" autocomplete="off" />
+                                        <input type="text" class="form-control" id="settings-legacy-client-id" placeholder="e.g. BD â€” if you had an ID on an older system" maxlength="64" autocomplete="off" />
                                         <small class="text-muted">Helps our team match your account to historical records. Shown to admins only.</small>
                                     </div>
                                 </div>
@@ -304,7 +304,7 @@
                                         <label class="form-label">Discord Webhook URL</label>
                                         <input type="text" class="form-control" placeholder="https://discord.com/api/webhooks/...">
                                     </div>
-                                    <small class="text-muted">Create a webhook in your Discord server settings → Integrations → Webhooks</small>
+                                    <small class="text-muted">Create a webhook in your Discord server settings â†’ Integrations â†’ Webhooks</small>
                                     <div class="text-end">
                                         <button class="btn btn-primary px-4 mt-3">Save Webhook</button>
                                     </div>
@@ -331,10 +331,10 @@
                                             <label class="form-label">Email digest</label>
                                             <select class="form-select form-select-sm" id="email-digest-preference" aria-label="Email digest">
                                                 <option value="off">Off</option>
-                                                <option value="weekly">Weekly – summary of items sold and recovered</option>
-                                                <option value="monthly">Monthly – ROI summary and key numbers</option>
+                                                <option value="weekly">Weekly â€“ summary of items sold and recovered</option>
+                                                <option value="monthly">Monthly â€“ ROI summary and key numbers</option>
                                             </select>
-                                            <small class="text-muted">e.g. “This week: X items sold, £Y recovered. [View dashboard]”</small>
+                                            <small class="text-muted">e.g. â€œThis week: X items sold, Â£Y recovered. [View dashboard]â€</small>
                                         </div>
                                         <div class="form-check form-switch mb-2">
                                             <input class="form-check-input" type="checkbox" id="email-monthly-invoice">
@@ -378,9 +378,14 @@
         <!-- App Javascript -->
         <script src="assets/js/app.js"></script>
         <!-- Custom Js -->
-        <script src="/assets/js/api.js"></script>
-        <script src="/assets/js/dateUk.js"></script>
+        <script src="/assets/js/api.js?v=rp-api-2026"></script>
+        <script src="/assets/js/dateUk.js?v=rp-dmy-mdy-2026"></script>
         <script src="assets/js/custom.js"></script>
-        <script src="assets/js/dashboard.js"></script>
+        <script src="assets/js/dashboard.js?v=rp-sold-inv-fix-2026"></script>
     </body>
 </html>
+
+
+
+
+

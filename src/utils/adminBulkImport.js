@@ -276,9 +276,11 @@ function rawSoldDateCellLooksIsoYmd(v) {
 }
 
 /**
- * When a slash/dash date has both numeric parts ≤ 12 (e.g. 04/12/2026), order is ambiguous.
- * DMY: 04/12/2026 → 4 Dec (UK). MDY: 04/12/2026 → 12 Apr (US / many eBay exports).
- * @returns {'DMY' | 'MDY'}
+ * When a slash/dash date has both numeric parts ≤ 12 (e.g. 04/12/2026 or 04-12-2026), order is ambiguous:
+ *   DMY (UK default): 04/12/2026 → 4 December 2026 → 2026-12-04.
+ *   MDY (US / many marketplace exports): 04/12/2026 → 12 April 2026 → 2026-04-12.
+ * For 12/04/2026 the situation is reversed (DMY → 12 Apr; MDY → 4 Dec).
+ * Set process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER=MDY when your sheet uses US-style MM/DD for those cases.
  */
 function ambiguousSlashDateOrder() {
     const v = String(process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER || 'DMY')
@@ -289,10 +291,12 @@ function ambiguousSlashDateOrder() {
 
 /**
  * Normalize sold_date from spreadsheet to YYYY-MM-DD.
- * UK-first by default: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (day before month when both parts ≤ 12).
+ * **Leading ISO `YYYY-MM-DD` (e.g. 2026-01-04) is always calendar year–month–day** — same as SQL/JSON date order;
+ * it is not re-interpreted with UK/US day–month rules.
+ * UK-first for ambiguous short forms: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (day before month when both parts ≤ 12 and year is last).
  * If the middle value is > 12, treat as M/D/Y (e.g. 03/25/2026 → 25 Mar) so the date is still valid.
  * Also accepts two-digit years (e.g. 1/15/26, 15/1/26) with the same rules.
- * Set process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER=MDY if ambiguous dates are month/day (US style).
+ * Set process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER=MDY if ambiguous slash/dash dates (year last) are US month/day order.
  * @param {unknown} v
  * @returns {string|null}
  */
@@ -412,6 +416,25 @@ function normalizeSoldDateForDb(v) {
     }
 
     return null;
+}
+
+/**
+ * Display-only repair for a common mis-import: ambiguous US MM/DD read as UK DMY can store
+ * December (e.g. 12 Apr → 2026-12-04). Maps YYYY-12-D with D in 2..11 to YYYY-D-12.
+ * Enable with RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO=1 (server) or window.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO='1' (sold-items page).
+ * Genuine sales on 2–11 December may show incorrectly when enabled.
+ */
+function repairDecemberIsoMisimportForDisplay(iso) {
+    if (String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO || '').trim() !== '1') {
+        return iso;
+    }
+    const s = iso == null ? '' : String(iso).trim();
+    const m = s.match(/^(\d{4})-12-(\d{1,2})$/);
+    if (!m) return iso;
+    const y = parseInt(m[1], 10);
+    const d = parseInt(m[2], 10);
+    if (!Number.isFinite(y) || !Number.isFinite(d) || d < 2 || d > 11) return iso;
+    return y + '-' + String(d).padStart(2, '0') + '-12';
 }
 
 /**
@@ -1102,6 +1125,7 @@ module.exports = {
     resolveUserIdFromClientSpecifier,
     extractClientSpecifier,
     normalizeSoldDateForDb,
+    repairDecemberIsoMisimportForDisplay,
     MAX_ROWS,
     KINDS: Object.keys(IMPORTERS),
 };

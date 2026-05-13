@@ -150,9 +150,25 @@ async function runTests() {
         console.error('  ✗ GET /api/analytics:', e.message);
     }
 
-    // Invoice by period (auth)
+    // Invoices list (dashboard Payouts page) — also yields statement_period_cap_ym (last completed month)
+    let invoiceCapYm = null;
     try {
-        const period = new Date().toISOString().slice(0, 7);
+        const invList = await request('GET', '/api/invoices', null, token);
+        assert(invList.status === 200, 'Invoices list should return 200');
+        assert(Array.isArray(invList.data.invoices), 'Invoices should have invoices array');
+        invoiceCapYm = invList.data.statement_period_cap_ym;
+        assert(
+            typeof invoiceCapYm === 'string' && /^\d{4}-\d{2}$/.test(invoiceCapYm),
+            'Invoices should include statement_period_cap_ym'
+        );
+        console.log('  ✓ GET /api/invoices');
+    } catch (e) {
+        console.error('  ✗ GET /api/invoices:', e.message);
+    }
+
+    // Invoice by period (auth) — must be <= cap (current calendar month has no statement yet)
+    try {
+        const period = invoiceCapYm || '2020-01';
         const invPeriod = await request('GET', '/api/invoices/period/' + period, null, token);
         assert(invPeriod.status === 200, 'Invoice period should return 200');
         assert(Array.isArray(invPeriod.data.line_items), 'Invoice period should have line_items');
@@ -161,14 +177,38 @@ async function runTests() {
         console.error('  ✗ GET /api/invoices/period/:period:', e.message);
     }
 
-    // Invoices list (dashboard Payouts page)
+    // Dashboard summary + stats align with computed invoices (not legacy invoices table)
     try {
-        const invList = await request('GET', '/api/invoices', null, token);
-        assert(invList.status === 200, 'Invoices list should return 200');
-        assert(Array.isArray(invList.data.invoices), 'Invoices should have invoices array');
-        console.log('  ✓ GET /api/invoices');
+        const invList2 = await request('GET', '/api/invoices', null, token);
+        const sum = await request('GET', '/api/dashboard/summary', null, token);
+        assert(sum.status === 200, 'Dashboard summary should return 200');
+        const invs = invList2.status === 200 ? invList2.data.invoices || [] : [];
+        const paid = invs.filter((i) => i.status === 'Paid');
+        paid.sort((a, b) => String(b.due_date || '').localeCompare(String(a.due_date || '')));
+        const topPaid = paid[0] || null;
+        const lp = sum.data.latest_payout;
+        if (topPaid) {
+            assert(lp != null && lp.status === 'Paid', 'latest_payout should reflect newest paid statement');
+            assert(Number(lp.amount) === Number(topPaid.amount), 'latest_payout.amount matches computed invoice');
+            assert(String(lp.date) === String(topPaid.due_date), 'latest_payout.date is statement due_date');
+        } else {
+            assert(!lp || lp == null || lp.amount == null, 'no paid statements => no latest_payout');
+        }
+        const stats = await request('GET', '/api/dashboard/stats', null, token);
+        assert(stats.status === 200, 'Dashboard stats should return 200');
+        const pending = invs.filter((i) => i.status === 'Pending');
+        const pendingTotal = Math.round(pending.reduce((s, i) => s + (Number(i.amount) || 0), 0) * 100) / 100;
+        assert(
+            Number(stats.data.unpaid_invoices_count) === pending.length,
+            'unpaid_invoices_count should match pending computed statements'
+        );
+        assert(
+            Math.abs(Number(stats.data.unpaid_invoices_total) - pendingTotal) < 0.02,
+            'unpaid_invoices_total should match sum of pending statement amounts'
+        );
+        console.log('  ✓ GET /api/dashboard/summary + /stats vs computed invoices');
     } catch (e) {
-        console.error('  ✗ GET /api/invoices:', e.message);
+        console.error('  ✗ Dashboard vs invoices consistency:', e.message);
     }
 
     // Balance (overview live balance card)

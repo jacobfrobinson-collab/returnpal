@@ -6,6 +6,18 @@
  *   OR   referenced via absolute path from dashboard pages
  */
 
+/** Local calendar YYYY-MM-DD. Avoid `toISOString().slice(0, 10)` for calendar dates — it is UTC and can show the wrong day outside UTC. */
+function rpLocalYmd(d) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return '';
+    return (
+        d.getFullYear() +
+        '-' +
+        String(d.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(d.getDate()).padStart(2, '0')
+    );
+}
+
 const API = {
     /** API root: default `/api` on same origin. For static site + separate API host set `window.RETURNPAL_CONFIG.apiBase = 'https://your-api.example.com/api'`. */
     getApiBase() {
@@ -260,7 +272,11 @@ const API = {
     },
     _getPackagesMock() {
         const now = new Date();
-        const date = (d) => { const x = new Date(now); x.setDate(x.getDate() - d); return x.toISOString().slice(0, 10); };
+        const date = (d) => {
+            const x = new Date(now);
+            x.setDate(x.getDate() - d);
+            return rpLocalYmd(x);
+        };
         const products = [
             { name: 'Wireless Earbuds Pro', qty: 2, condition: 'Return' },
             { name: 'USB-C Hub 7-in-1', qty: 1, condition: 'New' },
@@ -425,7 +441,11 @@ const API = {
     },
     _getReceivedMock() {
         const now = new Date();
-        const date = (d) => { const x = new Date(now); x.setDate(x.getDate() - d); return x.toISOString().slice(0, 10); };
+        const date = (d) => {
+            const x = new Date(now);
+            x.setDate(x.getDate() - d);
+            return rpLocalYmd(x);
+        };
         const items = [
             { ref: 'TRACK-RP001', desc: 'Wireless Earbuds Pro x2', qty: 2, status: 'Processing' },
             { ref: 'TRACK-RP001', desc: 'USB adapter x1', qty: 1, status: 'Processed' },
@@ -464,7 +484,7 @@ const API = {
                 reference: ref,
                 package_id: null,
                 delivery_status: 'Delivered',
-                date_received: maxDate ? new Date(maxDate).toISOString().slice(0, 10) : rows[0].date_received,
+                date_received: maxDate ? rpLocalYmd(new Date(maxDate)) : rows[0].date_received,
                 total_units: totalUnits,
                 processed_units: processedUnits,
                 pending_units: pendingUnits,
@@ -523,8 +543,8 @@ const API = {
             { product: 'Used charger – unsellable', qty: 1, unit_price: 0, profit: 0, margin: 0, total_revenue: 0, recovery_route: 'Not recoverable', recovery_status: 'No recovery', damage_note: 'Condition below resale threshold' }
         ];
         let totalEarnings = 0, totalQty = 0;
-        const today = now.toISOString().slice(0, 10);
-        const ym = now.toISOString().slice(0, 7);
+        const today = rpLocalYmd(now);
+        const ym = today.slice(0, 7);
         const out = items.map((it, i) => {
             const total_revenue = it.unit_price * it.qty;
             totalEarnings += it.profit * it.qty;
@@ -604,7 +624,6 @@ const API = {
     },
     _getPendingMock() {
         const now = new Date();
-        const date = (d) => { const x = new Date(now); x.setDate(x.getDate() - d); return x.toISOString().slice(0, 10); };
         const items = [
             { product: 'Wireless Earbuds Pro', qty: 1, stage: 'Listing', estDays: 2, recovery_route: 'Resale', recovery_status: 'Listed' },
             { product: 'USB-C Hub 7-in-1', qty: 1, stage: 'Quality Check', estDays: 1, recovery_route: 'Reimbursement', recovery_status: 'Claim submitted' },
@@ -620,9 +639,9 @@ const API = {
                 reference: 'TRACK-RP' + String(i + 1).padStart(3, '0'),
                 product: it.product,
                 quantity: it.qty,
-                received_date: rec.toISOString().slice(0, 10),
+                received_date: rpLocalYmd(rec),
                 current_stage: it.stage,
-                est_completion: est.toISOString().slice(0, 10),
+                est_completion: rpLocalYmd(est),
                 notes: '',
                 recovery_route: it.recovery_route || 'Resale',
                 recovery_status: it.recovery_status || it.stage
@@ -651,15 +670,52 @@ const API = {
     },
     _getInvoicesMock() {
         const now = new Date();
-        const month = (m) => { const d = new Date(now.getFullYear(), m, 1); return d.toISOString().slice(0, 10); };
+        const y = now.getFullYear();
+        let capM = now.getMonth() + 1 - 1;
+        let capY = y;
+        if (capM < 1) {
+            capM = 12;
+            capY -= 1;
+        }
+        const capYm = capY + '-' + String(capM).padStart(2, '0');
+        const make = (monthsBack, amount, items, status) => {
+            const d = new Date(y, now.getMonth() - monthsBack, 1);
+            const py = d.getFullYear();
+            const pm = d.getMonth() + 1;
+            const ym = py + '-' + String(pm).padStart(2, '0');
+            let iy = py;
+            let im = pm + 1;
+            if (im > 12) {
+                im = 1;
+                iy += 1;
+            }
+            const dateIssued = iy + '-' + String(im).padStart(2, '0') + '-01';
+            const dueD = new Date(iy, im, 0);
+            const dueDate =
+                dueD.getFullYear() +
+                '-' +
+                String(dueD.getMonth() + 1).padStart(2, '0') +
+                '-' +
+                String(dueD.getDate()).padStart(2, '0');
+            return {
+                period: ym,
+                invoice_number: 'RP-' + ym,
+                date_issued: dateIssued,
+                due_date: dueDate,
+                amount,
+                items_count: items,
+                status,
+                vat_amount: 0
+            };
+        };
         return {
             invoices: [
-                { date_issued: month(2), amount: 1240.00, items_count: 12, status: 'Paid', vat_amount: 0 },
-                { date_issued: month(1), amount: 980.50, items_count: 8, status: 'Paid', vat_amount: 0 },
-                { date_issued: month(0), amount: 0, items_count: 0, status: 'Pending', vat_amount: 0 }
+                make(2, 1240.0, 12, 'Paid'),
+                make(1, 980.5, 8, 'Paid'),
+                make(0, 0, 0, 'Pending')
             ],
-            statement_period_cap_ym: now.toISOString().slice(0, 7),
-            statement_period_cap_tz: 'UTC'
+            statement_period_cap_ym: capYm,
+            statement_period_cap_tz: 'Europe/London'
         };
     },
 
@@ -675,7 +731,11 @@ const API = {
     },
     _getReferralsMock() {
         const now = new Date();
-        const daysAgo = (n) => { const d = new Date(now); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+        const daysAgo = (n) => {
+            const d = new Date(now);
+            d.setDate(d.getDate() - n);
+            return rpLocalYmd(d);
+        };
         // Tiered rewards: 1–5 active = £10, 6–10 = £15, 11+ = £20 per active referral
         const tiers = [
             { min_active: 1, max_active: 5, reward_per_referral: 10, label: 'Tier 1' },
@@ -737,8 +797,8 @@ const API = {
     },
     _getRoiReportMock(params = {}) {
         const now = new Date();
-        let monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        let monthEnd = now.toISOString().slice(0, 10);
+        let monthStart = rpLocalYmd(new Date(now.getFullYear(), now.getMonth(), 1));
+        let monthEnd = rpLocalYmd(now);
         if (params.from) monthStart = params.from;
         if (params.to) monthEnd = params.to;
         return {
@@ -775,7 +835,23 @@ const API = {
     },
     _getInvoiceDetailMock(period) {
         const [y, m] = period.split('-').map(Number);
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const yy = Number.isFinite(y) ? y : new Date().getFullYear();
+        const mm = Number.isFinite(m) && m >= 1 && m <= 12 ? m : 1;
+        const monthStart = yy + '-' + String(mm).padStart(2, '0') + '-01';
+        let iy = yy;
+        let im = mm + 1;
+        if (im > 12) {
+            im = 1;
+            iy += 1;
+        }
+        const dateIssued = iy + '-' + String(im).padStart(2, '0') + '-01';
+        const dueD = new Date(iy, im, 0);
+        const dueDate =
+            dueD.getFullYear() +
+            '-' +
+            String(dueD.getMonth() + 1).padStart(2, '0') +
+            '-' +
+            String(dueD.getDate()).padStart(2, '0');
         const line_items = [
             { description: 'Wireless Earbuds Pro', quantity: 1, unit_price: 34.99, amount: 29.74 },
             { description: 'USB-C Hub 7-in-1', quantity: 1, unit_price: 28.50, amount: 24.23 },
@@ -792,10 +868,19 @@ const API = {
             amount: (i.amount || 0) * (i.quantity || 1),
             reference: ''
         }));
+        const today = new Date();
+        const todayStr =
+            today.getFullYear() +
+            '-' +
+            String(today.getMonth() + 1).padStart(2, '0') +
+            '-' +
+            String(today.getDate()).padStart(2, '0');
+        const status = todayStr > dueDate ? 'Paid' : 'Pending';
         return {
             period,
-            period_label: monthNames[(m || 1) - 1] + ' ' + (y || new Date().getFullYear()),
-            date_issued: new Date(y || 2026, (m || 1) - 1, 1).toISOString().slice(0, 10),
+            period_label: monthStart,
+            date_issued: dateIssued,
+            due_date: dueDate,
             line_items,
             statement_lines,
             summary: {
@@ -809,7 +894,7 @@ const API = {
             fees,
             vat_amount: vat,
             total: total - fees,
-            status: 'Paid'
+            status
         };
     },
 
@@ -819,7 +904,7 @@ const API = {
         } catch (err) {
             if (err.status === 404 || err.status === 501) {
                 return {
-                    year_month: new Date().toISOString().slice(0, 7),
+                    year_month: rpLocalYmd(new Date()).slice(0, 7),
                     current_balance: 0,
                     pending_returns: 0,
                     available_for_payout: 0,
