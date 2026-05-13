@@ -2721,6 +2721,35 @@ const Dashboard = {
         a.click();
         URL.revokeObjectURL(a.href);
     },
+    /**
+     * Merge printable invoice rows by product title (trimmed, case-insensitive).
+     * Quantity and amount columns are totals; price shows weighted-average net per unit.
+     */
+    consolidateInvoiceLineItemsForPrint(lineItems) {
+        const list = Array.isArray(lineItems) ? lineItems : [];
+        const byKey = new Map();
+        for (const i of list) {
+            const raw = String(i.description || '')
+                .trim()
+                .replace(/\s+/g, ' ');
+            const key = raw.toLowerCase();
+            const qty = Number(i.quantity) || 1;
+            const netPerUnit = Number(i.amount || 0);
+            const lineTotal = netPerUnit * qty;
+            if (!byKey.has(key)) {
+                byKey.set(key, { description: raw || 'Item', totalQty: 0, sumAmount: 0 });
+            }
+            const b = byKey.get(key);
+            b.totalQty += qty;
+            b.sumAmount += lineTotal;
+        }
+        return Array.from(byKey.values()).map((b) => ({
+            description: b.description,
+            quantity: b.totalQty,
+            amount: b.totalQty > 0 ? b.sumAmount / b.totalQty : 0
+        }));
+    },
+
     exportSoldItemsCsv() {
         const items = this._soldListFiltered;
         if (!items || !items.length) {
@@ -2758,6 +2787,8 @@ const Dashboard = {
             const periodLabel =
                 data.period_label ||
                 (Number.isFinite(y) && Number.isFinite(m) ? y + '-' + String(m).padStart(2, '0') + '-01' : period);
+            const periodDisplay =
+                /^\d{4}-\d{2}$/.test(String(period || '').trim()) ? this.formatStatementPeriodLabel(String(period).trim()) : this.formatDateUK(periodLabel);
 
             const today = new Date();
             const [iy, im] = period.split('-').map(Number);
@@ -2779,8 +2810,9 @@ const Dashboard = {
 
             const vatNumber = (localStorage.getItem('returnpal_vat_number') || '').trim();
             const isVatRegistered = !!vatNumber;
-            const lineItems = data.line_items || [];
-            const subtotalNet = lineItems.reduce((s, i) => s + (Number(i.amount || 0) * (Number(i.quantity) || 1)), 0);
+            const lineItemsRaw = data.line_items || [];
+            const subtotalNet = lineItemsRaw.reduce((s, i) => s + (Number(i.amount || 0) * (Number(i.quantity) || 1)), 0);
+            const lineItemsForTable = this.consolidateInvoiceLineItemsForPrint(lineItemsRaw);
             const vatAmount = isVatRegistered ? (subtotalNet * 0.2) : 0;
             const totalGBP = isVatRegistered ? (subtotalNet + vatAmount) : (subtotalNet * 0.8);
             let amountDue = totalGBP;
@@ -2797,7 +2829,7 @@ const Dashboard = {
             const billTo = (billingName ? billingName + '<br/>' : '') + (billingCompany ? billingCompany + '<br/>' : '') + (billingAddress || '') + (billingPhone ? '<br/>' + billingPhone : '');
 
             const unitLabel = 'each';
-            let tableRows = lineItems.map(i => {
+            let tableRows = lineItemsForTable.map(i => {
                 const qty = Number(i.quantity) || 1;
                 const netPerUnit = Number(i.amount || 0);
                 const lineTotal = netPerUnit * qty;
@@ -2860,7 +2892,7 @@ const Dashboard = {
                 '<div class="meta-item"><div class="label">Invoice date</div><div class="value">' + invoiceDate + '</div></div>' +
                 '<div class="meta-item"><div class="label">Due date</div><div class="value">' + dueDate + '</div></div>' +
                 '</div>' +
-                '<p class="period-note">Payout for period: <strong>' + periodLabel + '</strong> (items sold and recovered).</p>' +
+                '<p class="period-note">Payout for period: <strong>' + periodDisplay + '</strong> (items sold and recovered).</p>' +
                 '<table class="items-table">' +
                 '<thead><tr><th>Description</th><th class="num">Quantity</th><th>Unit</th><th class="num">Price</th>' + (isVatRegistered ? '<th class="num">VAT</th>' : '') + '<th class="num">Amount</th></tr></thead><tbody>' +
                 tableRows +
