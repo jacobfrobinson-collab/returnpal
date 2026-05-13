@@ -2360,7 +2360,13 @@ const Dashboard = {
             const fmt = (n) => '£' + Number(n).toFixed(2);
             const periodStart = data.period_start ? RP_DATE.formatOrdinalEnGb(data.period_start) : '';
             const periodEnd = data.period_end ? RP_DATE.formatOrdinalEnGb(data.period_end) : '';
-            $('#roi-period-text').text(periodStart && periodEnd ? periodStart + ' – ' + periodEnd : (data.period_start || '') + ' – ' + (data.period_end || ''));
+            $('#roi-period-text').text(
+                periodStart && periodEnd
+                    ? periodStart + ' – ' + periodEnd
+                    : (data.period_start ? RP_DATE.formatOrdinalEnGb(data.period_start) : '') +
+                          ' – ' +
+                          (data.period_end ? RP_DATE.formatOrdinalEnGb(data.period_end) : '')
+            );
             $('#roi-cost-sent').text(fmt(data.cost_value_sent || 0));
             $('#roi-recovered').text(fmt(data.recovered || 0));
             $('#roi-you-kept').text(fmt(data.you_kept || 0));
