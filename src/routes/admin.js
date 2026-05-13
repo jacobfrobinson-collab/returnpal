@@ -16,6 +16,7 @@ const {
 } = require('../utils/adminBulkImport');
 const { createBulkImportJob, addBulkImportEntries, listBulkImportJobs, rollbackBulkImportJob } = require('../utils/bulkImportJob');
 const { logAdminAudit, listAdminAudit } = require('../utils/adminAudit');
+const { buildInvoiceMonthSourcesPayload } = require('../utils/invoiceMonthDebug');
 
 const router = express.Router();
 
@@ -68,6 +69,25 @@ router.get('/users', async (req, res) => {
         res.json({ users: rows });
     } catch (err) {
         console.error('Admin list users error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/users/:id/invoice-month-sources — which DB rows contribute each YYYY-MM invoice month (debug)
+router.get('/users/:id/invoice-month-sources', async (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id, 10);
+        if (isNaN(targetId)) return res.status(400).json({ error: 'Invalid user id' });
+
+        const db = await getDb();
+        const rows = parseResults(db.exec('SELECT id FROM users WHERE id = ?', [targetId]));
+        if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+        const payload = buildInvoiceMonthSourcesPayload(db, targetId);
+        logAdminAudit(db, req.user.id, 'invoice_month_sources', { target_user_id: targetId });
+        res.json(payload);
+    } catch (err) {
+        console.error('Admin invoice month sources error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

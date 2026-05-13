@@ -34,6 +34,16 @@
                     <a href="/admin/index.html?all_client_sales=1#bulk-import-spreadsheet" class="alert-link" id="link-bulk-upload-home">Clients home page</a>.
                     Open this client there under <strong>Apply to client</strong> for single-file uploads, or use a multi-client spreadsheet with Client ID per row.
                 </div>
+                <div class="section-card card border-secondary">
+                    <div class="card-header bg-white py-2">
+                        <span>Invoice month sources (debug)</span>
+                    </div>
+                    <div class="card-body py-2">
+                        <p class="small text-muted mb-2">Shows which sold rows and applied return adjustments map to each <code>YYYY-MM</code> invoice month (same rules as payouts on the client dashboard).</p>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-invoice-month-sources">Load JSON</button>
+                        <pre class="small mt-2 mb-0 bg-light p-2 rounded text-wrap d-none" id="invoice-month-sources-pre" style="white-space:pre-wrap;max-height:320px;overflow:auto"></pre>
+                    </div>
+                </div>
                 <div class="section-card card">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <div class="d-flex align-items-center gap-2">
@@ -453,7 +463,15 @@
         $('#admin-client-id-badge').text('ID ' + String(parseInt(clientId, 10) || 0).padStart(4, '0'));
         $('#link-view-dashboard').attr('href', '#');
 
-        function fmtDate(s) { return s ? RP_DATE.format(s) : '-'; }
+        $('#btn-invoice-month-sources').on('click', function() {
+            var $pre = $('#invoice-month-sources-pre');
+            $pre.removeClass('d-none').text('Loading…');
+            API.request('/admin/users/' + encodeURIComponent(clientId) + '/invoice-month-sources')
+                .then(function(data) { $pre.text(JSON.stringify(data, null, 2)); })
+                .catch(function(e) { $pre.text(e && e.error ? e.error : String(e)); });
+        });
+
+        function fmtDate(s) { return s ? RP_DATE.formatIso(s) : '-'; }
 
         function escapeHtml(s) {
             if (s == null) return '';

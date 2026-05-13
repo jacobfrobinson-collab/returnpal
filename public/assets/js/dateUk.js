@@ -1,10 +1,8 @@
 /**
- * UK date handling: parse with UK-first rules; display as en-GB (e.g. 12 Apr 2026) so dates
- * are never mistaken for US mm/dd. Use formatNumeric() for dd/mm/yyyy, formatIso() for YYYY-MM-DD (CSV/Excel).
+ * UK-first parsing (day/month for ambiguous slashes; optional MDY via RETURNPAL_AMBIGUOUS_DATE_ORDER).
+ * Display helpers: formatIso() → YYYY-MM-DD (used across the client dashboard and admin for spreadsheet alignment);
+ * format() → en-GB short month for any legacy/other callers; formatNumeric() → dd/mm/yyyy.
  * Accepts year-first dates with 1–2 digit month/day (2026-4-5), Excel serials (44927), and slash dates.
- * Slashed inputs like 10/08/2025 default to day/month/year (UK).
- * If both parts are ≤ 12 (e.g. 04/12/2026), set window.RETURNPAL_AMBIGUOUS_DATE_ORDER = 'MDY'
- * before this script for US month/day (matches server RETURNPAL_AMBIGUOUS_DATE_ORDER).
  */
 (function (w) {
     'use strict';

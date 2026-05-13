@@ -253,7 +253,7 @@ const Dashboard = {
         if (!$list.length) return;
 
         function fmtDate(s) {
-            return s ? RP_DATE.format(s) : '-';
+            return s ? RP_DATE.formatIso(s) : '-';
         }
         function escHtml(s) {
             return String(s || '')
@@ -720,10 +720,10 @@ const Dashboard = {
         }
     },
 
-    // ─── Helper: format date (UK English, e.g. 12 Apr 2026 — see RP_DATE.formatNumeric for dd/mm/yyyy) ──
+    // ─── Helper: format date as YYYY-MM-DD (same as spreadsheets / invoices; see RP_DATE.formatNumeric for dd/mm/yyyy) ──
     formatDate(dateStr) {
         if (!dateStr) return '-';
-        return RP_DATE.format(dateStr);
+        return RP_DATE.formatIso(dateStr);
     },
 
     formatDateNumeric(dateStr) {
@@ -1025,7 +1025,7 @@ const Dashboard = {
                     $annWidget.html('<span class="text-muted small">No announcements</span>');
                 } else {
                     const html = announcements.map(a => {
-                        const dateStr = a.date ? RP_DATE.formatShortMonth(a.date) : '';
+                        const dateStr = a.date ? RP_DATE.formatIso(a.date) : '';
                         const sum = (a.summary || '').slice(0, 60) + ((a.summary || '').length > 60 ? '…' : '');
                         return '<div class="mb-2"><a href="announcements.html" class="text-body small fw-medium">' + (a.title || '') + '</a><br><small class="text-muted">' + dateStr + ' – ' + sum + '</small></div>';
                     }).join('');
@@ -2055,25 +2055,28 @@ const Dashboard = {
             const rawInvoices = data.invoices || [];
             if (rawInvoices.length === 0) {
                 $('.seco-title').text('0 invoices');
-                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No monthly statements yet. One appears for each calendar month where you have sales (by <strong>sold date</strong>) or applied returns — including past months if you add or import sales later.</p><a href="sold-items.html" class="btn btn-primary">View Sold Items</a></td></tr>');
+                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No monthly statements yet. One appears for each calendar month where you have sales (by <strong>sold date</strong>) or applied returns. Statements are only shown through the <strong>current calendar month</strong> — future months are hidden.</p><a href="sold-items.html" class="btn btn-primary">View Sold Items</a></td></tr>');
                 return;
             }
 
             // Group by month (one invoice per month): key = "YYYY-MM"
             const byMonth = {};
             const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-            rawInvoices.forEach(inv => {
+            for (const inv of rawInvoices) {
                 let key = null;
                 if (inv.period && /^\d{4}-\d{2}$/.test(String(inv.period))) {
                     key = String(inv.period);
                 } else {
-                    const dateStr = inv.date_issued || inv.due_date || inv.sold_date;
-                    const d = dateStr ? new Date(dateStr) : new Date();
-                    key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                    const rp = String(inv.invoice_number || '').match(/^RP-(\d{4}-\d{2})$/);
+                    if (rp) key = rp[1];
+                }
+                if (!key) {
+                    console.warn('loadInvoices: skipping invoice row without YYYY-MM period', inv && inv.invoice_number, inv && inv.date_issued);
+                    continue;
                 }
                 if (!byMonth[key]) {
                     const [py, pm] = key.split('-').map(Number);
-                    const payoutDate = new Date(py, pm - 1 + 2, 0);
+                    const payoutDate = new Date(py, pm, 0);
                     const d0 = new Date(py, pm - 1, 1);
                     byMonth[key] = {
                         key,
@@ -2091,11 +2094,30 @@ const Dashboard = {
                 byMonth[key].items_count += Number(inv.items_count) || 0;
                 byMonth[key].vat_amount += Number(inv.vat_amount) || 0;
                 if (inv.status === 'Pending' || inv.status === 'Overdue') byMonth[key].status = inv.status;
-            });
+            }
 
             let monthly = Object.values(byMonth).sort((a, b) => {
                 return (b.year - a.year) || (b.month - a.month);
             });
+
+            const capKey =
+                data.statement_period_cap_ym ||
+                (() => {
+                    try {
+                        return new Intl.DateTimeFormat('en-CA', {
+                            timeZone: 'Europe/London',
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit'
+                        })
+                            .format(new Date())
+                            .slice(0, 7);
+                    } catch (e) {
+                        const d = new Date();
+                        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                    }
+                })();
+            monthly = monthly.filter((m) => m.key <= capKey);
 
             const range = $('#invoices-date-range').val() || 'all';
             const now = Date.now();
@@ -2238,7 +2260,7 @@ const Dashboard = {
                 $tbody.html('<tr><td colspan="4" class="text-center py-5 text-muted">No referrals yet. Use "Refer a seller" or share your referral link.</td></tr>');
             } else {
                 list.forEach(r => {
-                    const date = r.referred_at ? RP_DATE.formatShortMonth(r.referred_at) : '-';
+                    const date = r.referred_at ? RP_DATE.formatIso(r.referred_at) : '-';
                     const statusClass = r.status === 'Active' ? 'success' : r.status === 'Signed up' ? 'info' : 'secondary';
                     const earned = r.earned != null ? '£' + Number(r.earned).toFixed(2) : '-';
                     $tbody.append(
@@ -2286,8 +2308,8 @@ const Dashboard = {
         try {
             const data = await API.getRoiReport(params);
             const fmt = (n) => '£' + Number(n).toFixed(2);
-            const periodStart = data.period_start ? RP_DATE.formatLongMonth(data.period_start) : '';
-            const periodEnd = data.period_end ? RP_DATE.formatLongMonth(data.period_end) : '';
+            const periodStart = data.period_start ? RP_DATE.formatIso(data.period_start) : '';
+            const periodEnd = data.period_end ? RP_DATE.formatIso(data.period_end) : '';
             $('#roi-period-text').text(periodStart && periodEnd ? periodStart + ' – ' + periodEnd : (data.period_start || '') + ' – ' + (data.period_end || ''));
             $('#roi-cost-sent').text(fmt(data.cost_value_sent || 0));
             $('#roi-recovered').text(fmt(data.recovered || 0));
@@ -2350,7 +2372,7 @@ const Dashboard = {
             return;
         }
         announcements.forEach(a => {
-            const dateStr = a.date ? RP_DATE.formatShortMonth(a.date) : '';
+            const dateStr = a.date ? RP_DATE.formatIso(a.date) : '';
             const fullId = 'announcement-full-' + a.id;
             $feed.append(
                 '<div class="list-group-item border-0 border-bottom py-3" data-announcement-id="' + a.id + '">' +
@@ -2674,7 +2696,7 @@ const Dashboard = {
                 ? this.formatDateUK(data.date_issued)
                 : this.formatDateUK(today);
             const dueDate = Number.isFinite(iy) && Number.isFinite(im)
-                ? this.formatDateUK(new Date(iy, im + 1, 0))
+                ? this.formatDateUK(new Date(iy, im, 0))
                 : this.formatDateUK(new Date(today.getFullYear(), today.getMonth() + 1, 0));
 
             let invoiceNum = sessionStorage.getItem('returnpal_invoice_num_' + period);
@@ -2793,7 +2815,7 @@ const Dashboard = {
     },
     formatDateUK(d) {
         if (!d) return '';
-        return RP_DATE.format(d);
+        return RP_DATE.formatIso(d);
     },
 
     // ─── ITEM DETAIL PAGE ─────────────────────────────────────

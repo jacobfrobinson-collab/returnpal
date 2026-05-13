@@ -2,6 +2,8 @@ const express = require('express');
 const { getDb, saveDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { feesDeductedForCalendarMonth } = require('../utils/monthlyFreeProcessing');
+const { normalizeSoldDateForDb } = require('../utils/adminBulkImport');
+const { calendarYearMonthFromDbDate } = require('../utils/soldDateCalendar');
 
 const router = express.Router();
 
@@ -34,9 +36,30 @@ function parsePeriodYm(periodYm) {
     return { y, m, monthStart, monthEndStr, periodYm: `${y}-${String(m).padStart(2, '0')}` };
 }
 
-/** Last day of the payout window for activity in calendar month m (1–12), year y — matches client dashboard. */
+/**
+ * Latest calendar YYYY-MM for which we show a statement. Nothing beyond this month — no
+ * "December 2026" rows while it is still May 2026, and no payout dates in months that have not started.
+ * Uses IANA timezone (default Europe/London). Override with RETURNPAL_INVOICE_CAP_TZ (e.g. UTC).
+ */
+function maxInvoicablePeriodYm() {
+    const tz = String(process.env.RETURNPAL_INVOICE_CAP_TZ || 'Europe/London').trim() || 'Europe/London';
+    const d = new Date();
+    try {
+        const s = new Intl.DateTimeFormat('en-CA', {
+            timeZone: tz,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).format(d);
+        return s.slice(0, 7);
+    } catch {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+}
+
+/** Last day of calendar month m (1–12), year y — same rule as parsePeriodYm monthEnd. */
 function payoutEndDate(y, m) {
-    return new Date(y, m + 1, 0);
+    return new Date(y, m, 0);
 }
 
 function payoutEndDateStr(y, m) {
@@ -60,40 +83,65 @@ function payoutEndDateStr(y, m) {
 function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
     const { y, m, monthStart, monthEndStr, periodYm } = p;
 
-    const items = parseResults(
-        db.exec(
-            `SELECT id, product as description, quantity, unit_price, total_revenue, profit, status, sold_date, reference
-             FROM sold_items
-             WHERE user_id = ? AND date(sold_date) >= date(?) AND date(sold_date) <= date(?)
-             ORDER BY sold_date`,
-            [userId, monthStart, monthEndStr]
-        )
-    );
-
     const allSold =
         allSoldCache != null
             ? allSoldCache
             : parseResults(db.exec('SELECT * FROM sold_items WHERE user_id = ?', [userId]));
+
+    const items = allSold
+        .filter((row) => {
+            if (Number(row.user_id) !== Number(userId)) return false;
+            const n = normalizeSoldDateForDb(row.sold_date);
+            return !!(n && n >= monthStart && n <= monthEndStr);
+        })
+        .sort((a, b) => {
+            const na = normalizeSoldDateForDb(a.sold_date) || '';
+            const nb = normalizeSoldDateForDb(b.sold_date) || '';
+            const c = na.localeCompare(nb);
+            return c !== 0 ? c : (Number(a.id) || 0) - (Number(b.id) || 0);
+        })
+        .map((row) => ({
+            id: row.id,
+            description: row.product,
+            quantity: row.quantity,
+            unit_price: row.unit_price,
+            total_revenue: row.total_revenue,
+            profit: row.profit,
+            status: row.status,
+            sold_date: row.sold_date,
+            reference: row.reference
+        }));
+
     const fees = feesDeductedForCalendarMonth(allSold, periodYm);
 
-    const returnRows = parseResults(
+    const returnCandidates = parseResults(
         db.exec(
-            `SELECT r.id, r.product, r.reference, r.amount, r.status, r.notes, r.created_at, r.linked_sold_item_id
+            `SELECT r.id, r.product, r.reference, r.amount, r.status, r.notes, r.created_at, r.linked_sold_item_id,
+                    s.sold_date AS linked_sold_date
              FROM return_adjustments r
-             WHERE r.user_id = ?
-               AND r.status = 'applied'
-               AND (
-                 (r.linked_sold_item_id IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM sold_items s
-                    WHERE s.id = r.linked_sold_item_id AND s.user_id = r.user_id
-                      AND date(s.sold_date) >= date(?) AND date(s.sold_date) <= date(?)
-                 ))
-                 OR (r.linked_sold_item_id IS NULL AND date(r.created_at) >= date(?) AND date(r.created_at) <= date(?))
-               )
+             LEFT JOIN sold_items s ON s.id = r.linked_sold_item_id AND s.user_id = r.user_id
+             WHERE r.user_id = ? AND r.status = 'applied'
              ORDER BY r.created_at`,
-            [userId, monthStart, monthEndStr, monthStart, monthEndStr]
+            [userId]
         )
     );
+    const returnRows = returnCandidates.filter((r) => {
+        if (r.linked_sold_item_id != null) {
+            const n = normalizeSoldDateForDb(r.linked_sold_date);
+            return !!(n && n >= monthStart && n <= monthEndStr);
+        }
+        const n = normalizeSoldDateForDb(r.created_at);
+        return !!(n && n >= monthStart && n <= monthEndStr);
+    }).map((r) => ({
+        id: r.id,
+        product: r.product,
+        reference: r.reference,
+        amount: r.amount,
+        status: r.status,
+        notes: r.notes,
+        created_at: r.created_at,
+        linked_sold_item_id: r.linked_sold_item_id
+    }));
 
     const line_items = items.map((i) => {
         const qty = Number(i.quantity) || 1;
@@ -169,30 +217,31 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
 function listDistinctInvoiceMonths(db, userId) {
     const rows = parseResults(
         db.exec(
-            `SELECT ym FROM (
-                SELECT DISTINCT strftime('%Y-%m', sold_date) AS ym
-                FROM sold_items
-                WHERE user_id = ?
-                  AND sold_date IS NOT NULL
-                  AND length(trim(sold_date)) > 0
-                  AND strftime('%Y-%m', sold_date) IS NOT NULL
-                UNION
-                SELECT DISTINCT strftime('%Y-%m', s.sold_date) AS ym
-                FROM return_adjustments r
-                JOIN sold_items s ON s.id = r.linked_sold_item_id AND s.user_id = r.user_id
-                WHERE r.user_id = ? AND r.status = 'applied' AND r.linked_sold_item_id IS NOT NULL
-                  AND s.sold_date IS NOT NULL AND length(trim(s.sold_date)) > 0
-                UNION
-                SELECT DISTINCT strftime('%Y-%m', r.created_at) AS ym
-                FROM return_adjustments r
-                WHERE r.user_id = ? AND r.status = 'applied' AND r.linked_sold_item_id IS NULL
-            )
-            WHERE ym IS NOT NULL AND length(ym) = 7
-            ORDER BY ym DESC`,
+            `SELECT DISTINCT trim(sold_date) AS d
+             FROM sold_items
+             WHERE user_id = ?
+               AND sold_date IS NOT NULL
+               AND length(trim(sold_date)) > 0
+             UNION
+             SELECT DISTINCT trim(s.sold_date) AS d
+             FROM return_adjustments r
+             JOIN sold_items s ON s.id = r.linked_sold_item_id AND s.user_id = r.user_id
+             WHERE r.user_id = ? AND r.status = 'applied' AND r.linked_sold_item_id IS NOT NULL
+               AND s.sold_date IS NOT NULL AND length(trim(s.sold_date)) > 0
+             UNION
+             SELECT DISTINCT trim(r.created_at) AS d
+             FROM return_adjustments r
+             WHERE r.user_id = ? AND r.status = 'applied' AND r.linked_sold_item_id IS NULL
+               AND r.created_at IS NOT NULL AND length(trim(r.created_at)) > 0`,
             [userId, userId, userId]
         )
     );
-    return rows.map((r) => r.ym).filter(Boolean);
+    const yms = new Set();
+    for (const row of rows) {
+        const ym = calendarYearMonthFromDbDate(row.d);
+        if (ym) yms.add(ym);
+    }
+    return Array.from(yms).sort().reverse();
 }
 
 // GET /api/invoices — computed monthly statements from sold_date (backdated sales appear in correct month)
@@ -205,8 +254,10 @@ router.get('/', authMiddleware, async (req, res) => {
         const customerName = (urow[0] && (urow[0].full_name || urow[0].company_name)) || 'Client';
 
         const months = listDistinctInvoiceMonths(db, userId);
+        const capYm = maxInvoicablePeriodYm();
+        const capped = months.filter((ym) => ym <= capYm);
         const maxMonths = 60;
-        const slice = months.slice(0, maxMonths);
+        const slice = capped.slice(0, maxMonths);
 
         const today = new Date();
         today.setHours(23, 59, 59, 999);
@@ -237,7 +288,13 @@ router.get('/', authMiddleware, async (req, res) => {
             };
         }).filter(Boolean);
 
-        res.json({ invoices, total: invoices.length, source: 'computed' });
+        res.json({
+            invoices,
+            total: invoices.length,
+            source: 'computed',
+            statement_period_cap_ym: capYm,
+            statement_period_cap_tz: String(process.env.RETURNPAL_INVOICE_CAP_TZ || 'Europe/London').trim() || 'Europe/London'
+        });
     } catch (err) {
         console.error('Get invoices error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -250,6 +307,12 @@ router.get('/period/:period', authMiddleware, async (req, res) => {
         const p = parsePeriodYm(req.params.period);
         if (!p) {
             return res.status(400).json({ error: 'Invalid period; use YYYY-MM' });
+        }
+        const capYm = maxInvoicablePeriodYm();
+        if (p.periodYm > capYm) {
+            return res.status(400).json({
+                error: 'That statement period is in the future. Monthly statements are only available through the current calendar month.'
+            });
         }
         const db = await getDb();
         const payload = buildInvoicePeriodPayload(db, req.user.id, p);

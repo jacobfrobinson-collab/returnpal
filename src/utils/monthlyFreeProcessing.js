@@ -9,6 +9,7 @@
  */
 
 const DEFAULT_FEE = 0.15;
+const { calendarYearMonthFromDbDate } = require('./soldDateCalendar');
 
 function parseFeePercent() {
     const v = parseFloat(process.env.RETURNPAL_CLIENT_FEE_PERCENT);
@@ -20,11 +21,9 @@ function revenueIsNet() {
     return String(process.env.RETURNPAL_SOLD_REVENUE_IS_NET || '').toLowerCase() === 'true';
 }
 
+/** Calendar YYYY-MM from a sold_date value (same rules as invoices / bulk import). */
 function monthKey(soldDate) {
-    if (!soldDate) return null;
-    const s = String(soldDate);
-    if (s.length < 7) return null;
-    return s.slice(0, 7);
+    return calendarYearMonthFromDbDate(soldDate);
 }
 
 /** Resale-style sales only; reimbursement / not recoverable excluded when route is present */

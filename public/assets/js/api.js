@@ -657,7 +657,9 @@ const API = {
                 { date_issued: month(2), amount: 1240.00, items_count: 12, status: 'Paid', vat_amount: 0 },
                 { date_issued: month(1), amount: 980.50, items_count: 8, status: 'Paid', vat_amount: 0 },
                 { date_issued: month(0), amount: 0, items_count: 0, status: 'Pending', vat_amount: 0 }
-            ]
+            ],
+            statement_period_cap_ym: now.toISOString().slice(0, 7),
+            statement_period_cap_tz: 'UTC'
         };
     },
 

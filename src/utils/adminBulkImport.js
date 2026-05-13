@@ -266,6 +266,15 @@ function preprocessSoldDateString(s) {
     return s0;
 }
 
+/** Preview-only: detect YYYY-MM-DD at start of cell (before normalisation). */
+function rawSoldDateCellLooksIsoYmd(v) {
+    if (v == null || v === '') return false;
+    const s = String(v).replace(/^\uFEFF/, '').trim();
+    if (!s) return false;
+    const head = (s.split(/[T\s]/)[0] || s).trim();
+    return /^\d{4}-\d{2}-\d{2}/.test(head);
+}
+
 /**
  * When a slash/dash date has both numeric parts ≤ 12 (e.g. 04/12/2026), order is ambiguous.
  * DMY: 04/12/2026 → 4 Dec (UK). MDY: 04/12/2026 → 12 Apr (US / many eBay exports).
@@ -853,12 +862,19 @@ function previewBulkImport(db, opts) {
             resolved = lookupUserBrief(db, userId);
         }
         const warnings = [];
-        if (kind === 'sold' && dataRow.sold_date != null && dataRow.sold_date !== '' && !normalizeSoldDateForDb(dataRow.sold_date)) {
-            const rawShow = str(dataRow.sold_date).replace(/\s+/g, ' ').slice(0, 48);
-            warnings.push(
-                'sold_date not recognised (use UK DD/MM/YYYY or DD/MM/YY, DD-MM-YYYY, YYYY-MM-DD, or e.g. 5 Feb 2026); if imported, today’s date will be used' +
-                    (rawShow ? ` — cell was: ${rawShow}` : '')
-            );
+        if (kind === 'sold' && dataRow.sold_date != null && dataRow.sold_date !== '') {
+            const normSold = normalizeSoldDateForDb(dataRow.sold_date);
+            if (!normSold) {
+                const rawShow = str(dataRow.sold_date).replace(/\s+/g, ' ').slice(0, 48);
+                warnings.push(
+                    'sold_date not recognised (use UK DD/MM/YYYY or DD/MM/YY, DD-MM-YYYY, YYYY-MM-DD, or e.g. 5 Feb 2026); if imported, today’s date will be used' +
+                        (rawShow ? ` — cell was: ${rawShow}` : '')
+                );
+            } else if (!rawSoldDateCellLooksIsoYmd(dataRow.sold_date)) {
+                warnings.push(
+                    `sold_date will be stored as ${normSold} (YYYY-MM-DD in the sheet is recommended so invoice months match exports)`
+                );
+            }
         }
         try {
             dryValidateRow(db, kind, effUser, dataRow);

@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const pkg = require('../package.json');
 const { getDb } = require('./database');
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR
@@ -114,7 +115,20 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/reimbursement', require('./routes/reimbursement'));
 // ─── Health Check ────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        app: { name: pkg.name, version: pkg.version },
+        build: {
+            git_commit:
+                process.env.RETURNPAL_GIT_COMMIT ||
+                process.env.GIT_COMMIT ||
+                process.env.VERCEL_GIT_COMMIT_SHA ||
+                process.env.SOURCE_VERSION ||
+                null,
+            node: process.version
+        }
+    });
 });
 
 // Old Wanted marketplace URLs → home (feature removed)
@@ -154,8 +168,16 @@ async function start() {
         console.log('Database initialized');
 
         app.listen(PORT, () => {
+            const gitCommit =
+                process.env.RETURNPAL_GIT_COMMIT ||
+                process.env.GIT_COMMIT ||
+                process.env.VERCEL_GIT_COMMIT_SHA ||
+                process.env.SOURCE_VERSION ||
+                null;
             console.log(`\n  ReturnPal Backend Server`);
             console.log(`  ────────────────────────`);
+            console.log(`  App:     ${pkg.name}@${pkg.version}`);
+            if (gitCommit) console.log(`  Commit:  ${gitCommit}`);
             console.log(`  Local:   http://localhost:${PORT}`);
             console.log(`  API:     http://localhost:${PORT}/api`);
             console.log(`  Health:  http://localhost:${PORT}/api/health\n`);

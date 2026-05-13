@@ -3,3 +3,9 @@ data/
 uploads/
 .env
 *.db
+.ebay-list-audit-sheet.csv
+.ebay-list-audit-new-orders-only.csv
+.ebay-list-audit-missing-order-links.csv
+*-missing-order-links.csv
+.ebay-list-audit-downloads/
+.orders-sync-state.json

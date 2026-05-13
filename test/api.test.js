@@ -34,6 +34,8 @@ async function runTests() {
         const health = await request('GET', '/api/health');
         assert(health.status === 200, 'Health should return 200');
         assert(health.data.status === 'ok', 'Health should return status ok');
+        assert(health.data.app && health.data.app.version, 'Health should include app.version');
+        assert(health.data.build && Object.prototype.hasOwnProperty.call(health.data.build, 'git_commit'), 'Health should include build.git_commit');
         console.log('  ✓ GET /api/health');
     } catch (e) {
         console.error('  ✗ GET /api/health:', e.message);
