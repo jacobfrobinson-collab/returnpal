@@ -720,6 +720,17 @@ const Dashboard = {
         }
     },
 
+    /** Sales month label for invoice table, e.g. "April 2026" from key "2026-04". */
+    formatStatementPeriodLabel(ymKey) {
+        if (!ymKey || !/^\d{4}-\d{2}$/.test(String(ymKey))) return '-';
+        const parts = String(ymKey).split('-').map(Number);
+        const y = parts[0];
+        const mo = parts[1];
+        if (!y || !mo || mo < 1 || mo > 12) return '-';
+        const d = new Date(y, mo - 1, 1);
+        return d.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+    },
+
     // ─── Helper: format date as YYYY-MM-DD (RP_DATE; local calendar — never UTC slice) ──
     formatDate(dateStr) {
         if (!dateStr) return '-';
@@ -2176,8 +2187,7 @@ const Dashboard = {
             }
 
             monthly.forEach(m => {
-                const periodStartIso = m.key ? m.key + '-01' : '';
-                const periodLabel = periodStartIso ? this.formatDate(periodStartIso) : '-';
+                const periodLabel = m.key ? this.formatStatementPeriodLabel(m.key) : '-';
                 $tbody.append(`
                     <tr>
                         <td><strong>${periodLabel}</strong></td>
@@ -2625,11 +2635,10 @@ const Dashboard = {
 
     exportInvoicesCsv() {
         const monthly = window._lastInvoicesData || [];
-        const rows = [['Period (YYYY-MM-DD)', 'Date issued (YYYY-MM-DD)', 'Payout date (YYYY-MM-DD)', 'Amount', 'Items', 'Status']];
+        const rows = [['Sales month (YYYY-MM)', 'Date issued (YYYY-MM-DD)', 'Payout date (YYYY-MM-DD)', 'Amount', 'Items', 'Status']];
         monthly.forEach(m => {
-            const periodStartIso = m.key ? m.key + '-01' : '';
             rows.push([
-                this.formatDateIso(periodStartIso),
+                m.key || '',
                 this.formatDateIso(m.date_issued),
                 this.formatDateIso(m.payout_date),
                 '£' + Number(m.amount).toFixed(2),
@@ -2652,11 +2661,10 @@ const Dashboard = {
         let csv = 'ReturnPal - Invoice summary for accountant\n';
         csv += 'Exported: ' + this.formatDateIso(new Date()) + '\n';
         if (vatNumber) csv += 'VAT number: ' + vatNumber + '\n';
-        csv += '\nPeriod (YYYY-MM-DD),Date issued (YYYY-MM-DD),Payout date (YYYY-MM-DD),Amount (£),VAT (£),Items,Status\n';
+        csv += '\nSales month (YYYY-MM),Date issued (YYYY-MM-DD),Payout date (YYYY-MM-DD),Amount (£),VAT (£),Items,Status\n';
         monthly.forEach(m => {
-            const periodStartIso = m.key ? m.key + '-01' : '';
             csv +=
-                this.formatDateIso(periodStartIso) +
+                (m.key || '') +
                 ',' +
                 this.formatDateIso(m.date_issued) +
                 ',' +
