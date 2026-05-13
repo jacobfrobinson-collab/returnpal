@@ -253,7 +253,7 @@ const Dashboard = {
         if (!$list.length) return;
 
         function fmtDate(s) {
-            return s ? RP_DATE.formatIso(s) : '-';
+            return s ? RP_DATE.formatOrdinalEnGb(s) : '-';
         }
         function escHtml(s) {
             return String(s || '')
@@ -720,26 +720,25 @@ const Dashboard = {
         }
     },
 
-    /** Sales month label for invoice table, e.g. "April 2026" from key "2026-04". */
+    /** Sales month column: first day of that month as a full readable date (e.g. April 1st 2026). */
     formatStatementPeriodLabel(ymKey) {
         if (!ymKey || !/^\d{4}-\d{2}$/.test(String(ymKey))) return '-';
         const parts = String(ymKey).split('-').map(Number);
         const y = parts[0];
         const mo = parts[1];
         if (!y || !mo || mo < 1 || mo > 12) return '-';
-        const d = new Date(y, mo - 1, 1);
-        return d.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+        return RP_DATE.formatOrdinalEnGb(y + '-' + String(mo).padStart(2, '0') + '-01');
     },
 
-    // ─── Helper: format date as YYYY-MM-DD (RP_DATE; local calendar — never UTC slice) ──
+    // ─── Helper: human-readable calendar date (e.g. May 1st 2026). CSV / APIs use formatDateIso. ──
     formatDate(dateStr) {
         if (!dateStr) return '-';
-        return RP_DATE.formatIso(dateStr);
+        return RP_DATE.formatOrdinalEnGb(dateStr);
     },
 
     formatDateNumeric(dateStr) {
         if (!dateStr) return '-';
-        return RP_DATE.formatNumeric(dateStr);
+        return RP_DATE.formatOrdinalEnGb(dateStr);
     },
 
     /** YYYY-MM-DD for CSV / Excel (avoids US vs UK mis-reading of numeric dates). */
@@ -1055,7 +1054,7 @@ const Dashboard = {
                     $annWidget.html('<span class="text-muted small">No announcements</span>');
                 } else {
                     const html = announcements.map(a => {
-                        const dateStr = a.date ? RP_DATE.formatIso(a.date) : '';
+                        const dateStr = a.date ? RP_DATE.formatOrdinalEnGb(a.date) : '';
                         const sum = (a.summary || '').slice(0, 60) + ((a.summary || '').length > 60 ? '…' : '');
                         return '<div class="mb-2"><a href="announcements.html" class="text-body small fw-medium">' + (a.title || '') + '</a><br><small class="text-muted">' + dateStr + ' – ' + sum + '</small></div>';
                     }).join('');
@@ -1110,7 +1109,7 @@ const Dashboard = {
         if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
         if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
         if (sec < 604800) return Math.floor(sec / 86400) + 'd ago';
-        return RP_DATE.formatIso(d);
+        return RP_DATE.formatOrdinalEnGb(d);
     },
 
     // ─── PACKAGES PAGE ───────────────────────────────────────
@@ -2311,7 +2310,7 @@ const Dashboard = {
                 $tbody.html('<tr><td colspan="4" class="text-center py-5 text-muted">No referrals yet. Use "Refer a seller" or share your referral link.</td></tr>');
             } else {
                 list.forEach(r => {
-                    const date = r.referred_at ? RP_DATE.formatIso(r.referred_at) : '-';
+                    const date = r.referred_at ? RP_DATE.formatOrdinalEnGb(r.referred_at) : '-';
                     const statusClass = r.status === 'Active' ? 'success' : r.status === 'Signed up' ? 'info' : 'secondary';
                     const earned = r.earned != null ? '£' + Number(r.earned).toFixed(2) : '-';
                     $tbody.append(
@@ -2359,8 +2358,8 @@ const Dashboard = {
         try {
             const data = await API.getRoiReport(params);
             const fmt = (n) => '£' + Number(n).toFixed(2);
-            const periodStart = data.period_start ? RP_DATE.formatIso(data.period_start) : '';
-            const periodEnd = data.period_end ? RP_DATE.formatIso(data.period_end) : '';
+            const periodStart = data.period_start ? RP_DATE.formatOrdinalEnGb(data.period_start) : '';
+            const periodEnd = data.period_end ? RP_DATE.formatOrdinalEnGb(data.period_end) : '';
             $('#roi-period-text').text(periodStart && periodEnd ? periodStart + ' – ' + periodEnd : (data.period_start || '') + ' – ' + (data.period_end || ''));
             $('#roi-cost-sent').text(fmt(data.cost_value_sent || 0));
             $('#roi-recovered').text(fmt(data.recovered || 0));
@@ -2423,7 +2422,7 @@ const Dashboard = {
             return;
         }
         announcements.forEach(a => {
-            const dateStr = a.date ? RP_DATE.formatIso(a.date) : '';
+            const dateStr = a.date ? RP_DATE.formatOrdinalEnGb(a.date) : '';
             const fullId = 'announcement-full-' + a.id;
             $feed.append(
                 '<div class="list-group-item border-0 border-bottom py-3" data-announcement-id="' + a.id + '">' +
@@ -2879,7 +2878,7 @@ const Dashboard = {
     },
     formatDateUK(d) {
         if (!d) return '';
-        return RP_DATE.formatIso(d);
+        return RP_DATE.formatOrdinalEnGb(d);
     },
 
     // ─── ITEM DETAIL PAGE ─────────────────────────────────────

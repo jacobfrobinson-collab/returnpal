@@ -1,7 +1,7 @@
 /**
  * UK-first parsing (day/month for ambiguous slashes; optional MDY via RETURNPAL_AMBIGUOUS_DATE_ORDER).
- * All display helpers use calendar YYYY-MM-DD (ISO date) so the site never shows ambiguous US/UK layouts.
- * format(), formatIso(), formatNumeric(), formatShortMonth(), formatLongMonth() all return YYYY-MM-DD (or '' / '-').
+ * Normalised storage/API dates stay YYYY-MM-DD (formatIso). User-facing labels use formatOrdinalEnGb
+ * (e.g. "May 1st 2026"). CSV and filenames should keep formatIso.
  */
 (function (w) {
     'use strict';
@@ -115,6 +115,45 @@
         return isNaN(fallback.getTime()) ? null : fallback;
     }
 
+    const MONTH_NAMES = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December'
+    ];
+
+    function dayWithOrdinal(n) {
+        const d = Math.floor(Math.abs(Number(n)) || 0);
+        if (d < 1 || d > 31) return String(n);
+        const j = d % 10;
+        const k = d % 100;
+        if (k >= 11 && k <= 13) return d + 'th';
+        if (j === 1) return d + 'st';
+        if (j === 2) return d + 'nd';
+        if (j === 3) return d + 'rd';
+        return d + 'th';
+    }
+
+    /**
+     * Readable UK-style label: "May 1st 2026". Uses the same parse() rules as formatIso.
+     * @param {unknown} input
+     * @returns {string}
+     */
+    function formatOrdinalEnGb(input) {
+        const d = parse(input);
+        if (!d) return '-';
+        const month = MONTH_NAMES[d.getMonth()];
+        return month + ' ' + dayWithOrdinal(d.getDate()) + ' ' + d.getFullYear();
+    }
+
     /**
      * @param {unknown} input
      * @returns {string} YYYY-MM-DD or '-'
@@ -173,6 +212,7 @@
         format: format,
         formatNumeric: formatNumeric,
         formatIso: formatIso,
+        formatOrdinalEnGb: formatOrdinalEnGb,
         formatShortMonth: formatShortMonth,
         formatLongMonth: formatLongMonth,
         getTime: getTime
