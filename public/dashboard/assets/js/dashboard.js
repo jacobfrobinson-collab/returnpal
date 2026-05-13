@@ -751,10 +751,11 @@ const Dashboard = {
      * Normalised YYYY-MM-DD for sold rows (API may send sold_date_display; optional window repair on client).
      */
     _soldDateRepairedIso(item) {
-        if (item.sold_date_display) return RP_DATE.formatIso(item.sold_date_display);
-        let iso = RP_DATE.formatIso(item.sold_date);
+        let iso = item.sold_date_display
+            ? RP_DATE.formatIso(item.sold_date_display)
+            : RP_DATE.formatIso(item.sold_date);
         if (iso === '-') return '-';
-        if (String(typeof window !== 'undefined' ? window.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO : '').trim() === '1') {
+        if (String(typeof window !== 'undefined' ? window.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO : '').trim() !== '0') {
             const m = iso.match(/^(\d{4})-12-(0[2-9]|1[01])$/);
             if (m) iso = m[1] + '-' + m[2] + '-12';
         }

@@ -68,6 +68,22 @@ function run() {
         assert(normalizeSoldDateForDb('2026-01-04') === '2026-01-04', 'Leading ISO not overridden by MDY');
     });
 
+    {
+        const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO');
+        const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO;
+        delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO;
+        try {
+            assert(
+                repairDecemberIsoMisimportForDisplay('2026-12-04') === '2026-04-12',
+                'Default (env unset): repair 12 Apr mis-stored as 2026-12-04'
+            );
+            assert(repairDecemberIsoMisimportForDisplay('2026-12-12') === '2026-12-12', 'Dec 12 unchanged when repair default on');
+        } finally {
+            if (had) process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO = prev;
+            else delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO;
+        }
+    }
+
     withDecemberRepair(false, () => {
         assert(repairDecemberIsoMisimportForDisplay('2026-12-04') === '2026-12-04', 'December repair off leaves ISO as-is');
     });

@@ -421,11 +421,12 @@ function normalizeSoldDateForDb(v) {
 /**
  * Display-only repair for a common mis-import: ambiguous US MM/DD read as UK DMY can store
  * December (e.g. 12 Apr → 2026-12-04). Maps YYYY-12-D with D in 2..11 to YYYY-D-12.
- * Enable with RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO=1 (server) or window.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO='1' (sold-items page).
+ * On by default (server and typical client). Disable with RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO=0.
+ * Also set window.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO='0' on sold-items to opt out in the browser.
  * Genuine sales on 2–11 December may show incorrectly when enabled.
  */
 function repairDecemberIsoMisimportForDisplay(iso) {
-    if (String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO || '').trim() !== '1') {
+    if (String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO || '').trim() === '0') {
         return iso;
     }
     const s = iso == null ? '' : String(iso).trim();
