@@ -3,7 +3,7 @@ const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
-const { normalizeSoldDateForDb, repairDecemberIsoMisimportForDisplay } = require('../utils/adminBulkImport');
+const { normalizeSoldDateForDb, repairNovemberIsoMisimportForDisplay, repairDecemberIsoMisimportForDisplay } = require('../utils/adminBulkImport');
 const { sortSoldItemsByDateDesc } = require('../utils/sortSoldItemsByDateDesc');
 
 const router = express.Router();
@@ -105,7 +105,10 @@ router.get('/', authMiddleware, async (req, res) => {
             const ret = returnsBySold[String(row.id)] || 0;
             const profit = Number(row.profit) || 0;
             const canon = normalizeSoldDateForDb(row.sold_date);
-            const sold_date_display = repairDecemberIsoMisimportForDisplay(canon || String(row.sold_date || '').trim());
+            const rawDisp = canon || String(row.sold_date || '').trim();
+            const sold_date_display = repairDecemberIsoMisimportForDisplay(
+                repairNovemberIsoMisimportForDisplay(rawDisp)
+            );
             return {
                 ...row,
                 sold_date_display: sold_date_display || row.sold_date,

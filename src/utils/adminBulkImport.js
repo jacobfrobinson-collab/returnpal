@@ -419,6 +419,26 @@ function normalizeSoldDateForDb(v) {
 }
 
 /**
+ * Display-only repair parallel to {@link repairDecemberIsoMisimportForDisplay}:
+ * ambiguous US MM/DD read as UK DMY can store **November** (e.g. 11 Apr → 2026-11-04).
+ * Maps YYYY-11-D with D in 2..11 to YYYY-D-11 (11 April 2026).
+ * On by default. Disable with RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO=0.
+ * Genuine sales on 2–11 November may show incorrectly when enabled.
+ */
+function repairNovemberIsoMisimportForDisplay(iso) {
+    if (String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO || '').trim() === '0') {
+        return iso;
+    }
+    const s = iso == null ? '' : String(iso).trim();
+    const m = s.match(/^(\d{4})-11-(\d{1,2})$/);
+    if (!m) return iso;
+    const y = parseInt(m[1], 10);
+    const d = parseInt(m[2], 10);
+    if (!Number.isFinite(y) || !Number.isFinite(d) || d < 2 || d > 11) return iso;
+    return y + '-' + String(d).padStart(2, '0') + '-11';
+}
+
+/**
  * Display-only repair for a common mis-import: ambiguous US MM/DD read as UK DMY can store
  * December (e.g. 12 Apr → 2026-12-04). Maps YYYY-12-D with D in 2..11 to YYYY-D-12.
  * On by default (server and typical client). Disable with RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO=0.
@@ -1215,6 +1235,7 @@ module.exports = {
     rowWithoutClientSpecifier,
     applyImportRowForKind,
     normalizeSoldDateForDb,
+    repairNovemberIsoMisimportForDisplay,
     repairDecemberIsoMisimportForDisplay,
     MAX_ROWS,
     KINDS: Object.keys(IMPORTERS),

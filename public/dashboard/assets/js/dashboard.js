@@ -844,6 +844,13 @@ const Dashboard = {
             ? RP_DATE.formatIso(item.sold_date_display)
             : RP_DATE.formatIso(item.sold_date);
         if (iso === '-') return '-';
+        if (String(typeof window !== 'undefined' ? window.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO : '').trim() !== '0') {
+            const mn = iso.match(/^(\d{4})-11-(\d{1,2})$/);
+            if (mn) {
+                const d = parseInt(mn[2], 10);
+                if (d >= 2 && d <= 11) iso = mn[1] + '-' + String(d).padStart(2, '0') + '-11';
+            }
+        }
         if (String(typeof window !== 'undefined' ? window.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO : '').trim() !== '0') {
             const m = iso.match(/^(\d{4})-12-(0[2-9]|1[01])$/);
             if (m) iso = m[1] + '-' + m[2] + '-12';

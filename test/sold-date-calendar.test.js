@@ -8,7 +8,19 @@ const assert = (cond, msg) => {
 };
 
 const { calendarYearMonthFromDbDate, calendarIsoDateFromDbDate } = require('../src/utils/soldDateCalendar');
-const { normalizeSoldDateForDb, repairDecemberIsoMisimportForDisplay } = require('../src/utils/adminBulkImport');
+const { normalizeSoldDateForDb, repairNovemberIsoMisimportForDisplay, repairDecemberIsoMisimportForDisplay } = require('../src/utils/adminBulkImport');
+
+function withNovemberRepair(on, fn) {
+    const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO');
+    const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO;
+    process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO = on ? '1' : '0';
+    try {
+        fn();
+    } finally {
+        if (had) process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO = prev;
+        else delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO;
+    }
+}
 
 /** @param {string|undefined|null} order '' to clear to default DMY */
 function withDecemberRepair(on, fn) {
@@ -91,6 +103,30 @@ function run() {
         assert(repairDecemberIsoMisimportForDisplay('2026-12-04') === '2026-04-12', 'December repair on: common mis-import');
         assert(repairDecemberIsoMisimportForDisplay('2026-12-01') === '2026-12-01', 'Dec 1 not rewritten');
     });
+
+    withNovemberRepair(false, () => {
+        assert(repairNovemberIsoMisimportForDisplay('2026-11-04') === '2026-11-04', 'November repair off leaves ISO as-is');
+    });
+    withNovemberRepair(true, () => {
+        assert(repairNovemberIsoMisimportForDisplay('2026-11-04') === '2026-04-11', 'November repair on: 11 Apr mis-stored as Nov 4');
+        assert(repairNovemberIsoMisimportForDisplay('2026-11-12') === '2026-11-12', 'Nov 12 unchanged');
+        assert(repairNovemberIsoMisimportForDisplay('2026-11-01') === '2026-11-01', 'Nov 1 not rewritten');
+    });
+
+    {
+        const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO');
+        const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO;
+        delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO;
+        try {
+            assert(
+                repairNovemberIsoMisimportForDisplay('2026-11-04') === '2026-04-11',
+                'Default (env unset): repair 11 Apr mis-stored as 2026-11-04'
+            );
+        } finally {
+            if (had) process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO = prev;
+            else delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO;
+        }
+    }
 
     console.log('sold-date-calendar: all checks passed');
 }
