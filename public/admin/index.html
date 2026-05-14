@@ -44,6 +44,7 @@
                 <div class="alert alert-info py-2 px-3 small mb-3" role="region" aria-label="Marketplace orders upload">
                     <div class="fw-semibold mb-1">Marketplace / eBay — all clients in one file</div>
                     <p class="mb-2">Upload a <strong>.csv</strong> or <strong>.xlsx</strong> where each row is one sale. The <strong>Client ID</strong> column must match either the client’s <strong>dashboard ID</strong> (e.g. <code>14</code> or <code>0014</code>) or their <strong>Old Client ID</strong> from the table below (e.g. <code>AC</code>, <code>SM</code>). Matching rows are saved as <strong>sales</strong> on that client’s dashboard immediately (visible after refresh).</p>
+                    <p class="mb-2 text-muted">Rows with a <strong>missing</strong> Client ID or an ID that <strong>does not match anyone yet</strong> can be saved to <strong>Pending import rows</strong> below (when the option is on), so you can apply them after the client exists or after you set their Old Client ID.</p>
                     <p class="mb-2 text-muted mb-0">Columns: <code>Client ID</code> (or <code>Old Client ID</code> / <code>legacy_client_id</code>), <code>sold_date</code> (YYYY-MM-DD), <code>item_name</code>, <code>quantity</code>, <code>earnings</code>. Optional: <code>order_number</code>.</p>
                     <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-marketplace-sales-setup">Use marketplace sales upload</button>
                     <span class="text-muted ms-2">Sets <strong>Record sales</strong> + <strong>Multi-client file</strong>, then scrolls here.</span>
@@ -51,6 +52,10 @@
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="bulk-import-multi" />
                     <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the list below); rows are applied to that client’s dashboard.</label>
+                </div>
+                <div class="form-check mb-2 ms-3 d-none" id="bulk-import-queue-unmatched-wrap">
+                    <input class="form-check-input" type="checkbox" id="bulk-import-queue-unmatched" checked />
+                    <label class="form-check-label small" for="bulk-import-queue-unmatched">Save rows with <strong>missing</strong> or <strong>unknown</strong> Client ID to <em>Pending import rows</em> (recommended). Turn off to record those rows as errors only.</label>
                 </div>
                 <div class="row g-2 align-items-end">
                     <div class="col-md-4 col-lg-3">
@@ -98,13 +103,52 @@
             </div>
         </div>
 
+        <div class="section-card card shadow-sm" id="bulk-import-pending-section">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h2 class="h6 mb-0">Pending import rows</h2>
+                    <p class="small text-muted mb-0">Queued from multi-client uploads when Client ID was empty or did not match a client. Set <strong>Old Client ID</strong> on the client to match the spreadsheet value, pick the client below, then <strong>Apply</strong> for that key.</p>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-pending-refresh">Refresh</button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Client ID key</th>
+                                <th>Kind</th>
+                                <th>Rows</th>
+                                <th>First saved</th>
+                                <th>Sample file</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulk-import-pending-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="p-2 border-top bg-light d-flex flex-wrap align-items-center gap-2 small">
+                    <span class="text-muted">Apply uses the client selected here for the row’s <strong>Apply</strong> button:</span>
+                    <select class="form-select form-select-sm" style="max-width:min(100%,320px)" id="bulk-import-pending-client">
+                        <option value="">— Select client —</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="section-card card shadow-sm">
             <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
                     <h2 class="h6 mb-0">Recent spreadsheet imports</h2>
                     <span class="badge bg-secondary" id="bulk-import-jobs-count">0</span>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-jobs-refresh">Refresh</button>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="form-check mb-0 small">
+                        <input class="form-check-input" type="checkbox" id="bulk-import-jobs-show-rolled" />
+                        <label class="form-check-label" for="bulk-import-jobs-show-rolled">Show rolled-back</label>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-jobs-refresh">Refresh</button>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -124,7 +168,7 @@
                         <tbody id="bulk-import-jobs-tbody"></tbody>
                     </table>
                 </div>
-                <p class="small text-muted mb-0 px-2 py-2 border-top">Undo removes rows created in that import (and restores package status for “mark delivered” rows). Jobs from all clients are listed here.</p>
+                <p class="small text-muted mb-0 px-2 py-2 border-top">Undo removes rows created in that import (and restores package status for “mark delivered” rows). Rolled-back jobs are hidden unless you tick <strong>Show rolled-back</strong>.</p>
             </div>
         </div>
 
@@ -159,7 +203,7 @@
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
-    <script src="/assets/js/api.js?v=rp11"></script>
+    <script src="/assets/js/api.js?v=rp12"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script>
     $(function() {
@@ -205,6 +249,7 @@
         }
         function populateBulkImportClientSelect(users) {
             var $sel = $('#bulk-import-target-client');
+            var $pend = $('#bulk-import-pending-client');
             if (!$sel.length) return;
             var prev = $sel.val();
             $sel.find('option:not(:first)').remove();
@@ -215,6 +260,17 @@
                 $sel.append($('<option></option>').attr('value', String(id)).text(label));
             });
             if (prev && $sel.find('option[value="' + prev + '"]').length) $sel.val(prev);
+            if ($pend.length) {
+                var prevP = $pend.val();
+                $pend.find('option:not(:first)').remove();
+                (users || []).forEach(function(u) {
+                    var id = u.id;
+                    if (id == null) return;
+                    var label = String(id).padStart(4, '0') + ' — ' + (u.full_name || u.email || 'Client');
+                    $pend.append($('<option></option>').attr('value', String(id)).text(label));
+                });
+                if (prevP && $pend.find('option[value="' + prevP + '"]').length) $pend.val(prevP);
+            }
             var sp = new URLSearchParams(window.location.search || '');
             var marketplace = sp.get('all_client_sales') === '1' || sp.get('marketplace_orders') === '1';
             var bc = sp.get('bulk_client');
@@ -232,9 +288,11 @@
             var multi = document.getElementById('bulk-import-multi') && document.getElementById('bulk-import-multi').checked;
             $('#bulk-import-target-client').prop('disabled', !!multi);
             $('#bulk-import-single-client-wrap').toggleClass('opacity-50', !!multi);
+            $('#bulk-import-queue-unmatched-wrap').toggleClass('d-none', !multi);
         }
         function loadBulkImportJobs() {
-            API.adminListBulkImportJobs()
+            var showRolled = document.getElementById('bulk-import-jobs-show-rolled') && document.getElementById('bulk-import-jobs-show-rolled').checked;
+            API.adminListBulkImportJobs({ limit: 20, include_rolled_back: showRolled })
                 .then(function(data) {
                     var jobs = data.jobs || [];
                     $('#bulk-import-jobs-count').text(jobs.length);
@@ -265,10 +323,45 @@
                             escapeHtml((j.original_filename || '').slice(0, 40)) + '</td><td>' + roll + '</td></tr>'
                         );
                     });
-                    if (jobs.length === 0) $tb.append('<tr><td colspan="8" class="text-muted px-2 py-3">No imports yet</td></tr>');
+                    if (jobs.length === 0) $tb.append('<tr><td colspan="8" class="text-muted px-2 py-3">No imports in this view.</td></tr>');
                 })
                 .catch(function() {
                     $('#bulk-import-jobs-tbody').html('<tr><td colspan="8" class="text-danger px-2">Failed to load jobs</td></tr>');
+                });
+        }
+        function loadPendingImports() {
+            API.adminListBulkImportPending({ limit: 40 })
+                .then(function(data) {
+                    var groups = data.groups || [];
+                    var $tb = $('#bulk-import-pending-tbody').empty();
+                    if (!groups.length) {
+                        $tb.append('<tr><td colspan="6" class="text-muted px-2 py-3">No pending rows.</td></tr>');
+                        return;
+                    }
+                    groups.forEach(function(g) {
+                        var keyLabel =
+                            g.legacy_key === '' || g.legacy_key == null
+                                ? '<span class="text-muted">(missing Client ID)</span>'
+                                : '<code>' + escapeHtml(String(g.legacy_key)) + '</code>';
+                        var $apply = $('<button type="button" class="btn btn-sm btn-primary btn-apply-pending-import">Apply</button>');
+                        $apply.attr('data-kind', g.kind || '');
+                        $apply.attr('data-legacy-key', g.legacy_key != null ? String(g.legacy_key) : '');
+                        var $tr = $('<tr></tr>');
+                        $tr.append(
+                            $('<td></td>').html(keyLabel),
+                            $('<td class="small"></td>').text(g.kind || ''),
+                            $('<td></td>').text(g.row_count != null ? g.row_count : 0),
+                            $('<td class="small"></td>').text(fmtDate(g.first_at)),
+                            $('<td class="small text-truncate"></td>')
+                                .attr('title', g.sample_filename || '')
+                                .text((g.sample_filename || '').slice(0, 36)),
+                            $('<td></td>').append($apply)
+                        );
+                        $tb.append($tr);
+                    });
+                })
+                .catch(function() {
+                    $('#bulk-import-pending-tbody').html('<tr><td colspan="6" class="text-danger px-2">Failed to load pending</td></tr>');
                 });
         }
         function renderBulkImportErrorsHtml(errors) {
@@ -497,8 +590,9 @@
                             : r.error
                               ? escapeHtml(r.error)
                               : '<span class="text-muted">No issues</span>';
+                    var trCls = r.will_queue_as_pending ? ' class="table-warning"' : '';
                     $tb.append(
-                        '<tr><td>' +
+                        '<tr' + trCls + '><td>' +
                             r.line +
                             '</td><td>' +
                             ok +
@@ -521,6 +615,38 @@
 
         $('#bulk-import-jobs-refresh').on('click', function() {
             loadBulkImportJobs();
+        });
+        $('#bulk-import-jobs-show-rolled').on('change', function() {
+            loadBulkImportJobs();
+        });
+        $('#bulk-import-pending-refresh').on('click', function() {
+            loadPendingImports();
+        });
+        $(document).on('click', '.btn-apply-pending-import', async function() {
+            var uid = parseInt($('#bulk-import-pending-client').val(), 10);
+            if (!Number.isFinite(uid)) return alert('Select a client in the dropdown below first.');
+            var $btn = $(this);
+            var kind = $btn.attr('data-kind');
+            var legacyKey = $btn.attr('data-legacy-key');
+            if (legacyKey == null) legacyKey = '';
+            if (!kind) return;
+            var n = typeof legacyKey === 'string' && legacyKey !== '' ? legacyKey : 'missing Client ID';
+            if (!confirm('Apply ' + n + ' pending row(s) as ' + kind + ' to client ID ' + String(uid).padStart(4, '0') + '?')) return;
+            $btn.prop('disabled', true);
+            try {
+                var res = await API.adminApplyBulkImportPending({ user_id: uid, kind: kind, legacy_key: legacyKey });
+                var msg = 'Applied ' + (res.imported || 0) + ' row(s).';
+                if (res.job_id) msg += ' Job #' + res.job_id + ' (Undo from Recent imports).';
+                if (res.errors && res.errors.length) msg += '\n\nSome rows failed: ' + res.errors.length;
+                alert(msg);
+                loadPendingImports();
+                loadBulkImportJobs();
+                loadUsers();
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Apply failed');
+            } finally {
+                $btn.prop('disabled', false);
+            }
         });
         $(document).on('click', '.btn-rollback-job', async function() {
             var id = $(this).data('id');
@@ -547,9 +673,13 @@
             $('#bulk-import-result-links').addClass('d-none').empty();
             try {
                 var data = multi
-                    ? await API.adminBulkImportMulti(kind, f)
+                    ? await API.adminBulkImportMulti(kind, f, {
+                          queue_unmatched: document.getElementById('bulk-import-queue-unmatched').checked,
+                      })
                     : await API.adminBulkImportUser(targetId, kind, f);
                 var txt = 'Imported ' + (data.imported || 0) + ' row(s).';
+                if (data.pending_rows_saved)
+                    txt += ' Saved ' + data.pending_rows_saved + ' row(s) to Pending imports (missing / unknown Client ID).';
                 if (data.job_id) txt += ' Job #' + data.job_id + ' (you can Undo from Recent imports).';
                 if (multi && data.by_user && Object.keys(data.by_user).length) {
                     txt += '\n\nPer client (user id → rows): ' + JSON.stringify(data.by_user);
@@ -561,6 +691,7 @@
                 renderBulkImportErrorsHtml(data.errors || []);
                 document.getElementById('bulk-import-file').value = '';
                 loadBulkImportJobs();
+                loadPendingImports();
                 loadUsers();
             } catch (e) {
                 alert((e && e.error) || e.message || 'Import failed');
@@ -570,6 +701,7 @@
         });
 
         loadBulkImportJobs();
+        loadPendingImports();
         loadUsers();
     });
     </script>

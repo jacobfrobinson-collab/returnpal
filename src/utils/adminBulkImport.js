@@ -724,6 +724,25 @@ function rowWithoutClientSpecifier(row) {
 }
 
 /**
+ * Run one import row (data row only — client columns should already be stripped).
+ */
+function applyImportRowForKind(db, kind, userId, dataRow) {
+    const importer = IMPORTERS[kind];
+    if (!importer) throw new Error('Unknown import type');
+    return importer(db, userId, dataRow);
+}
+
+/**
+ * Whether a multi-row client resolution failure can be queued for later apply (vs hard error).
+ * @param {string} message
+ */
+function shouldQueueClientResolutionError(message) {
+    const m = String(message || '');
+    if (m.includes('Multiple clients')) return false;
+    return m.includes('No client with') || m.includes('Missing Client ID');
+}
+
+/**
  * Resolve dashboard client: numeric id (14, "0014") or legacy / old client id string.
  * @param {import('sql.js').Database} db
  * @param {string|number} raw
@@ -859,7 +878,8 @@ function previewBulkImport(db, opts) {
                 out.push({
                     line,
                     ok: false,
-                    error: 'Missing Client ID or Old Client ID column for this row',
+                    will_queue_as_pending: true,
+                    error: 'Missing Client ID — on Import, row can be saved to Pending imports until a client matches',
                     summary: '',
                     ...(kind === 'sold' ? { sold_date_preview: soldDatePreviewLabel(rows[i]) } : {}),
                 });
@@ -868,10 +888,14 @@ function previewBulkImport(db, opts) {
             }
             const res = resolveUserIdFromClientSpecifier(db, spec);
             if (res.error) {
+                const queueable = shouldQueueClientResolutionError(res.error);
                 out.push({
                     line,
                     ok: false,
-                    error: res.error,
+                    will_queue_as_pending: queueable,
+                    error: queueable
+                        ? res.error + ' — on Import, row can be saved to Pending imports until a client matches'
+                        : res.error,
                     specifier: String(spec),
                     summary: '',
                     ...(kind === 'sold' ? { sold_date_preview: soldDatePreviewLabel(rows[i]) } : {}),
@@ -992,25 +1016,51 @@ async function runBulkImport(db, kind, userId, buffer, options = {}) {
 }
 
 /**
- * Same as runBulkImport but each row must include Client ID or Old Client ID; rows are routed to that user.
  * @param {import('sql.js').Database} db
- * @returns {{ imported: number, errors: Array<{ line: number, error: string }>, by_user?: Record<string, number> }}
+ * @param {{ kind: string, buffer: Buffer, multi: boolean, queueUnmatched?: boolean, adminUserId?: number, originalFilename?: string }} opts
  */
-async function runBulkImportMulti(db, kind, buffer) {
+async function runBulkImportMulti(db, kind, buffer, opts = {}) {
+    const queueUnmatched = opts.queueUnmatched !== false && opts.queueUnmatched !== '0';
+    const { insertPendingImportRows, normalizePendingLegacyKey } = require('./bulkImportPending');
+
     const importer = IMPORTERS[kind];
     if (!importer) {
-        return { imported: 0, errors: [{ line: 0, error: 'Unknown import type' }], inserted: [], by_user: {}, row_count: 0 };
+        return {
+            imported: 0,
+            errors: [{ line: 0, error: 'Unknown import type' }],
+            inserted: [],
+            by_user: {},
+            row_count: 0,
+            pending_rows_saved: 0,
+            pending_by_key: {},
+        };
     }
 
     let rows;
     try {
         rows = parseSpreadsheetBuffer(buffer);
     } catch (e) {
-        return { imported: 0, errors: [{ line: 0, error: e.message || 'Could not read spreadsheet' }], inserted: [], by_user: {}, row_count: 0 };
+        return {
+            imported: 0,
+            errors: [{ line: 0, error: e.message || 'Could not read spreadsheet' }],
+            inserted: [],
+            by_user: {},
+            row_count: 0,
+            pending_rows_saved: 0,
+            pending_by_key: {},
+        };
     }
 
     if (rows.length > MAX_ROWS) {
-        return { imported: 0, errors: [{ line: 0, error: `Too many rows (max ${MAX_ROWS})` }], inserted: [], by_user: {}, row_count: rows.length };
+        return {
+            imported: 0,
+            errors: [{ line: 0, error: `Too many rows (max ${MAX_ROWS})` }],
+            inserted: [],
+            by_user: {},
+            row_count: rows.length,
+            pending_rows_saved: 0,
+            pending_by_key: {},
+        };
     }
 
     const errors = [];
@@ -1018,17 +1068,36 @@ async function runBulkImportMulti(db, kind, buffer) {
     const activities = [];
     const byUser = {};
     const inserted = [];
+    const pendingBuffer = [];
 
     for (let i = 0; i < rows.length; i++) {
         const line = i + 2;
         const spec = extractClientSpecifier(rows[i]);
         if (spec == null || spec === '') {
-            errors.push({ line, error: 'Missing Client ID or Old Client ID column for this row' });
+            if (queueUnmatched && opts.adminUserId != null) {
+                pendingBuffer.push({
+                    line_number: line,
+                    specifier_raw: '',
+                    legacy_key: '',
+                    row_json: JSON.stringify(rows[i]),
+                });
+            } else {
+                errors.push({ line, error: 'Missing Client ID or Old Client ID column for this row' });
+            }
             continue;
         }
         const resolved = resolveUserIdFromClientSpecifier(db, spec);
         if (resolved.error) {
-            errors.push({ line, error: resolved.error });
+            if (queueUnmatched && shouldQueueClientResolutionError(resolved.error) && opts.adminUserId != null) {
+                pendingBuffer.push({
+                    line_number: line,
+                    specifier_raw: String(spec),
+                    legacy_key: normalizePendingLegacyKey(spec),
+                    row_json: JSON.stringify(rows[i]),
+                });
+            } else {
+                errors.push({ line, error: resolved.error });
+            }
             continue;
         }
         const userId = resolved.userId;
@@ -1052,6 +1121,24 @@ async function runBulkImportMulti(db, kind, buffer) {
         }
     }
 
+    let pending_rows_saved = 0;
+    const pending_by_key = {};
+    if (pendingBuffer.length && queueUnmatched && opts.adminUserId != null) {
+        pending_rows_saved = insertPendingImportRows(
+            db,
+            {
+                adminUserId: opts.adminUserId,
+                kind,
+                originalFilename: opts.originalFilename || 'import',
+            },
+            pendingBuffer
+        );
+        for (const p of pendingBuffer) {
+            const k = p.legacy_key || '';
+            pending_by_key[k] = (pending_by_key[k] || 0) + 1;
+        }
+    }
+
     if (imported > 0) {
         saveDb();
         for (const fn of activities) {
@@ -1063,7 +1150,7 @@ async function runBulkImportMulti(db, kind, buffer) {
         }
     }
 
-    return { imported, errors, by_user: byUser, inserted, row_count: rows.length };
+    return { imported, errors, by_user: byUser, inserted, row_count: rows.length, pending_rows_saved, pending_by_key };
 }
 
 function templateSheetAoA(kind, options = {}) {
@@ -1125,6 +1212,8 @@ module.exports = {
     buildTemplateBuffer,
     resolveUserIdFromClientSpecifier,
     extractClientSpecifier,
+    rowWithoutClientSpecifier,
+    applyImportRowForKind,
     normalizeSoldDateForDb,
     repairDecemberIsoMisimportForDisplay,
     MAX_ROWS,

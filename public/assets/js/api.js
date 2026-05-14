@@ -947,13 +947,15 @@ const API = {
     },
 
     /** Admin: bulk import with Client ID or Old Client ID per row (routes each row to that client). */
-    async adminBulkImportMulti(kind, file) {
+    async adminBulkImportMulti(kind, file, opts) {
         if (!file || !(file instanceof Blob)) {
             throw Object.assign(new Error('Choose a spreadsheet file'), { error: 'Choose a spreadsheet file' });
         }
         const fd = new FormData();
         fd.append('kind', kind);
         fd.append('file', file, file.name || 'import.xlsx');
+        if (opts && opts.queue_unmatched === false) fd.append('queue_unmatched', '0');
+        else fd.append('queue_unmatched', '1');
         return this.request('/admin/bulk-import-multi', { method: 'POST', body: fd });
     },
 
@@ -972,9 +974,31 @@ const API = {
         return this.request('/admin/bulk-import-preview', { method: 'POST', body: fd });
     },
 
-    async adminListBulkImportJobs(clientId) {
-        var q = clientId != null && clientId !== '' ? '?client_id=' + encodeURIComponent(clientId) : '';
+    /**
+     * @param {{ client_id?: string|number, limit?: string|number, include_rolled_back?: boolean }} [opts]
+     */
+    async adminListBulkImportJobs(opts) {
+        var sp = new URLSearchParams();
+        if (opts != null && typeof opts === 'object') {
+            if (opts.client_id != null && opts.client_id !== '') sp.set('client_id', String(opts.client_id));
+            if (opts.limit != null && opts.limit !== '') sp.set('limit', String(opts.limit));
+            if (opts.include_rolled_back) sp.set('include_rolled_back', '1');
+        }
+        var q = sp.toString() ? '?' + sp.toString() : '';
         return this.request('/admin/bulk-import-jobs' + q);
+    },
+
+    /** Pending multi-import rows (missing or unknown Client ID), for applying after a client exists. */
+    async adminListBulkImportPending(opts) {
+        var sp = new URLSearchParams();
+        if (opts && opts.limit != null && opts.limit !== '') sp.set('limit', String(opts.limit));
+        var q = sp.toString() ? '?' + sp.toString() : '';
+        return this.request('/admin/bulk-import-pending' + q);
+    },
+
+    /** Apply all pending rows for a given kind + legacy_key (use "" for missing Client ID) to user_id. */
+    async adminApplyBulkImportPending(body) {
+        return this.request('/admin/bulk-import-pending/apply', { method: 'POST', body });
     },
 
     async adminRollbackBulkImportJob(jobId) {

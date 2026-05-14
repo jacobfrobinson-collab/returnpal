@@ -367,6 +367,24 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_bulk_import_jobs_target ON bulk_import_jobs(target_user_id)');
 
     db.run(`
+        CREATE TABLE IF NOT EXISTS bulk_import_pending_rows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_user_id INTEGER NOT NULL,
+            kind TEXT NOT NULL,
+            original_filename TEXT DEFAULT '',
+            line_number INTEGER NOT NULL,
+            specifier_raw TEXT DEFAULT '',
+            legacy_key TEXT DEFAULT '',
+            row_json TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            applied_at TEXT,
+            applied_user_id INTEGER
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_bulk_import_pending_applied ON bulk_import_pending_rows(applied_at)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_bulk_import_pending_key_kind ON bulk_import_pending_rows(legacy_key, kind, applied_at)');
+
+    db.run(`
         CREATE TABLE IF NOT EXISTS admin_audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_user_id INTEGER NOT NULL,

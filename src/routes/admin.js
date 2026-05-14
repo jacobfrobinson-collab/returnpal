@@ -12,9 +12,12 @@ const {
     runBulkImportMulti,
     buildTemplateBuffer,
     previewBulkImport,
+    applyImportRowForKind,
+    rowWithoutClientSpecifier,
     KINDS: BULK_IMPORT_KINDS,
 } = require('../utils/adminBulkImport');
 const { createBulkImportJob, addBulkImportEntries, listBulkImportJobs, rollbackBulkImportJob } = require('../utils/bulkImportJob');
+const { listPendingImportGroups, applyPendingRowsToUser } = require('../utils/bulkImportPending');
 const { logAdminAudit, listAdminAudit } = require('../utils/adminAudit');
 const { buildInvoiceMonthSourcesPayload } = require('../utils/invoiceMonthDebug');
 
@@ -749,19 +752,88 @@ router.post('/bulk-import-preview', bulkSpreadsheetUpload.single('file'), async 
     }
 });
 
-// GET /api/admin/bulk-import-jobs?client_id=&limit=
+// GET /api/admin/bulk-import-jobs?client_id=&limit=&include_rolled_back=0|1
 router.get('/bulk-import-jobs', async (req, res) => {
     try {
         const db = await getDb();
         const cid = req.query.client_id != null ? parseInt(req.query.client_id, 10) : NaN;
+        const includeRolled =
+            req.query.include_rolled_back === '1' ||
+            req.query.include_rolled_back === 'true' ||
+            req.query.include_rolled_back === true;
         const jobs = listBulkImportJobs(db, {
             clientId: Number.isFinite(cid) ? cid : undefined,
             limit: req.query.limit,
+            includeRolledBack: includeRolled,
         });
         res.json({ jobs });
     } catch (err) {
         console.error('List bulk jobs error:', err);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/bulk-import-pending — rows with no / unknown Client ID, waiting to apply to a client
+router.get('/bulk-import-pending', async (req, res) => {
+    try {
+        const db = await getDb();
+        const groups = listPendingImportGroups(db, { limit: req.query.limit });
+        res.json({ groups });
+    } catch (err) {
+        console.error('List pending bulk imports error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/bulk-import-pending/apply — body: { user_id, kind, legacy_key } (legacy_key "" = missing Client ID column)
+router.post('/bulk-import-pending/apply', async (req, res) => {
+    try {
+        const userId = parseInt(req.body.user_id ?? req.body.userId, 10);
+        const kind = String(req.body.kind || '').trim();
+        const legacyKey = req.body.legacy_key != null ? String(req.body.legacy_key) : '';
+        if (!Number.isFinite(userId) || userId < 1) {
+            return res.status(400).json({ error: 'user_id is required' });
+        }
+        if (!BULK_IMPORT_KINDS.includes(kind)) {
+            return res.status(400).json({ error: 'Invalid kind', kinds: BULK_IMPORT_KINDS });
+        }
+        const db = await getDb();
+        const result = await applyPendingRowsToUser(db, {
+            userId,
+            kind,
+            legacyKey,
+            applyImportRow: (d, k, uid, fullRow) =>
+                applyImportRowForKind(d, k, uid, rowWithoutClientSpecifier(fullRow)),
+        });
+        if (!result.ok) {
+            return res.status(400).json({ error: result.error || 'Apply failed' });
+        }
+        let jobId = null;
+        if (result.inserted && result.inserted.length) {
+            jobId = createBulkImportJob(db, {
+                adminUserId: req.user.id,
+                kind,
+                isMulti: false,
+                originalFilename: `pending-apply:${kind}:${legacyKey === '' ? 'no-id' : legacyKey}`,
+                targetUserId: userId,
+                rowCount: result.pending_ids_touched || 0,
+                importedCount: result.imported || 0,
+                errorCount: (result.errors && result.errors.length) || 0,
+            });
+            addBulkImportEntries(db, jobId, result.inserted);
+        }
+        logAdminAudit(db, req.user.id, 'bulk_import_pending_apply', {
+            user_id: userId,
+            kind,
+            legacy_key: legacyKey,
+            imported: result.imported,
+            errors: (result.errors && result.errors.length) || 0,
+            job_id: jobId,
+        });
+        res.json({ ...result, job_id: jobId });
+    } catch (err) {
+        console.error('Apply pending bulk import error:', err);
+        res.status(500).json({ error: err.message || 'Server error' });
     }
 });
 
@@ -872,18 +944,25 @@ router.post('/bulk-import-multi', bulkSpreadsheetUpload.single('file'), async (r
         }
         const db = await getDb();
         const filename = (req.file && req.file.originalname) || 'import';
-        const { imported, errors, by_user, inserted, row_count } = await runBulkImportMulti(db, kind, req.file.buffer);
-        const jobId = createBulkImportJob(db, {
-            adminUserId: req.user.id,
-            kind,
-            isMulti: true,
-            originalFilename: filename,
-            targetUserId: null,
-            rowCount: row_count,
-            importedCount: imported,
-            errorCount: errors.length,
-        });
+        const queueUnmatched = !(req.body.queue_unmatched === '0' || req.body.queue_unmatched === false);
+        const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key } =
+            await runBulkImportMulti(db, kind, req.file.buffer, {
+                adminUserId: req.user.id,
+                originalFilename: filename,
+                queueUnmatched,
+            });
+        let jobId = null;
         if (inserted.length) {
+            jobId = createBulkImportJob(db, {
+                adminUserId: req.user.id,
+                kind,
+                isMulti: true,
+                originalFilename: filename,
+                targetUserId: null,
+                rowCount: row_count,
+                importedCount: imported,
+                errorCount: errors.length,
+            });
             addBulkImportEntries(db, jobId, inserted);
         }
         logAdminAudit(db, req.user.id, 'bulk_import_multi', {
@@ -892,8 +971,18 @@ router.post('/bulk-import-multi', bulkSpreadsheetUpload.single('file'), async (r
             imported,
             error_count: errors.length,
             filename,
+            pending_rows_saved: pending_rows_saved || 0,
         });
-        res.json({ imported, errors, kind, by_user, job_id: jobId, inserted_count: inserted.length });
+        res.json({
+            imported,
+            errors,
+            kind,
+            by_user,
+            job_id: jobId,
+            inserted_count: inserted.length,
+            pending_rows_saved: pending_rows_saved || 0,
+            pending_by_key: pending_by_key || {},
+        });
     } catch (err) {
         console.error('Bulk import multi error:', err);
         res.status(500).json({ error: err.message || 'Server error' });

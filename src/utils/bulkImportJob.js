@@ -67,19 +67,27 @@ function addBulkImportEntries(db, jobId, entries) {
  * @param {{ clientId?: number, limit?: number }} [filter]
  */
 function listBulkImportJobs(db, filter = {}) {
-    const limit = Math.min(100, Math.max(1, parseInt(filter.limit, 10) || 40));
+    const limit = Math.min(100, Math.max(1, parseInt(filter.limit, 10) || 15));
     let sql = `SELECT j.id, j.admin_user_id, j.kind, j.is_multi, j.original_filename, j.target_user_id,
                       j.row_count, j.imported_count, j.error_count, j.created_at, j.rolled_back_at,
                       ua.email AS admin_email
                FROM bulk_import_jobs j
                LEFT JOIN users ua ON ua.id = j.admin_user_id`;
     const params = [];
+    const whereParts = [];
     if (filter.clientId != null && !isNaN(parseInt(filter.clientId, 10))) {
         const cid = parseInt(filter.clientId, 10);
-        sql += ` WHERE j.target_user_id = ? OR j.id IN (
+        whereParts.push(`(j.target_user_id = ? OR j.id IN (
             SELECT job_id FROM bulk_import_job_entries WHERE user_id = ?
-        )`;
+        ))`);
         params.push(cid, cid);
+    }
+    const includeRolledBack = filter.includeRolledBack === true || filter.includeRolledBack === '1' || filter.includeRolledBack === 1;
+    if (!includeRolledBack) {
+        whereParts.push('j.rolled_back_at IS NULL');
+    }
+    if (whereParts.length) {
+        sql += ' WHERE ' + whereParts.join(' AND ');
     }
     sql += ' ORDER BY j.id DESC LIMIT ?';
     params.push(limit);

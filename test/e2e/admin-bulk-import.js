@@ -196,8 +196,73 @@ async function main() {
             }
         }
 
+        // Pending queue: unknown legacy Client ID → apply after setting legacy on a new user
+        const leg = `E2EPEND${ts}`;
+        const csvPend = `client_id,sold_date,item_name,quantity,earnings\n${leg},2026-04-15,E2E-Pending-Queue,3,9.99\n`;
+        const fdP = new FormData();
+        fdP.append('kind', 'sold');
+        fdP.append('queue_unmatched', '1');
+        fdP.append('file', new Blob([csvPend], { type: 'text/csv' }), 'bulk-pending.csv');
+        const resP = await fetch(`${BASE}/api/admin/bulk-import-multi`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${adminToken}` },
+            body: fdP,
+        });
+        const bodyP = await resP.json().catch(() => ({}));
+        if (!resP.ok) throw new Error(`Pending bulk import failed: ${resP.status} ${JSON.stringify(bodyP)}`);
+        if (!bodyP.pending_rows_saved || bodyP.pending_rows_saved < 1) {
+            throw new Error(`Expected pending_rows_saved >= 1, got ${JSON.stringify(bodyP)}`);
+        }
+        if (bodyP.imported !== 0) throw new Error(`Expected 0 imported for unknown id, got ${JSON.stringify(bodyP)}`);
+
+        let clientId3;
+        {
+            const res = await fetch(`${BASE}/api/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: `e2e-client3-${ts}@returnpal.test`,
+                    password,
+                    full_name: 'E2E Client Three',
+                    company_name: 'E2E Co',
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.status !== 201) throw new Error(`Client3 register failed: ${res.status}`);
+            clientId3 = data.user && data.user.id;
+        }
+        const putRes = await fetch(`${BASE}/api/admin/users/${clientId3}`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ legacy_client_id: leg }),
+        });
+        if (!putRes.ok) {
+            const err = await putRes.json().catch(() => ({}));
+            throw new Error(`Set legacy failed: ${putRes.status} ${JSON.stringify(err)}`);
+        }
+        const applyRes = await fetch(`${BASE}/api/admin/bulk-import-pending/apply`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: clientId3, kind: 'sold', legacy_key: leg.toLowerCase() }),
+        });
+        const applyBody = await applyRes.json().catch(() => ({}));
+        if (!applyRes.ok) throw new Error(`Apply pending failed: ${applyRes.status} ${JSON.stringify(applyBody)}`);
+        if (!applyBody.imported || applyBody.imported < 1) {
+            throw new Error(`Expected apply imported >= 1, got ${JSON.stringify(applyBody)}`);
+        }
+
+        const sold3 = await fetch(`${BASE}/api/admin/users/${clientId3}/sold`, {
+            headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        const sold3Data = await sold3.json().catch(() => ({}));
+        if (!sold3.ok) throw new Error(`GET sold client3 failed: ${sold3.status}`);
+        const items3 = sold3Data.items || [];
+        if (!items3.some((it) => String(it.product || '').includes('E2E-Pending-Queue'))) {
+            throw new Error('Applied pending sold row not found');
+        }
+
         console.log('E2E admin bulk import: OK');
-        console.log('  (single-client + multi-client Client ID routing, verify sold lists)');
+        console.log('  (single-client + multi-client + pending queue + apply)');
     } finally {
         if (serverProc && !serverProc.killed) {
             try {
