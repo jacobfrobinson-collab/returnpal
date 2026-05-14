@@ -49,6 +49,51 @@ function rpConsolidateInvoiceLineItemsForPrint(lineItems) {
     }));
 }
 
+/** Shared print stylesheet for invoice and statement (save-as-PDF from print dialog). */
+function rpInvoicePrintDocumentCss() {
+    return (
+        '*{box-sizing:border-box;} body{margin:0;font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.5;color:#1a1a1a;background:#fff;}' +
+        '.doc{max-width:720px;margin:0 auto;padding:48px 40px;}' +
+        '.brand{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:32px;border-bottom:2px solid #1a1a1a;margin-bottom:32px;}' +
+        '.brand-name{font-size:11px;letter-spacing:0.2em;text-transform:uppercase;font-weight:600;color:#1a1a1a;margin-bottom:4px;}' +
+        '.invoice-title{font-size:28px;font-weight:700;letter-spacing:-0.02em;color:#1a1a1a;}' +
+        '.from-block{text-align:right;font-size:13px;color:#444;line-height:1.7;}' +
+        '.from-block strong{display:block;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;color:#666;margin-bottom:6px;}' +
+        '.to-block{margin-top:24px;}' +
+        '.to-block .label{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#666;margin-bottom:8px;font-weight:600;}' +
+        '.to-block .value{font-size:14px;color:#1a1a1a;line-height:1.7;}' +
+        '.meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin:28px 0 24px;padding:20px 24px;background:#f8f9fa;border-radius:6px;}' +
+        '.meta-item .label{font-size:11px;letter-spacing:0.05em;text-transform:uppercase;color:#666;margin-bottom:4px;}' +
+        '.meta-item .value{font-size:15px;font-weight:600;color:#1a1a1a;}' +
+        '.period-note{font-size:13px;color:#555;margin-bottom:20px;}' +
+        '.items-table{width:100%;border-collapse:collapse;margin:0 0 24px;font-size:13px;}' +
+        '.items-table thead th{text-align:left;padding:12px 14px;background:#1a1a1a;color:#fff;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;}' +
+        '.items-table thead th.num,.items-table td.num{text-align:right;}' +
+        '.items-table tbody td{padding:14px;border-bottom:1px solid #e8e8e8;vertical-align:top;}' +
+        '.items-table tbody tr:last-child td{border-bottom:none;}' +
+        '.items-table .totals-row td{padding:10px 14px;border-bottom:1px solid #e8e8e8;font-weight:500;}' +
+        '.items-table .totals-row.final td{padding:14px;font-size:15px;font-weight:700;background:#f8f9fa;border-bottom:none;}' +
+        '.terms-box{margin-top:40px;padding:20px 24px;background:#f8f9fa;border-radius:6px;font-size:12px;color:#555;line-height:1.6;}' +
+        '.terms-box p{margin:0 0 8px;}' +
+        '.terms-box p:last-child{margin-bottom:0;}' +
+        '@media print{.doc{padding:24px;}.brand{border-bottom-color:#1a1a1a;} body{background:#fff;}}'
+    );
+}
+
+function rpOpenInvoicePrintWindow(html) {
+    const w = window.open('', '_blank');
+    if (!w) {
+        alert('Please allow pop-ups to print or save as PDF.');
+        return;
+    }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(function () {
+        w.print();
+    }, 250);
+}
+
 const Dashboard = {
     getClientIdFromToken() {
         try {
@@ -2241,14 +2286,22 @@ const Dashboard = {
                         <td>${m.items_count}</td>
                         <td>${this.statusBadge(m.status)}</td>
                         <td class="text-center">
-                            <button type="button" class="btn btn-link btn-sm p-0 text-primary invoice-download-btn" data-period="${m.key}" title="Download invoice (print)"><i class="ri-download-2-fill fs-18"></i></button>
+                            <div class="dropdown d-inline-block">
+                                <button type="button" class="btn btn-link btn-sm p-0 text-primary" data-bs-toggle="dropdown" data-period="${m.key}" aria-expanded="false" title="Print or save as PDF"><i class="ri-download-2-line fs-18"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item invoice-print-opt" href="#" data-period="${m.key}" data-kind="invoice"><i class="ri-file-text-line me-1"></i>Invoice (by product)</a></li>
+                                    <li><a class="dropdown-item invoice-print-opt" href="#" data-period="${m.key}" data-kind="statement"><i class="ri-list-unordered me-1"></i>Statement (each line)</a></li>
+                                </ul>
+                            </div>
                         </td>
                     </tr>
                 `);
             });
-            $tbody.find('.invoice-download-btn').on('click', function() {
+            $tbody.find('.invoice-print-opt').on('click', function (e) {
+                e.preventDefault();
                 const period = $(this).data('period');
-                if (period) Dashboard.downloadInvoiceMonth.call(Dashboard, period);
+                const kind = $(this).data('kind');
+                if (period && kind) Dashboard.downloadInvoiceMonth.call(Dashboard, period, kind);
             });
         } catch(err) {
             console.error('Load invoices error:', err);
@@ -2794,8 +2847,13 @@ const Dashboard = {
         URL.revokeObjectURL(a.href);
         this.showToast('Sold items CSV downloaded');
     },
-    async downloadInvoiceMonth(period) {
+    /**
+     * @param {string} period YYYY-MM
+     * @param {'invoice'|'statement'} kind Invoice = consolidated by product; statement = each sale/return line
+     */
+    async downloadInvoiceMonth(period, kind) {
         try {
+            const docKind = kind === 'statement' ? 'statement' : 'invoice';
             const data = await API.getInvoiceDetail(period);
             const [y, m] = period.split('-').map(Number);
             const periodLabel =
@@ -2824,14 +2882,20 @@ const Dashboard = {
                 sessionStorage.setItem('returnpal_invoice_num_' + period, invoiceNum);
             }
 
+            let statementNum = sessionStorage.getItem('returnpal_statement_num_' + period);
+            if (!statementNum) {
+                const r = Math.floor(1000 + Math.random() * 9000);
+                statementNum = 'STMT-' + (Number.isFinite(iy) ? iy : today.getFullYear()) + '-' + String(r);
+                sessionStorage.setItem('returnpal_statement_num_' + period, statementNum);
+            }
+
             const vatNumber = (localStorage.getItem('returnpal_vat_number') || '').trim();
             const isVatRegistered = !!vatNumber;
             const lineItemsRaw = data.line_items || [];
             const subtotalNet = lineItemsRaw.reduce((s, i) => s + (Number(i.amount || 0) * (Number(i.quantity) || 1)), 0);
             const lineItemsForTable = rpConsolidateInvoiceLineItemsForPrint(lineItemsRaw);
             const vatAmount = isVatRegistered ? (subtotalNet * 0.2) : 0;
-            const totalGBP = isVatRegistered ? (subtotalNet + vatAmount) : (subtotalNet * 0.8);
-            let amountDue = totalGBP;
+            let amountDue = isVatRegistered ? (subtotalNet + vatAmount) : subtotalNet * 0.8;
             if (!isVatRegistered && data.total != null && !Number.isNaN(Number(data.total))) {
                 amountDue = Number(data.total);
             }
@@ -2844,59 +2908,68 @@ const Dashboard = {
             const sender = 'JR Liquidations Limited<br/>Co. Reg. No.: 16355878<br/>Email: invoice@returnpal.co.uk<br/>Phone: +447774904697<br/>Website: returnpal.co.uk';
             const billTo = (billingName ? billingName + '<br/>' : '') + (billingCompany ? billingCompany + '<br/>' : '') + (billingAddress || '') + (billingPhone ? '<br/>' + billingPhone : '');
 
+            const escLite = function (t) {
+                return String(t || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            };
+
             const unitLabel = 'each';
-            let tableRows = lineItemsForTable.map(i => {
+            const tableRows = lineItemsForTable.map(i => {
                 const qty = Number(i.quantity) || 1;
                 const netPerUnit = Number(i.amount || 0);
                 const lineTotal = netPerUnit * qty;
                 const vatCol = isVatRegistered ? '<td class="num">20%</td>' : '';
-                return '<tr><td>' + (i.description || '') + '</td><td class="num">' + qty + '</td><td>' + unitLabel + '</td><td class="num">£' + netPerUnit.toFixed(2) + '</td>' + vatCol + '<td class="num">£' + lineTotal.toFixed(2) + '</td></tr>';
+                return '<tr><td>' + escLite(i.description || '') + '</td><td class="num">' + qty + '</td><td>' + unitLabel + '</td><td class="num">£' + netPerUnit.toFixed(2) + '</td>' + vatCol + '<td class="num">£' + lineTotal.toFixed(2) + '</td></tr>';
             }).join('');
 
             const stmt = data.statement_lines || [];
             const summary = data.summary || {};
-            let stmtBlock = '';
-            if (stmt.length) {
+            if (docKind === 'statement') {
+                if (!stmt.length) {
+                    alert('No statement lines for this period.');
+                    return;
+                }
                 const sr = stmt.map((s) => {
                     const amt = Number(s.amount) || 0;
                     const neg = amt < 0;
-                    const lab = String(s.label || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-                    return '<tr><td>' + lab + '</td><td class="num" style="color:' + (neg ? '#b02a37' : '#0f5132') + '">' + (neg ? '−' : '+') + '£' + Math.abs(amt).toFixed(2) + '</td></tr>';
+                    const lab = escLite(s.label || '');
+                    const ref = String(s.reference || '').trim();
+                    const refHtml = ref ? ' <span style="color:#666;font-size:12px;">(' + escLite(ref) + ')</span>' : '';
+                    const dateStr = s.date ? Dashboard.formatDateUK(s.date) : '—';
+                    return (
+                        '<tr><td style="white-space:nowrap;color:#555;font-size:12px;">' + dateStr + '</td><td>' + lab + refHtml + '</td><td class="num" style="color:' +
+                        (neg ? '#b02a37' : '#0f5132') + '">' + (neg ? '−' : '+') + '£' + Math.abs(amt).toFixed(2) + '</td></tr>'
+                    );
                 }).join('');
-                stmtBlock =
-                    '<h2 style="font-size:18px;margin:32px 0 12px;letter-spacing:-0.02em;">Statement (per item)</h2>' +
-                    '<p class="period-note" style="margin-top:-8px;">Each line shows how your balance moved — sales add, returns and clawbacks subtract.</p>' +
-                    '<table class="items-table"><thead><tr><th>Line</th><th class="num">Amount</th></tr></thead><tbody>' + sr + '</tbody></table>' +
+                const stmtSummary =
                     '<p class="period-note small">Sales (your share): <strong>£' + Number(summary.sales_profit || 0).toFixed(2) + '</strong> · Returns &amp; clawbacks: <strong>£' + Number(summary.refunds_and_returns || 0).toFixed(2) + '</strong> · Processing fees: <strong>£' + Number(summary.fees_deducted || data.fees || 0).toFixed(2) + '</strong> · <strong>Net payout estimate: £' + Number(summary.net_payout_estimate != null ? summary.net_payout_estimate : data.total || 0).toFixed(2) + '</strong></p>';
+
+                const htmlStmt =
+                    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Statement ' + statementNum + '</title><style>' + rpInvoicePrintDocumentCss() + '</style></head><body>' +
+                    '<div class="doc">' +
+                    '<div class="brand">' +
+                    '<div><div class="brand-name">ReturnPal</div><div class="invoice-title">Payout statement</div></div>' +
+                    '<div class="from-block"><strong>From</strong>' + sender + '</div>' +
+                    '</div>' +
+                    '<div class="to-block"><div class="label">Account</div><div class="value">' + (billTo || '-') + '</div></div>' +
+                    '<div class="meta-grid">' +
+                    '<div class="meta-item"><div class="label">Statement ref</div><div class="value">' + statementNum + '</div></div>' +
+                    '<div class="meta-item"><div class="label">Period</div><div class="value">' + periodDisplay + '</div></div>' +
+                    '<div class="meta-item"><div class="label">Generated</div><div class="value">' + invoiceDate + '</div></div>' +
+                    '</div>' +
+                    '<p class="period-note">Account movements for <strong>' + periodDisplay + '</strong>. Positive amounts increase your balance; negative amounts reduce it.</p>' +
+                    '<table class="items-table">' +
+                    '<thead><tr><th style="width:110px;">Date</th><th>Line</th><th class="num">Amount</th></tr></thead><tbody>' + sr + '</tbody></table>' +
+                    stmtSummary +
+                    '<div class="terms-box">' +
+                    '<p>This document is a <strong>statement of account</strong>, not a tax invoice. For a consolidated invoice by product and quantity, use <strong>Invoice (by product)</strong> from the payouts table.</p>' +
+                    '</div></div></body></html>';
+                rpOpenInvoicePrintWindow(htmlStmt);
+                return;
             }
 
-            const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ' + invoiceNum + '</title><style>' +
-                '*{box-sizing:border-box;} body{margin:0;font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.5;color:#1a1a1a;background:#fff;}' +
-                '.doc{max-width:720px;margin:0 auto;padding:48px 40px;}' +
-                '.brand{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:32px;border-bottom:2px solid #1a1a1a;margin-bottom:32px;}' +
-                '.brand-name{font-size:11px;letter-spacing:0.2em;text-transform:uppercase;font-weight:600;color:#1a1a1a;margin-bottom:4px;}' +
-                '.invoice-title{font-size:28px;font-weight:700;letter-spacing:-0.02em;color:#1a1a1a;}' +
-                '.from-block{text-align:right;font-size:13px;color:#444;line-height:1.7;}' +
-                '.from-block strong{display:block;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;color:#666;margin-bottom:6px;}' +
-                '.to-block{margin-top:24px;}' +
-                '.to-block .label{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#666;margin-bottom:8px;font-weight:600;}' +
-                '.to-block .value{font-size:14px;color:#1a1a1a;line-height:1.7;}' +
-                '.meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin:28px 0 24px;padding:20px 24px;background:#f8f9fa;border-radius:6px;}' +
-                '.meta-item .label{font-size:11px;letter-spacing:0.05em;text-transform:uppercase;color:#666;margin-bottom:4px;}' +
-                '.meta-item .value{font-size:15px;font-weight:600;color:#1a1a1a;}' +
-                '.period-note{font-size:13px;color:#555;margin-bottom:20px;}' +
-                '.items-table{width:100%;border-collapse:collapse;margin:0 0 24px;font-size:13px;}' +
-                '.items-table thead th{text-align:left;padding:12px 14px;background:#1a1a1a;color:#fff;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;}' +
-                '.items-table thead th.num,.items-table td.num{text-align:right;}' +
-                '.items-table tbody td{padding:14px;border-bottom:1px solid #e8e8e8;vertical-align:top;}' +
-                '.items-table tbody tr:last-child td{border-bottom:none;}' +
-                '.items-table .totals-row td{padding:10px 14px;border-bottom:1px solid #e8e8e8;font-weight:500;}' +
-                '.items-table .totals-row.final td{padding:14px;font-size:15px;font-weight:700;background:#f8f9fa;border-bottom:none;}' +
-                '.terms-box{margin-top:40px;padding:20px 24px;background:#f8f9fa;border-radius:6px;font-size:12px;color:#555;line-height:1.6;}' +
-                '.terms-box p{margin:0 0 8px;}' +
-                '.terms-box p:last-child{margin-bottom:0;}' +
-                '@media print{.doc{padding:24px;}.brand{border-bottom-color:#1a1a1a;} body{background:#fff;}}' +
-                '</style></head><body>' +
+            const styles = rpInvoicePrintDocumentCss();
+            const htmlInv =
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ' + invoiceNum + '</title><style>' + styles + '</style></head><body>' +
                 '<div class="doc">' +
                 '<div class="brand">' +
                 '<div><div class="brand-name">ReturnPal</div><div class="invoice-title">Invoice</div></div>' +
@@ -2908,7 +2981,7 @@ const Dashboard = {
                 '<div class="meta-item"><div class="label">Invoice date</div><div class="value">' + invoiceDate + '</div></div>' +
                 '<div class="meta-item"><div class="label">Due date</div><div class="value">' + dueDate + '</div></div>' +
                 '</div>' +
-                '<p class="period-note">Payout for period: <strong>' + periodDisplay + '</strong> (items sold and recovered).</p>' +
+                '<p class="period-note">Payout for period: <strong>' + periodDisplay + '</strong> (items sold and recovered). Quantities and amounts are consolidated by product title.</p>' +
                 '<table class="items-table">' +
                 '<thead><tr><th>Description</th><th class="num">Quantity</th><th>Unit</th><th class="num">Price</th>' + (isVatRegistered ? '<th class="num">VAT</th>' : '') + '<th class="num">Amount</th></tr></thead><tbody>' +
                 tableRows +
@@ -2917,16 +2990,12 @@ const Dashboard = {
                 '<tr class="totals-row"><td colspan="5" class="num">Total GBP</td><td class="num">£' + (subtotalNet + vatAmount).toFixed(2) + '</td></tr>') : '') +
                 '<tr class="totals-row final"><td colspan="' + (isVatRegistered ? 5 : 4) + '" class="num">Amount due</td><td class="num">£' + amountDue.toFixed(2) + '</td></tr>' +
                 '</tbody></table>' +
-                stmtBlock +
                 '<div class="terms-box">' +
                 (isVatRegistered && vatNumber ? '<p><strong>VAT No.</strong> ' + vatNumber + '. VAT may be subject to reverse charge where applicable.</p>' : '<p>This is a non-VAT invoice. A 20% deduction has been applied as you are not VAT registered.</p>') +
+                '<p>For a line-by-line breakdown of each sale and return, use <strong>Statement (each line)</strong> from the payouts table.</p>' +
                 '<p>Payment is due by the date stated above. Thank you for selling with ReturnPal.</p>' +
                 '</div></div></body></html>';
-            const w = window.open('', '_blank');
-            w.document.write(html);
-            w.document.close();
-            w.focus();
-            setTimeout(() => { w.print(); }, 250);
+            rpOpenInvoicePrintWindow(htmlInv);
         } catch (err) {
             console.error('Download invoice error:', err);
             alert(err.error || err.message || 'Unable to load invoice.');
