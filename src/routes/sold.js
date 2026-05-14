@@ -4,6 +4,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 const { normalizeSoldDateForDb, repairDecemberIsoMisimportForDisplay } = require('../utils/adminBulkImport');
+const { sortSoldItemsByDateDesc } = require('../utils/sortSoldItemsByDateDesc');
 
 const router = express.Router();
 
@@ -62,9 +63,10 @@ router.get('/returns', authMiddleware, async (req, res) => {
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
-        const items = parseResults(
-            db.exec('SELECT * FROM sold_items WHERE user_id = ? ORDER BY sold_date DESC', [req.user.id])
+        let items = parseResults(
+            db.exec('SELECT * FROM sold_items WHERE user_id = ? ORDER BY id DESC', [req.user.id])
         );
+        items = sortSoldItemsByDateDesc(items);
 
         // Compute stats
         const statsResult = parseResults(

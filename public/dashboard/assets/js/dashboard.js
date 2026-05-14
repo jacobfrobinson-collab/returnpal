@@ -856,6 +856,16 @@ const Dashboard = {
         return iso === '-' ? this.formatDate(item.sold_date) : this.formatDate(iso);
     },
 
+    /** Newest sold_date first (matches API sort); tie-break by id descending. */
+    soldItemsSortRecentFirst(a, b) {
+        const ia = this._soldDateRepairedIso(a);
+        const ib = this._soldDateRepairedIso(b);
+        const sa = ia && ia !== '-' ? ia : '0000-00-00';
+        const sb = ib && ib !== '-' ? ib : '0000-00-00';
+        if (sa !== sb) return sb.localeCompare(sa);
+        return (Number(b.id) || 0) - (Number(a.id) || 0);
+    },
+
     // ─── Helper: status badge (design token colors) ───────────
     statusBadge(status) {
         const tokenMap = {
@@ -1963,6 +1973,8 @@ const Dashboard = {
                 else if (soldSearchBy === 'asin') items = items.filter(i => String(i.asin || '').toLowerCase().includes(soldSearch));
                 else items = items.filter(i => (String(i.reference || '') + ' ' + (i.product || '') + ' ' + (i.asin || '')).toLowerCase().includes(soldSearch));
             }
+            items.sort((a, b) => this.soldItemsSortRecentFirst(a, b));
+
             const cards = $('.card-body h3');
             if (data.stats && !filter) {
                 const net = data.stats.net_earnings_after_returns != null

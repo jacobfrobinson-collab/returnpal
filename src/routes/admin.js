@@ -20,6 +20,7 @@ const { createBulkImportJob, addBulkImportEntries, listBulkImportJobs, rollbackB
 const { listPendingImportGroups, applyPendingRowsToUser } = require('../utils/bulkImportPending');
 const { logAdminAudit, listAdminAudit } = require('../utils/adminAudit');
 const { buildInvoiceMonthSourcesPayload } = require('../utils/invoiceMonthDebug');
+const { sortSoldItemsByDateDesc } = require('../utils/sortSoldItemsByDateDesc');
 
 const router = express.Router();
 
@@ -233,9 +234,10 @@ router.get('/users/:id/sold', async (req, res) => {
         const userId = parseInt(req.params.id, 10);
         if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
 
-        const items = parseResults(
-            db.exec('SELECT * FROM sold_items WHERE user_id = ? ORDER BY sold_date DESC', [userId])
+        let items = parseResults(
+            db.exec('SELECT * FROM sold_items WHERE user_id = ? ORDER BY id DESC', [userId])
         );
+        items = sortSoldItemsByDateDesc(items);
         const statsResult = parseResults(
             db.exec(
                 'SELECT COALESCE(SUM(profit), 0) as total_earnings, COUNT(*) as items_sold, COALESCE(AVG(profit), 0) as avg_earnings, COALESCE(AVG(margin), 0) as avg_margin FROM sold_items WHERE user_id = ?',
