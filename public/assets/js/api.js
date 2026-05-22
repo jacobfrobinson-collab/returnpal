@@ -1036,6 +1036,66 @@ const API = {
         return this.request('/settings/weekly-digest', { method: 'PUT', body: { weekly_digest_email } });
     },
 
+    async updatePreferences(preferences) {
+        return this.request('/settings/preferences', { method: 'PUT', body: preferences });
+    },
+
+    async changePassword(current_password, new_password) {
+        return this.request('/auth/password', { method: 'PUT', body: { current_password, new_password } });
+    },
+
+    async getAnnouncements() {
+        return this.request('/announcements');
+    },
+
+    async markAnnouncementsRead(ids) {
+        return this.request('/announcements/read', { method: 'POST', body: { ids: ids || [] } });
+    },
+
+    async getPayoutForecast() {
+        return this.request('/client/payout-forecast');
+    },
+
+    async getMonthlySnapshot(period) {
+        const q = period ? '?period=' + encodeURIComponent(period) : '';
+        return this.request('/client/snapshot' + q);
+    },
+
+    async globalSearch(q) {
+        return this.request('/client/search?q=' + encodeURIComponent(q));
+    },
+
+    async getExportsHub() {
+        return this.request('/client/exports-hub');
+    },
+
+    async getQueries() {
+        return this.request('/queries');
+    },
+
+    async submitQuery(body) {
+        return this.request('/queries', { method: 'POST', body });
+    },
+
+    async submitReimbursementClaim(formData) {
+        const token = this.getToken();
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const res = await fetch(this.getApiBase() + '/reimbursement/claims', {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const err = new Error(data.error || res.statusText || 'Request failed');
+            err.status = res.status;
+            err.error = data.error;
+            throw err;
+        }
+        return data;
+    },
+
     // ─── Contact ─────────────────────────────────────────────
     async sendContact(data) {
         return this.request('/contact', { method: 'POST', body: data });

@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb, saveDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { parseClientPreferences, mergeClientPreferences } = require('../utils/clientPreferences');
 
 const router = express.Router();
 
@@ -20,7 +21,10 @@ router.get('/', authMiddleware, async (req, res) => {
         const db = await getDb();
         const users = parseResults(
             db.exec(
-                'SELECT vat_registered, discord_webhook, COALESCE(legacy_client_id, \'\') AS legacy_client_id, COALESCE(weekly_digest_email, 1) AS weekly_digest_email FROM users WHERE id = ?',
+                `SELECT vat_registered, discord_webhook, COALESCE(legacy_client_id, '') AS legacy_client_id,
+                        COALESCE(weekly_digest_email, 1) AS weekly_digest_email,
+                        COALESCE(client_preferences, '') AS client_preferences
+                 FROM users WHERE id = ?`,
                 [req.user.id]
             )
         );
@@ -29,9 +33,38 @@ router.get('/', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        res.json({ settings: users[0] });
+        const prefs = parseClientPreferences(users[0].client_preferences);
+        res.json({
+            settings: {
+                vat_registered: !!users[0].vat_registered,
+                discord_webhook: users[0].discord_webhook || '',
+                legacy_client_id: users[0].legacy_client_id || '',
+                weekly_digest_email: users[0].weekly_digest_email,
+                preferences: prefs,
+            },
+        });
     } catch (err) {
         console.error('Get settings error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PUT /api/settings/preferences — billing, prep, VAT number, email toggles
+router.put('/preferences', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const cur = parseResults(
+            db.exec('SELECT client_preferences FROM users WHERE id = ?', [req.user.id])
+        );
+        const merged = mergeClientPreferences(cur[0]?.client_preferences, req.body);
+        db.run(
+            "UPDATE users SET client_preferences = ?, updated_at = datetime('now') WHERE id = ?",
+            [JSON.stringify(merged), req.user.id]
+        );
+        saveDb();
+        res.json({ message: 'Preferences saved', preferences: merged });
+    } catch (err) {
+        console.error('Update preferences error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -61,7 +94,6 @@ router.put('/webhook', authMiddleware, async (req, res) => {
         const db = await getDb();
         const { discord_webhook } = req.body;
 
-        // Basic validation for Discord webhook URL
         if (discord_webhook && !discord_webhook.startsWith('https://discord.com/api/webhooks/')) {
             return res.status(400).json({ error: 'Invalid Discord webhook URL' });
         }
@@ -79,7 +111,7 @@ router.put('/webhook', authMiddleware, async (req, res) => {
     }
 });
 
-// PUT /api/settings/weekly-digest — opt in/out of weekly summary email (when SMTP is configured on server)
+// PUT /api/settings/weekly-digest
 router.put('/weekly-digest', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();

@@ -99,6 +99,49 @@
                     </div>
                 </div>
 
+                <div class="rp-card card border-0 mb-3" id="reimbursement-submit-card">
+                    <div class="card-header bg-white border-0">
+                        <h6 class="mb-0"><i class="ri-add-circle-line me-1"></i>Submit a new claim</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="small text-muted mb-3">Send package reference, item details, and photos. ReturnPal may add claims on your behalf; use this when you want to submit directly.</p>
+                        <form id="reimbursement-submit-form">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label small">Package reference</label>
+                                    <input type="text" class="form-control form-control-sm" name="package_reference" required placeholder="e.g. TRACK-RP001" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small">Reimbursement type</label>
+                                    <select class="form-select form-select-sm" name="reimbursement_type">
+                                        <option>Damaged Inventory</option>
+                                        <option>Customer Return</option>
+                                        <option>Lost Inbound</option>
+                                        <option>Other</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small">Item description</label>
+                                    <input type="text" class="form-control form-control-sm" name="item_description" required placeholder="Product title or SKU" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small">Order number <span class="text-muted">(optional)</span></label>
+                                    <input type="text" class="form-control form-control-sm" name="order_number" placeholder="Amazon order ID" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small">Photos</label>
+                                    <input type="file" class="form-control form-control-sm" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small">Notes</label>
+                                    <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Damage details, quantity, etc."></textarea>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm mt-2" id="reimbursement-submit-btn">Submit claim</button>
+                        </form>
+                    </div>
+                </div>
+
                 <div class="rp-card card border-0 mb-3">
                     <div class="card-body">
                         <h6 class="mb-2">How to use these claims</h6>

@@ -295,6 +295,25 @@
                             </div>
                         </div>
                         <div class="col-lg-6">
+                            <div class="card mb-3">
+                                <div class="card-header">Change password</div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-3">Update your login password. You will stay signed in on this device.</p>
+                                    <div class="mb-3">
+                                        <label class="form-label">Current password</label>
+                                        <input type="password" class="form-control" id="settings-current-password" autocomplete="current-password" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">New password</label>
+                                        <input type="password" class="form-control" id="settings-new-password" autocomplete="new-password" minlength="8" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Confirm new password</label>
+                                        <input type="password" class="form-control" id="settings-confirm-password" autocomplete="new-password" minlength="8" />
+                                    </div>
+                                    <button type="button" class="btn btn-primary btn-sm" id="settings-password-save">Update password</button>
+                                </div>
+                            </div>
                             <div class="card">
                                 <div class="card-header d-flex justify-content-between align-items-center">
                                     <div>Discord Notifications</div>
@@ -314,7 +333,7 @@
                                 <div class="card">
                                     <div class="card-header">Email preferences</div>
                                     <div class="card-body">
-                                        <p class="text-muted small mb-3">Choose when we email you (saved locally for now).</p>
+                                        <p class="text-muted small mb-3">Choose when we email you. Preferences are saved to your account.</p>
                                         <div class="form-check form-switch mb-2">
                                             <input class="form-check-input" type="checkbox" id="email-package-delivered" checked>
                                             <label class="form-check-label" for="email-package-delivered">When a package is delivered</label>

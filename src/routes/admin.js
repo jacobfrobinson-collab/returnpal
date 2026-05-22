@@ -1003,4 +1003,54 @@ router.post('/bulk-import-multi', bulkSpreadsheetUpload.single('file'), async (r
     }
 });
 
+// PUT /api/admin/queries/:id/reply — reply to client query
+router.put('/queries/:id/reply', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        const reply = String(req.body.admin_reply || req.body.reply || '').trim();
+        if (!reply || reply.length < 2) {
+            return res.status(400).json({ error: 'Reply is required.' });
+        }
+        const db = await getDb();
+        const rows = parseResults(db.exec('SELECT user_id, context_label FROM item_queries WHERE id = ?', [id]));
+        if (!rows.length) return res.status(404).json({ error: 'Query not found' });
+        db.run(
+            "UPDATE item_queries SET admin_reply = ?, replied_at = datetime('now'), status = 'closed' WHERE id = ?",
+            [reply, id]
+        );
+        saveDb();
+        await pushActivity(
+            rows[0].user_id,
+            'info',
+            'ReturnPal replied to your question' + (rows[0].context_label ? ': ' + String(rows[0].context_label).slice(0, 60) : '') + '.',
+            '/dashboard/queries.html'
+        );
+        res.json({ message: 'Reply sent' });
+    } catch (err) {
+        console.error('Admin query reply error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/announcements
+router.post('/announcements', async (req, res) => {
+    try {
+        const title = String(req.body.title || '').trim();
+        const summary = String(req.body.summary || '').trim();
+        const body = String(req.body.body || summary).trim();
+        if (!title) return res.status(400).json({ error: 'Title is required' });
+        const db = await getDb();
+        db.run(
+            'INSERT INTO announcements (title, summary, body, is_published, published_at) VALUES (?, ?, ?, 1, datetime(\'now\'))',
+            [title, summary, body]
+        );
+        saveDb();
+        const id = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        res.status(201).json({ id, message: 'Announcement published' });
+    } catch (err) {
+        console.error('Admin create announcement error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 module.exports = router;

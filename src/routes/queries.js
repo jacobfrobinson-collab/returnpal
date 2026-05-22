@@ -47,7 +47,8 @@ router.get('/', authMiddleware, async (req, res) => {
         const db = await getDb();
         const rows = parseResults(
             db.exec(
-                `SELECT id, context_type, context_id, context_label, message, status, created_at 
+                `SELECT id, context_type, context_id, context_label, message, status, created_at,
+                        COALESCE(admin_reply, '') AS admin_reply, COALESCE(replied_at, '') AS replied_at
                  FROM item_queries WHERE user_id = ? ORDER BY created_at DESC LIMIT 100`,
                 [req.user.id]
             )

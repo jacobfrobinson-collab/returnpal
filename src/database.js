@@ -401,6 +401,76 @@ async function getDb() {
         /* exists */
     }
 
+    try {
+        db.run("ALTER TABLE users ADD COLUMN client_preferences TEXT DEFAULT ''");
+    } catch (e) {
+        /* exists */
+    }
+
+    try {
+        db.run("ALTER TABLE item_queries ADD COLUMN admin_reply TEXT DEFAULT ''");
+    } catch (e) {
+        /* exists */
+    }
+    try {
+        db.run("ALTER TABLE item_queries ADD COLUMN replied_at TEXT DEFAULT ''");
+    } catch (e) {
+        /* exists */
+    }
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS announcements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            summary TEXT DEFAULT '',
+            body TEXT DEFAULT '',
+            is_published INTEGER DEFAULT 1,
+            published_at TEXT DEFAULT (datetime('now')),
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS announcement_reads (
+            user_id INTEGER NOT NULL,
+            announcement_id INTEGER NOT NULL,
+            read_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (user_id, announcement_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE
+        )
+    `);
+
+    db.run('CREATE INDEX IF NOT EXISTS idx_announcements_published ON announcements(is_published, published_at)');
+
+    let annSeed = 0;
+    try {
+        const ac = db.exec('SELECT COUNT(*) AS c FROM announcements');
+        if (ac.length && ac[0].values.length) annSeed = ac[0].values[0][0] || 0;
+    } catch (e) {
+        annSeed = 0;
+    }
+    if (!annSeed) {
+        const seeds = [
+            [
+                'Welcome to ReturnPal announcements',
+                'Product updates and payout reminders appear here.',
+                'This feed replaces email-only updates. Check here for address changes, new dashboard features, and operational reminders.',
+            ],
+            [
+                'Payout invoices',
+                'Download monthly payout invoices from Payouts & Invoices.',
+                'Each completed sales month gets a statement and invoice. VAT-registered sellers see payouts without the 20% withholding.',
+            ],
+        ];
+        for (const [title, summary, body] of seeds) {
+            db.run(
+                'INSERT INTO announcements (title, summary, body, is_published, published_at) VALUES (?, ?, ?, 1, datetime(\'now\'))',
+                [title, summary, body]
+            );
+        }
+    }
+
     // Save to disk
     saveDb();
 

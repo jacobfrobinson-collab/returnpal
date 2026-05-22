@@ -332,6 +332,7 @@ const Dashboard = {
         });
 
         this.injectFooter();
+        this.initReimbursementSubmit();
         this.loadReimbursementClaims();
     },
 
@@ -533,12 +534,18 @@ const Dashboard = {
             this.loadSettings();
         } else if (page.includes('announcements')) {
             this.loadAnnouncements();
+        } else if (page.includes('queries')) {
+            this.loadQueries();
+        } else if (page.includes('exports')) {
+            this.loadExportsHub();
         }
 
         this.injectAnnouncementsLink();
+        this.injectQueriesLink();
+        this.injectExportsLink();
         this.injectReimbursementLink();
         this.injectConnectAmazonLink();
-        this.updateNotificationDots();
+        this.fetchAnnouncementsList().finally(() => this.updateNotificationDots());
 
         $('#activity-date-range').on('change', () => this.loadActivity());
         $('#invoices-date-range').on('change', () => this.loadInvoices());
@@ -558,20 +565,9 @@ const Dashboard = {
         $('#invoices-export-xero').on('click', (e) => { e.preventDefault(); this.exportInvoicesXero(); });
         $('#invoices-export-quickbooks').on('click', (e) => { e.preventDefault(); this.exportInvoicesQuickBooks(); });
 
-        // Global search: on Enter or after delay, navigate to packages with query or show results
-        const $search = $('#dashboard-global-search');
-        if ($search.length) {
-            $search.on('keydown', function(e) {
-                if (e.which === 13) {
-                    e.preventDefault();
-                    const q = $(this).val().trim();
-                    if (q) window.location.href = 'packages.html?search=' + encodeURIComponent(q);
-                }
-            });
-        }
-
         // Inject topbar search/notifications/help on pages that don't have them
         this.injectTopbarExtras();
+        this.initGlobalSearch();
         // Inject Refer a seller modal and sidebar link if missing
         this.injectReferModal();
         this.injectReferSidebarLink();
@@ -580,6 +576,7 @@ const Dashboard = {
         this.injectCommandPalette();
         this.initCommandPalette();
         this.injectFooter();
+        this.initMonthlySnapshotButtons();
         $(document).on('click', '#support-submit-btn', function() {
             const regarding = $('#support-regarding').val() || 'general';
             const ref = $('#support-reference').val().trim();
@@ -647,6 +644,23 @@ const Dashboard = {
         if ($('#navbar-nav a[href="reimbursement.html"], #navbar-nav a[href="/dashboard/reimbursement.html"]').length) return;
         const $settings = $('#navbar-nav a[href="settings.html"]').closest('li');
         if ($settings.length) $settings.before('<li class="nav-item"><a class="nav-link" href="reimbursement.html"><span class="nav-icon"><i class="ri-refund-line"></i></span><span class="nav-text">Reimbursement / Claims</span></a></li>');
+    },
+    injectQueriesLink() {
+        if ($('#navbar-nav a[href="queries.html"]').length) return;
+        const $inv = $('#navbar-nav a[href="invoices.html"]').closest('li');
+        if ($inv.length) {
+            $inv.after('<li class="nav-item"><a class="nav-link" href="queries.html"><span class="nav-icon"><i class="ri-question-answer-line"></i></span><span class="nav-text">My queries</span></a></li>');
+        }
+    },
+    injectExportsLink() {
+        if ($('#navbar-nav a[href="exports.html"]').length) return;
+        const $q = $('#navbar-nav a[href="queries.html"]').closest('li');
+        if ($q.length) {
+            $q.after('<li class="nav-item"><a class="nav-link" href="exports.html"><span class="nav-icon"><i class="ri-download-cloud-2-line"></i></span><span class="nav-text">Exports hub</span></a></li>');
+        } else {
+            const $inv = $('#navbar-nav a[href="invoices.html"]').closest('li');
+            if ($inv.length) $inv.after('<li class="nav-item"><a class="nav-link" href="exports.html"><span class="nav-icon"><i class="ri-download-cloud-2-line"></i></span><span class="nav-text">Exports hub</span></a></li>');
+        }
     },
     injectConnectAmazonLink() {
         if ($('#nav-link-connect-amazon').length) return;
@@ -1174,18 +1188,10 @@ const Dashboard = {
             // Announcements widget
             const $annWidget = $('#dashboard-announcements-widget');
             if ($annWidget.length) {
-                const announcements = this.getAnnouncementsData().slice(0, 2);
-                if (announcements.length === 0) {
-                    $annWidget.html('<span class="text-muted small">No announcements</span>');
-                } else {
-                    const html = announcements.map(a => {
-                        const dateStr = a.date ? RP_DATE.formatOrdinalEnGb(a.date) : '';
-                        const sum = (a.summary || '').slice(0, 60) + ((a.summary || '').length > 60 ? '…' : '');
-                        return '<div class="mb-2"><a href="announcements.html" class="text-body small fw-medium">' + (a.title || '') + '</a><br><small class="text-muted">' + dateStr + ' – ' + sum + '</small></div>';
-                    }).join('');
-                    $annWidget.html(html);
-                }
+                this.renderAnnouncementsWidget($annWidget);
             }
+
+            this.renderPayoutForecast($('#dashboard-payout-forecast-body'));
         } catch (err) {
             console.error('Load overview error:', err);
             this.showError($('#dashboard-activity'), err.error || 'Unable to load summary.', () => this.loadOverview());
@@ -2205,6 +2211,7 @@ const Dashboard = {
     async loadInvoices() {
         const $tbody = $('table tbody');
         if ($tbody.length) $tbody.html('<tr><td colspan="7" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        this.renderPayoutForecast($('#invoices-payout-forecast-body'));
         try {
             const data = await API.getInvoices();
             $tbody.empty();
@@ -2532,48 +2539,419 @@ const Dashboard = {
         $('#roi-report-apply-custom').off('click').on('click', () => this.loadRoiReport());
     },
 
+    // ─── PAYOUT FORECAST, SEARCH, QUERIES, EXPORTS, SNAPSHOT ───
+    _announcementsCache: null,
+
+    async fetchAnnouncementsList(force) {
+        if (!force && this._announcementsCache) return this._announcementsCache;
+        try {
+            const data = await API.getAnnouncements();
+            this._announcementsCache = data.announcements || [];
+            this._announcementsUnread = data.unread_count != null ? data.unread_count : this._announcementsCache.filter((a) => !a.read).length;
+        } catch (e) {
+            this._announcementsCache = [];
+            this._announcementsUnread = 0;
+        }
+        return this._announcementsCache;
+    },
+
+    escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    },
+
+    async renderPayoutForecast($el) {
+        if (!$el || !$el.length) return;
+        $el.html('<span class="spinner-border spinner-border-sm me-1"></span> Loading…');
+        try {
+            const f = await API.getPayoutForecast();
+            const next = f.next_payout;
+            let html = '';
+            if (next) {
+                html +=
+                    '<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">' +
+                    '<span><strong>£' + Number(next.amount || 0).toFixed(2) + '</strong> · ' + this.escHtml(next.period || '') + '</span>' +
+                    '<span class="badge bg-warning-subtle text-warning">' + this.escHtml(next.status || 'Pending') + '</span></div>';
+                if (next.due_date) {
+                    html += '<div class="small text-muted mt-1">Payout due ' + RP_DATE.formatOrdinalEnGb(next.due_date) + '</div>';
+                }
+            } else {
+                html += '<p class="mb-0">No pending payout scheduled yet.</p>';
+            }
+            if (f.unpaid_count > 0) {
+                html += '<div class="small mt-2">' + f.unpaid_count + ' pending statement' + (f.unpaid_count !== 1 ? 's' : '') + ' · £' + Number(f.unpaid_total || 0).toFixed(2) + ' total</div>';
+            }
+            if (f.pipeline_pending_profit > 0) {
+                html += '<div class="small text-muted mt-1">~£' + Number(f.pipeline_pending_profit).toFixed(2) + ' profit in pipeline (items still processing)</div>';
+            }
+            $el.html(html);
+        } catch (err) {
+            $el.html('<span class="text-danger small">' + this.escHtml(err.error || 'Could not load forecast') + '</span>');
+        }
+    },
+
+    initGlobalSearch() {
+        const $search = $('#dashboard-global-search');
+        if (!$search.length || $search.data('rp-global-search')) return;
+        $search.data('rp-global-search', 1);
+        const $wrap = $search.parent();
+        $wrap.css('position', 'relative');
+        let $drop = $('#dashboard-global-search-results');
+        if (!$drop.length) {
+            $drop = $('<div id="dashboard-global-search-results" class="dropdown-menu shadow position-absolute w-100 d-none" style="top:100%;max-height:320px;overflow-y:auto;z-index:1050;"></div>');
+            $wrap.append($drop);
+        }
+        const self = this;
+        let timer = null;
+        const runSearch = async function() {
+            const q = $search.val().trim();
+            if (q.length < 2) {
+                $drop.addClass('d-none');
+                return;
+            }
+            try {
+                const data = await API.globalSearch(q);
+                const results = data.results || [];
+                if (!results.length) {
+                    $drop.html('<div class="dropdown-item-text small text-muted py-2">No matches</div>').removeClass('d-none');
+                    return;
+                }
+                const labels = { package: 'Package', sold: 'Sold', received: 'Received', pending: 'Pending' };
+                $drop.html(
+                    results
+                        .map(function(r) {
+                            let href = r.href || '#';
+                            if (href.indexOf('/dashboard/') === 0) href = href.replace('/dashboard/', '');
+                            return (
+                                '<a class="dropdown-item py-2 small" href="' + self.escHtml(href) + '">' +
+                                '<span class="badge bg-secondary-subtle text-secondary me-1">' + self.escHtml(labels[r.type] || r.type) + '</span>' +
+                                self.escHtml(r.title || '') +
+                                (r.subtitle ? '<br><small class="text-muted">' + self.escHtml(r.subtitle) + '</small>' : '') +
+                                '</a>'
+                            );
+                        })
+                        .join('')
+                ).removeClass('d-none');
+            } catch (e) {
+                $drop.addClass('d-none');
+            }
+        };
+        $search.on('input', function() {
+            clearTimeout(timer);
+            timer = setTimeout(runSearch, 280);
+        });
+        $search.on('keydown', function(e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                runSearch();
+            }
+            if (e.which === 27) $drop.addClass('d-none');
+        });
+        $(document).on('click.rpGlobalSearch', function(e) {
+            if (!$(e.target).closest('#dashboard-global-search, #dashboard-global-search-results').length) {
+                $drop.addClass('d-none');
+            }
+        });
+    },
+
+    initMonthlySnapshotButtons() {
+        const self = this;
+        $(document)
+            .off('click', '#dashboard-monthly-snapshot-btn, #referrals-monthly-snapshot-btn')
+            .on('click', '#dashboard-monthly-snapshot-btn, #referrals-monthly-snapshot-btn', function() {
+                self.printMonthlySnapshot();
+            });
+    },
+
+    async printMonthlySnapshot(periodYm) {
+        try {
+            const data = await API.getMonthlySnapshot(periodYm || '');
+            const html =
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>ReturnPal snapshot ' + this.escHtml(data.period_label || data.period) + '</title>' +
+                '<style>body{font-family:Segoe UI,sans-serif;padding:40px;color:#1a1a1a;} h1{font-size:22px;} table{width:100%;border-collapse:collapse;margin-top:24px;} td,th{padding:10px;border-bottom:1px solid #eee;text-align:left;} th{background:#f5f5f5;}</style></head><body>' +
+                '<h1>ReturnPal — monthly snapshot</h1>' +
+                '<p><strong>' + this.escHtml(data.client_name || '') + '</strong><br>' + this.escHtml(data.period_label || data.period || '') + '</p>' +
+                '<table><tbody>' +
+                '<tr><th>Items sold</th><td>' + (data.items_sold != null ? data.items_sold : '—') + '</td></tr>' +
+                '<tr><th>Sales profit</th><td>£' + Number(data.sales_profit || 0).toFixed(2) + '</td></tr>' +
+                '<tr><th>Returns / refunds</th><td>£' + Number(data.refunds_and_returns || 0).toFixed(2) + '</td></tr>' +
+                '<tr><th>Payout amount</th><td><strong>£' + Number(data.payout_amount || 0).toFixed(2) + '</strong></td></tr>' +
+                '<tr><th>Status</th><td>' + this.escHtml(data.status || '') + '</td></tr>' +
+                '<tr><th>Due date</th><td>' + (data.due_date ? this.escHtml(RP_DATE.formatOrdinalEnGb(data.due_date)) : '—') + '</td></tr>' +
+                '<tr><th>VAT registered</th><td>' + (data.vat_registered ? 'Yes' : 'No') + '</td></tr>' +
+                '</tbody></table>' +
+                '<p class="small" style="margin-top:32px;color:#666;">Generated ' + new Date().toLocaleString('en-GB') + '. For full line detail use Payouts &amp; Invoices.</p>' +
+                '</body></html>';
+            rpOpenInvoicePrintWindow(html);
+        } catch (err) {
+            alert((err && err.error) || err.message || 'Could not load snapshot');
+        }
+    },
+
+    async loadQueries() {
+        const $inbox = $('#queries-inbox');
+        if (!$inbox.length) return;
+        $inbox.html('<div class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</div>');
+        const self = this;
+        try {
+            const data = await API.getQueries();
+            const list = data.queries || [];
+            if (!list.length) {
+                $inbox.html('<p class="text-muted text-center py-5 mb-0">No queries yet. Use the form to ask about a pending item or package.</p>');
+            } else {
+                let html = '<div class="list-group list-group-flush">';
+                list.forEach(function(q) {
+                    const replied = q.admin_reply && String(q.admin_reply).trim();
+                    html +=
+                        '<div class="list-group-item px-0 py-3 border-bottom">' +
+                        '<div class="d-flex justify-content-between flex-wrap gap-2 mb-1">' +
+                        '<span class="badge bg-light text-dark">' + self.escHtml(q.context_label || q.context_type || 'General') + '</span>' +
+                        '<small class="text-muted">' + (q.created_at ? RP_DATE.formatOrdinalEnGb(q.created_at) : '') + '</small></div>' +
+                        '<p class="mb-2 small">' + self.escHtml(q.message || '') + '</p>' +
+                        (replied
+                            ? '<div class="p-2 rounded bg-success-subtle"><strong class="small">ReturnPal reply</strong>' +
+                              (q.replied_at ? ' <small class="text-muted">· ' + RP_DATE.formatOrdinalEnGb(q.replied_at) + '</small>' : '') +
+                              '<p class="mb-0 small mt-1">' + self.escHtml(q.admin_reply) + '</p></div>'
+                            : '<span class="badge bg-warning-subtle text-warning">Awaiting reply</span>') +
+                        '</div>';
+                });
+                html += '</div>';
+                $inbox.html(html);
+            }
+        } catch (err) {
+            $inbox.html('<p class="text-danger text-center py-4">' + this.escHtml(err.error || 'Failed to load queries') + '</p>');
+        }
+
+        $('#query-new-form')
+            .off('submit')
+            .on('submit', async function(e) {
+                e.preventDefault();
+                const msg = ($('#query-message').val() || '').trim();
+                const label = ($('#query-context-label').val() || '').trim();
+                if (msg.length < 5) return alert('Please enter at least 5 characters.');
+                try {
+                    await API.submitItemQuery({
+                        context_type: 'general',
+                        context_label: label || 'General query',
+                        message: msg,
+                    });
+                    $('#query-message').val('');
+                    $('#query-context-label').val('');
+                    Dashboard.showToast('Query sent');
+                    Dashboard.loadQueries();
+                } catch (err2) {
+                    alert((err2 && err2.error) || err2.message || 'Failed to send');
+                }
+            });
+    },
+
+    async loadExportsHub() {
+        const $grid = $('#exports-hub-grid');
+        const $period = $('#exports-period-select');
+        if (!$grid.length) return;
+        try {
+            const data = await API.getExportsHub();
+            const periods = data.periods || [];
+            if ($period.length) {
+                $period.empty();
+                periods.forEach(function(p, i) {
+                    $period.append('<option value="' + p.period + '">' + p.period + ' · £' + Number(p.amount || 0).toFixed(2) + ' (' + (p.status || '') + ')</option>');
+                });
+                if (!periods.length) $period.append('<option value="">No completed periods yet</option>');
+            }
+            const cards = [
+                { title: 'Sold items CSV', desc: 'All sold lines for your records.', href: 'sold-items.html', action: 'export', id: 'exports-goto-sold' },
+                { title: 'Payouts & invoices', desc: 'Print statement or invoice per month.', href: 'invoices.html', action: 'link' },
+                { title: 'Monthly snapshot', desc: 'One-page summary for a statement month.', action: 'snapshot' },
+                { title: 'Analytics CSV', desc: 'Recovery over time from Analytics.', href: 'analytics.html', action: 'link' },
+                { title: 'ROI report', desc: 'Printable ROI summary.', href: 'roi-report.html', action: 'link' },
+                { title: 'Accountant pack', desc: 'VAT-friendly export from Invoices.', href: 'invoices.html', action: 'link' },
+            ];
+            $grid.html(
+                cards
+                    .map(function(c) {
+                        return (
+                            '<div class="col-md-6 col-lg-4"><div class="rp-card card border-0 h-100"><div class="card-body">' +
+                            '<h6 class="mb-1">' +
+                            Dashboard.escHtml(c.title) +
+                            '</h6><p class="small text-muted mb-3">' +
+                            Dashboard.escHtml(c.desc) +
+                            '</p>' +
+                            (c.action === 'snapshot'
+                                ? '<button type="button" class="btn btn-primary btn-sm" id="exports-snapshot-btn"><i class="ri-printer-line me-1"></i>Print snapshot</button>'
+                                : '<a href="' +
+                                  Dashboard.escHtml(c.href) +
+                                  '" class="btn btn-outline-primary btn-sm">' +
+                                  (c.action === 'export' ? 'Open & export' : 'Open') +
+                                  '</a>') +
+                            '</div></div></div>'
+                        );
+                    })
+                    .join('')
+            );
+            $('#exports-snapshot-btn')
+                .off('click')
+                .on('click', function() {
+                    const p = $period.val();
+                    Dashboard.printMonthlySnapshot(p || undefined);
+                });
+        } catch (err) {
+            $grid.html('<div class="col-12 text-danger">' + this.escHtml(err.error || 'Failed to load exports') + '</div>');
+        }
+    },
+
+    initReimbursementSubmit() {
+        const $form = $('#reimbursement-submit-form');
+        if (!$form.length || $form.data('rp-bound')) return;
+        $form.data('rp-bound', 1);
+        $form.on('submit', async function(e) {
+            e.preventDefault();
+            const $btn = $('#reimbursement-submit-btn');
+            const fd = new FormData($form[0]);
+            try {
+                $btn.prop('disabled', true).text('Submitting…');
+                await API.submitReimbursementClaim(fd);
+                $form[0].reset();
+                Dashboard.showToast('Claim submitted');
+                Dashboard.loadReimbursementClaims();
+            } catch (err) {
+                alert((err && err.error) || err.message || 'Submit failed');
+            } finally {
+                $btn.prop('disabled', false).text('Submit claim');
+            }
+        });
+    },
+
+    applyClientPreferencesToForm(prefs) {
+        const p = prefs || {};
+        $('#settings-billing-name').val(p.billing_name || '');
+        $('#settings-billing-company').val(p.billing_company || '');
+        $('#settings-billing-address').val(p.billing_address || '');
+        $('#settings-billing-phone').val(p.billing_phone || '');
+        $('#settings-prep-name').val(p.prep_name || '');
+        $('#settings-prep-address').val(p.prep_address || '');
+        $('#settings-prep-contact').val(p.prep_contact || '');
+        $('#settings-prep-phone').val(p.prep_phone || '');
+        $('#settings-prep-email').val(p.prep_email || '');
+        $('#settings-prep-reference').val(p.prep_reference || '');
+        $('#settings-vat-number').val(p.vat_number || '');
+        $('#email-package-delivered').prop('checked', p.email_package_delivered !== false);
+        $('#email-item-sold').prop('checked', p.email_item_sold !== false);
+        $('#email-payout-sent').prop('checked', p.email_payout_sent !== false);
+        $('#email-monthly-invoice').prop('checked', !!p.email_monthly_invoice);
+        if ($('#email-digest-preference').length && p.email_digest) {
+            $('#email-digest-preference').val(p.email_digest);
+        }
+    },
+
+    buildClientPreferencesFromForm() {
+        return {
+            billing_name: $('#settings-billing-name').val().trim(),
+            billing_company: $('#settings-billing-company').val().trim(),
+            billing_address: $('#settings-billing-address').val().trim(),
+            billing_phone: $('#settings-billing-phone').val().trim(),
+            prep_name: $('#settings-prep-name').val().trim(),
+            prep_address: $('#settings-prep-address').val().trim(),
+            prep_contact: $('#settings-prep-contact').val().trim(),
+            prep_phone: $('#settings-prep-phone').val().trim(),
+            prep_email: $('#settings-prep-email').val().trim(),
+            prep_reference: $('#settings-prep-reference').val().trim(),
+            vat_number: $('#settings-vat-number').val().trim(),
+            email_package_delivered: $('#email-package-delivered').is(':checked'),
+            email_item_sold: $('#email-item-sold').is(':checked'),
+            email_payout_sent: $('#email-payout-sent').is(':checked'),
+            email_monthly_invoice: $('#email-monthly-invoice').is(':checked'),
+            email_digest: $('#email-digest-preference').val() || 'off',
+        };
+    },
+
+    async saveClientPreferences() {
+        return API.updatePreferences(this.buildClientPreferencesFromForm());
+    },
+
     // ─── ANNOUNCEMENTS ───────────────────────────────────────
     getAnnouncementsData() {
-        return [
-            { id: 'ann-1', title: 'Update return address', date: '2026-03-10', summary: 'You can now update your default return address in Settings → Billing. We’ll use it for all new shipments unless you override per package.', body: 'You can now update your default return address in Settings → Billing. We’ll use it for all new shipments unless you override per package. This helps keep labels correct when you move or use a different warehouse.' },
-            { id: 'ann-2', title: 'Shipments page update', date: '2026-03-05', summary: 'The Received and Packages pages now support search by reference, product, and status. Use the new filters to find items faster.', body: 'The Received and Packages pages now support search by reference, product, and status. Use the new filters to find items faster. We’ve also added pagination so long lists stay responsive.' },
-            { id: 'ann-3', title: 'Announcements feed', date: '2026-03-01', summary: 'New Announcements page: address changes, new features, and operational reminders in one place so you don’t rely only on email.', body: 'New Announcements page: address changes, new features, and operational reminders in one place so you don’t rely only on email. Check the sidebar for the latest updates.' }
-        ];
+        return this._announcementsCache || [];
     },
     getUnreadAnnouncementsCount() {
-        const announcements = this.getAnnouncementsData();
-        let readIds = [];
-        try { readIds = JSON.parse(localStorage.getItem('returnpal_announcements_read') || '[]'); } catch (e) {}
-        return announcements.filter(a => !readIds.includes(a.id)).length;
+        if (this._announcementsUnread != null) return this._announcementsUnread;
+        return (this._announcementsCache || []).filter((a) => !a.read).length;
     },
-    markAllAnnouncementsRead() {
-        const announcements = this.getAnnouncementsData();
-        const ids = announcements.map(a => a.id);
-        localStorage.setItem('returnpal_announcements_read', JSON.stringify(ids));
+    async markAllAnnouncementsRead() {
+        try {
+            await API.markAnnouncementsRead([]);
+            this._announcementsUnread = 0;
+            if (this._announcementsCache) {
+                this._announcementsCache.forEach((a) => {
+                    a.read = true;
+                });
+            }
+        } catch (e) { /* ignore */ }
+        this.updateNotificationDots();
+    },
+    async renderAnnouncementsWidget($el) {
+        const announcements = (await this.fetchAnnouncementsList()).slice(0, 2);
+        if (!announcements.length) {
+            $el.html('<span class="text-muted small">No announcements</span>');
+            return;
+        }
+        const html = announcements
+            .map((a) => {
+                const dateStr = a.date ? RP_DATE.formatOrdinalEnGb(a.date) : '';
+                const sum = (a.summary || '').slice(0, 60) + ((a.summary || '').length > 60 ? '…' : '');
+                return (
+                    '<div class="mb-2"><a href="announcements.html" class="text-body small fw-medium">' +
+                    this.escHtml(a.title || '') +
+                    '</a><br><small class="text-muted">' +
+                    dateStr +
+                    ' – ' +
+                    this.escHtml(sum) +
+                    '</small></div>'
+                );
+            })
+            .join('');
+        $el.html(html);
         this.updateNotificationDots();
     },
     async loadAnnouncements() {
         const $feed = $('#announcements-feed');
         if (!$feed.length) return;
         $feed.html('<div class="list-group-item border-0 py-4 text-muted text-center"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</div>');
-        const announcements = this.getAnnouncementsData();
-        this.markAllAnnouncementsRead();
+        const announcements = await this.fetchAnnouncementsList(true);
+        await this.markAllAnnouncementsRead();
         $feed.empty();
         if (announcements.length === 0) {
             $feed.html('<div class="list-group-item border-0 py-5 text-center"><p class="text-muted mb-0">No announcements yet.</p></div>');
             return;
         }
-        announcements.forEach(a => {
+        const self = this;
+        announcements.forEach(function(a) {
             const dateStr = a.date ? RP_DATE.formatOrdinalEnGb(a.date) : '';
             const fullId = 'announcement-full-' + a.id;
             $feed.append(
                 '<div class="list-group-item border-0 border-bottom py-3" data-announcement-id="' + a.id + '">' +
                 '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">' +
-                '<div><h6 class="mb-1">' + (a.title || '') + '</h6><small class="text-muted">' + dateStr + '</small></div>' +
-                '<button type="button" class="btn btn-link btn-sm p-0 text-primary" data-bs-toggle="collapse" data-bs-target="#' + fullId + '" aria-expanded="false">View full</button>' +
+                '<div><h6 class="mb-1">' +
+                self.escHtml(a.title || '') +
+                (!a.read ? ' <span class="badge bg-primary-subtle text-primary">New</span>' : '') +
+                '</h6><small class="text-muted">' +
+                dateStr +
+                '</small></div>' +
+                '<button type="button" class="btn btn-link btn-sm p-0 text-primary" data-bs-toggle="collapse" data-bs-target="#' +
+                fullId +
+                '" aria-expanded="false">View full</button>' +
                 '</div>' +
-                '<p class="mb-2 mt-1 small">' + (a.summary || '') + '</p>' +
-                '<div class="collapse" id="' + fullId + '"><div class="small text-muted">' + (a.body || '') + '</div></div>' +
+                '<p class="mb-2 mt-1 small">' +
+                self.escHtml(a.summary || '') +
+                '</p>' +
+                '<div class="collapse" id="' +
+                fullId +
+                '"><div class="small text-muted">' +
+                self.escHtml(a.body || '') +
+                '</div></div>' +
                 '</div>'
             );
         });
@@ -3213,60 +3591,82 @@ const Dashboard = {
                     $btn.prop('disabled', false).text('Save');
                 }
             });
-            // Billing / invoice details
+            let prefs = (data.settings && data.settings.preferences) || {};
             const billingKeys = { name: 'returnpal_billing_name', company: 'returnpal_billing_company', address: 'returnpal_billing_address', phone: 'returnpal_billing_phone' };
-            $('#settings-billing-name').val(localStorage.getItem(billingKeys.name) || '');
-            $('#settings-billing-company').val(localStorage.getItem(billingKeys.company) || '');
-            $('#settings-billing-address').val(localStorage.getItem(billingKeys.address) || '');
-            $('#settings-billing-phone').val(localStorage.getItem(billingKeys.phone) || '');
-            $(document).off('click', '#settings-billing-save').on('click', '#settings-billing-save', function() {
-                localStorage.setItem(billingKeys.name, $('#settings-billing-name').val().trim());
-                localStorage.setItem(billingKeys.company, $('#settings-billing-company').val().trim());
-                localStorage.setItem(billingKeys.address, $('#settings-billing-address').val().trim());
-                localStorage.setItem(billingKeys.phone, $('#settings-billing-phone').val().trim());
-                const $btn = $(this);
-                $btn.text('Saved!');
-                Dashboard.showToast('Billing details saved');
-                setTimeout(() => $btn.text('Save billing details'), 1500);
-            });
-            // Prep centre details
             const prepKeys = { name: 'returnpal_prep_name', address: 'returnpal_prep_address', contact: 'returnpal_prep_contact', phone: 'returnpal_prep_phone', email: 'returnpal_prep_email', reference: 'returnpal_prep_reference' };
-            $('#settings-prep-name').val(localStorage.getItem(prepKeys.name) || '');
-            $('#settings-prep-address').val(localStorage.getItem(prepKeys.address) || '');
-            $('#settings-prep-contact').val(localStorage.getItem(prepKeys.contact) || '');
-            $('#settings-prep-phone').val(localStorage.getItem(prepKeys.phone) || '');
-            $('#settings-prep-email').val(localStorage.getItem(prepKeys.email) || '');
-            $('#settings-prep-reference').val(localStorage.getItem(prepKeys.reference) || '');
-            $(document).off('click', '#settings-prep-save').on('click', '#settings-prep-save', function() {
-                localStorage.setItem(prepKeys.name, $('#settings-prep-name').val().trim());
-                localStorage.setItem(prepKeys.address, $('#settings-prep-address').val().trim());
-                localStorage.setItem(prepKeys.contact, $('#settings-prep-contact').val().trim());
-                localStorage.setItem(prepKeys.phone, $('#settings-prep-phone').val().trim());
-                localStorage.setItem(prepKeys.email, $('#settings-prep-email').val().trim());
-                localStorage.setItem(prepKeys.reference, $('#settings-prep-reference').val().trim());
+            const needsMigrate =
+                !prefs.billing_name &&
+                !prefs.billing_company &&
+                (localStorage.getItem(billingKeys.name) || localStorage.getItem(prepKeys.name) || localStorage.getItem('returnpal_vat_number'));
+            if (needsMigrate) {
+                prefs = {
+                    ...prefs,
+                    billing_name: localStorage.getItem(billingKeys.name) || '',
+                    billing_company: localStorage.getItem(billingKeys.company) || '',
+                    billing_address: localStorage.getItem(billingKeys.address) || '',
+                    billing_phone: localStorage.getItem(billingKeys.phone) || '',
+                    prep_name: localStorage.getItem(prepKeys.name) || '',
+                    prep_address: localStorage.getItem(prepKeys.address) || '',
+                    prep_contact: localStorage.getItem(prepKeys.contact) || '',
+                    prep_phone: localStorage.getItem(prepKeys.phone) || '',
+                    prep_email: localStorage.getItem(prepKeys.email) || '',
+                    prep_reference: localStorage.getItem(prepKeys.reference) || '',
+                    vat_number: localStorage.getItem('returnpal_vat_number') || '',
+                    email_monthly_invoice: localStorage.getItem('returnpal_email_monthly_invoice') === 'true',
+                    email_digest: localStorage.getItem('returnpal_email_digest') || prefs.email_digest || 'off',
+                };
+                API.updatePreferences(prefs).catch(() => {});
+            }
+            this.applyClientPreferencesToForm(prefs);
+
+            const savePrefsClick = async function($btn, doneLabel, savingLabel) {
+                try {
+                    $btn.prop('disabled', true).text(savingLabel || 'Saving…');
+                    await Dashboard.saveClientPreferences();
+                    Dashboard.showToast('Saved to your account');
+                    $btn.text(doneLabel || 'Saved!');
+                    setTimeout(() => $btn.prop('disabled', false).text($btn.data('default-label') || 'Save'), 1500);
+                } catch (err) {
+                    alert((err && err.error) || err.message || 'Could not save');
+                    $btn.prop('disabled', false).text($btn.data('default-label') || 'Save');
+                }
+            };
+
+            $(document).off('click', '#settings-billing-save').on('click', '#settings-billing-save', function() {
                 const $btn = $(this);
-                $btn.text('Saved!');
-                Dashboard.showToast('Prep centre details saved');
-                setTimeout(() => $btn.text('Save prep centre details'), 1500);
+                $btn.data('default-label', 'Save billing details');
+                savePrefsClick($btn, 'Saved!', 'Saving…');
             });
-            // Email monthly invoice at start of month
-            const $emailMonthlyInv = $('#email-monthly-invoice');
-            if ($emailMonthlyInv.length) {
-                $emailMonthlyInv.prop('checked', localStorage.getItem('returnpal_email_monthly_invoice') === 'true');
-                $emailMonthlyInv.on('change', function() { localStorage.setItem('returnpal_email_monthly_invoice', $(this).is(':checked')); });
-            }
-            // VAT number (UK/EU) - persist in localStorage for accountant export
-            const $vatNum = $('#settings-vat-number');
-            if ($vatNum.length) {
-                $vatNum.val(localStorage.getItem('returnpal_vat_number') || '');
-                $vatNum.on('change blur', function() { localStorage.setItem('returnpal_vat_number', $(this).val().trim()); });
-            }
-            // Email digest preference
-            const $digest = $('#email-digest-preference');
-            if ($digest.length) {
-                $digest.val(localStorage.getItem('returnpal_email_digest') || 'off');
-                $digest.on('change', function() { localStorage.setItem('returnpal_email_digest', $(this).val()); });
-            }
+            $(document).off('click', '#settings-prep-save').on('click', '#settings-prep-save', function() {
+                const $btn = $(this);
+                $btn.data('default-label', 'Save prep centre details');
+                savePrefsClick($btn, 'Saved!', 'Saving…');
+            });
+
+            $(document).off('blur', '#settings-vat-number').on('blur', '#settings-vat-number', function() {
+                Dashboard.saveClientPreferences().catch(() => {});
+            });
+
+            $(document).off('click', '#settings-password-save').on('click', '#settings-password-save', async function() {
+                const $btn = $(this);
+                const cur = $('#settings-current-password').val();
+                const neu = $('#settings-new-password').val();
+                const conf = $('#settings-confirm-password').val();
+                if (!cur || !neu) return alert('Enter current and new password.');
+                if (neu.length < 8) return alert('New password must be at least 8 characters.');
+                if (neu !== conf) return alert('New passwords do not match.');
+                try {
+                    $btn.prop('disabled', true).text('Updating…');
+                    await API.changePassword(cur, neu);
+                    $('#settings-current-password, #settings-new-password, #settings-confirm-password').val('');
+                    Dashboard.showToast('Password updated');
+                    $btn.text('Updated!');
+                    setTimeout(() => $btn.prop('disabled', false).text('Update password'), 1500);
+                } catch (err) {
+                    alert((err && err.error) || err.message || 'Could not update password');
+                    $btn.prop('disabled', false).text('Update password');
+                }
+            });
 
             // VAT toggle
             $('#flexSwitchCheckDefault').on('change', async function() {
@@ -3298,6 +3698,7 @@ const Dashboard = {
                 const $btn = $(this);
                 try {
                     $btn.prop('disabled', true).text('Saving…');
+                    await Dashboard.saveClientPreferences();
                     await API.updateWeeklyDigest(on);
                     Dashboard.showToast('Email preferences saved');
                     $btn.text('Saved!');

@@ -49,6 +49,12 @@ app.get('/dashboard/reimbursement.html', (req, res) => {
 app.get('/dashboard/reimbursement', (req, res) => {
     res.redirect(302, '/dashboard/reimbursement.html');
 });
+app.get('/dashboard/queries.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/dashboard/queries.html'));
+});
+app.get('/dashboard/exports.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/dashboard/exports.html'));
+});
 // Marketing site has no register.html; SPA fallback was serving index.html and dropping ?ref=
 app.get('/register.html', (req, res) => {
     const ref = req.query.ref;
@@ -123,6 +129,8 @@ app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/balance', require('./routes/balance'));
 app.use('/api/queries', require('./routes/queries'));
+app.use('/api/announcements', require('./routes/announcements'));
+app.use('/api/client', require('./routes/clientDashboard'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/reimbursement', require('./routes/reimbursement'));
 // ─── Health Check ────────────────────────────────────────────
