@@ -8,7 +8,10 @@ const fs = require('fs');
 const path = require('path');
 const initSqlJs = require('sql.js');
 const { normalizeSoldDateForDb } = require('../src/utils/adminBulkImport');
-const { mapSoldItemDatesForApi, resolveSoldDateIsoForDisplay } = require('../src/utils/soldDateDisplayRepair');
+const {
+    mapSoldItemDatesForApi,
+    storedSoldYmdToCalendarIso,
+} = require('../src/utils/soldDateDisplayRepair');
 
 const DB_PATH = path.resolve(process.env.DB_PATH || './data/returnpal.db');
 const fixGot = process.argv.includes('--fix-got');
@@ -50,15 +53,7 @@ function main() {
             console.log('(No product matching "' + search + '" in this database.)\n');
         }
 
-        const nov1 = rows.filter((r) => {
-            const m = mapSoldItemDatesForApi(r.sold_date, normalizeSoldDateForDb);
-            return m.label === 'November 1st 2026';
-        });
-        if (nov1.length) {
-            console.log('=== All rows that display as "November 1st 2026" (' + nov1.length + ') ===');
-            nov1.slice(0, 20).forEach(printRow);
-            if (nov1.length > 20) console.log('... and', nov1.length - 20, 'more\n');
-        }
+        console.log('Format: stored YYYY-MM-DD = year, day (middle), month (last)\n');
 
         console.log('=== Sample (first 10) ===');
         rows.slice(0, 10).forEach(printRow);
@@ -74,15 +69,13 @@ function main() {
             console.log('Restart the server, then hard-refresh Sold Items (Ctrl+Shift+R).');
         } else if (matched.length) {
             const m = mapSoldItemDatesForApi(matched[0].sold_date, normalizeSoldDateForDb);
-            if (String(matched[0].sold_date) === '2026-11-01' && m.label !== 'January 11th 2026') {
-                console.log('\n>>> Deploy latest code from GitHub (jan-day repair). After deploy, 2026-11-01 → January 11th 2026.');
-            } else if (m.label === 'January 11th 2026') {
-                console.log('\n>>> Display repair OK for 11 Jan (DB still 2026-11-01). Hard-refresh Sold Items after deploy.');
+            if (m.label) {
+                console.log('\n>>> Deploy latest code (iso-ydm-2026-05i). Hard-refresh Sold Items after deploy.');
             }
         }
 
         console.log('\n--- After deploy + refresh, under the sold table:');
-        console.log('    "Sold dates: iso-calendar-jan-day-2026-05h — 2026-11-01 in DB shows as January 11th 2026"');
+        console.log('    "Sold dates: iso-ydm-2026-05i — stored YYYY-DD-MM (e.g. 2026-09-03 → March 9th 2026)"');
     });
 }
 
@@ -92,8 +85,8 @@ function printRow(r) {
     console.log('id:', r.id);
     console.log('  product:', String(r.product || '').slice(0, 70));
     console.log('  sold_date in DB:', r.sold_date);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(rawIso) && resolveSoldDateIsoForDisplay(rawIso) !== rawIso) {
-        console.log('  display ISO (repaired):', resolveSoldDateIsoForDisplay(rawIso));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawIso) && storedSoldYmdToCalendarIso(rawIso) !== rawIso) {
+        console.log('  calendar ISO (for sort):', storedSoldYmdToCalendarIso(rawIso));
     }
     console.log('  site should show:', m.label || '(not a recognised ISO date)');
     console.log('');

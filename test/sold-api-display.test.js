@@ -1,5 +1,5 @@
 /**
- * Foolproof sold date display: 2026-02-05 must label as February 5th 2026 (never November).
+ * Sold date display: stored YYYY-MM-DD means YYYY-DD-MM (year, day, month).
  * Run: node test/sold-api-display.test.js
  */
 
@@ -10,8 +10,8 @@ const assert = (cond, msg) => {
 const { normalizeSoldDateForDb } = require('../src/utils/adminBulkImport');
 const {
     mapSoldItemDatesForApi,
-    isoYmdToOrdinalLabel,
-    repairIsoFirstOfMonthToJanuary,
+    storedSoldYmdToOrdinalLabel,
+    storedSoldYmdToCalendarIso,
 } = require('../src/utils/soldDateDisplayRepair');
 
 require('../public/assets/js/soldDateIsoDisplay.js');
@@ -29,37 +29,30 @@ function simulateSoldApiRow(sold_date, product) {
 }
 
 function run() {
-    const got = isoYmdToOrdinalLabel('2026-02-05');
-    assert(got === 'February 5th 2026', 'isoYmdToOrdinalLabel(2026-02-05)');
+    assert(storedSoldYmdToOrdinalLabel('2026-02-05') === 'May 2nd 2026', 'day 2, month 5');
+    assert(storedSoldYmdToCalendarIso('2026-02-05') === '2026-05-02', 'calendar ISO for sort');
 
     const mapped = mapSoldItemDatesForApi('2026-02-05', normalizeSoldDateForDb);
-    assert(mapped.iso === '2026-02-05', 'mapSoldItemDatesForApi iso');
-    assert(mapped.label === 'February 5th 2026', 'mapSoldItemDatesForApi label');
+    assert(mapped.iso === '2026-05-02', 'mapSoldItemDatesForApi calendar iso');
+    assert(mapped.label === 'May 2nd 2026', 'mapSoldItemDatesForApi label');
 
     const nov = mapSoldItemDatesForApi('2026-11-01', normalizeSoldDateForDb);
-    assert(nov.iso === '2026-01-11', '2026-11-01 → 2026-01-11 display ISO');
-    assert(nov.label === 'January 11th 2026', '11 Jan mis-stored as Nov 1 → January label');
-    assert(repairIsoFirstOfMonthToJanuary('2026-02-05') === '2026-02-05', 'Feb 5 unchanged by jan-day repair');
+    assert(nov.iso === '2026-01-11', '2026-11-01 → 11 Jan calendar');
+    assert(nov.label === 'January 11th 2026', '11 Jan label');
 
-    const row = simulateSoldApiRow('2026-02-05', 'Game of Thrones: Season 1-3 2014 DVD Box Set New Sealed');
-    assert(row.sold_date === '2026-02-05', 'API row sold_date');
-    assert(row.sold_date_label === 'February 5th 2026', 'API row sold_date_label');
+    const mar9 = mapSoldItemDatesForApi('2026-09-03', normalizeSoldDateForDb);
+    assert(mar9.iso === '2026-03-09', '2026-09-03 → 9 Mar calendar');
+    assert(mar9.label === 'March 9th 2026', '9 Mar label');
+
+    const row = simulateSoldApiRow('2026-11-01', 'Game of Thrones: Season 1-3 2014 DVD Box Set New Sealed');
+    assert(row.sold_date === '2026-01-11', 'API row sold_date calendar');
+    assert(row.sold_date_label === 'January 11th 2026', 'API row sold_date_label');
 
     const clientLabel = global.RP_SOLD_ISO.labelForSoldItem(row);
-    assert(clientLabel === 'February 5th 2026', 'RP_SOLD_ISO.labelForSoldItem (browser module in Node)');
+    assert(clientLabel === 'January 11th 2026', 'RP_SOLD_ISO.labelForSoldItem');
 
-    const novRow = simulateSoldApiRow('2026-11-01', 'Game of Thrones: Season 1-3 2014 DVD Box Set New Sealed');
-    assert(
-        global.RP_SOLD_ISO.labelForSoldItem(novRow) === 'January 11th 2026',
-        'Client label: 2026-11-01 → January 11th 2026'
-    );
-
-    const datetime = mapSoldItemDatesForApi('2026-02-05 00:00:00', normalizeSoldDateForDb);
-    assert(datetime.label === 'February 5th 2026', 'datetime suffix stripped');
-
-    const novDb = simulateSoldApiRow('2026-11-01', 'Other');
-    assert(novDb.sold_date_label === 'January 11th 2026', '2026-11-01 display → 11 Jan');
-    assert(novDb.sold_date === '2026-01-11', 'API sold_date uses display ISO');
+    const datetime = mapSoldItemDatesForApi('2026-09-03 00:00:00', normalizeSoldDateForDb);
+    assert(datetime.label === 'March 9th 2026', 'datetime suffix stripped');
 
     console.log('sold-api-display: all checks passed');
 }

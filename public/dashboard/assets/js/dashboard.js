@@ -836,7 +836,7 @@ const Dashboard = {
         return RP_DATE.formatIso(dateStr);
     },
 
-    /** Sold list date: always from stored ISO + jan-day repair (RP_SOLD_ISO); ignores stale API labels. */
+    /** Sold list date: stored YYYY-DD-MM via RP_SOLD_ISO; ignores stale API labels. */
     soldDateDisplayValue(item) {
         if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem) {
             const lab = RP_SOLD_ISO.labelForSoldItem(item);

@@ -4,6 +4,7 @@
  */
 
 const { normalizeSoldDateForDb } = require('./adminBulkImport');
+const { storedSoldYmdToCalendarIso } = require('./soldDateDisplayRepair');
 
 /**
  * @param {unknown} v raw DB or spreadsheet cell
@@ -19,7 +20,11 @@ function calendarIsoDateFromDbDate(v) {
  */
 function calendarYearMonthFromDbDate(v) {
     const n = normalizeSoldDateForDb(v);
-    if (!n || n.length < 7) return null;
+    if (!n || n.length < 10) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(n)) {
+        const cal = storedSoldYmdToCalendarIso(n);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(cal)) return cal.slice(0, 7);
+    }
     const ym = n.slice(0, 7);
     return /^\d{4}-\d{2}$/.test(ym) ? ym : null;
 }

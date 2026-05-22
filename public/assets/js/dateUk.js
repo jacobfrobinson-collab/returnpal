@@ -258,10 +258,9 @@
     }
 
     /**
-     * Sold date for display: ISO YYYY-MM-DD = year, month (2nd), day (3rd). No month/day swap unless
-     * window.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL = '1'.
-     * @param {unknown} raw sold_date or sold_date_display from API
-     * @returns {string} YYYY-MM-DD or '-'
+     * Sold date for display/sort: stored YYYY-MM-DD = year, day (middle), month (last).
+     * @param {unknown} raw sold_date or sold_date_stored from API/DB
+     * @returns {string} calendar YYYY-MM-DD or '-'
      */
     function repairSoldDateIsoForDisplay(raw) {
         let head = stripSoldDateToIsoHead(raw);
@@ -270,9 +269,13 @@
             if (f === '-') return '-';
             head = f;
         }
-        if (String(w.RETURNPAL_SOLD_DISPLAY_REPAIR_JAN_DAY_ISO || '').trim() !== '0') {
-            const jm = head.match(/^(\d{4})-(\d{2})-01$/);
-            if (jm && jm[2] !== '01') head = jm[1] + '-01-' + jm[2];
+        const m = head.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (m) {
+            const day = parseInt(m[2], 10);
+            const mo = parseInt(m[3], 10);
+            if (mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
+                return m[1] + '-' + pad2(mo) + '-' + pad2(day);
+            }
         }
         if (soldDateRepairOpts().allOff) return head;
         for (let mo = 12; mo >= 1; mo--) {

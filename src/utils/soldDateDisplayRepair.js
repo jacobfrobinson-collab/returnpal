@@ -1,14 +1,13 @@
 /**
  * Sold date display helpers.
  *
- * Stored/API ISO dates YYYY-MM-DD are always calendar year → month (2nd segment) → day (3rd segment).
- * E.g. 2026-02-05 → February 5th 2026. No month/day swap on ISO (that was breaking correct rows).
+ * Stored sold_date values look like YYYY-MM-DD but mean YYYY-DD-MM:
+ *   1st segment = year, 2nd = day of month, 3rd = month (1–12).
+ * E.g. 2026-11-01 → 11 January 2026; 2026-09-03 → 9 March 2026.
  *
- * UK day-in-month mis-import on day 1: 11 Jan stored as 2026-11-01 → display 2026-01-11 (January 11th).
- * On by default. Disable with RETURNPAL_SOLD_DISPLAY_REPAIR_JAN_DAY_ISO=0.
+ * Display/sort ISO returned to clients is calendar YYYY-MM-DD (year-month-day).
  *
- * Full month/day swap (2026-10-04 → April 10, etc.) is opt-in only:
- * RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL=1
+ * Legacy month/day swap repair is opt-in: RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL=1
  */
 
 const MONTH_NAMES = [
@@ -38,33 +37,52 @@ function stripSoldDateToIsoHead(v) {
     return s0;
 }
 
+/**
+ * Parse stored YYYY-DD-MM.
+ * @param {unknown} iso
+ * @returns {{ y: number, day: number, month: number }|null}
+ */
+function parseStoredSoldYmd(iso) {
+    const s = stripSoldDateToIsoHead(iso);
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const y = parseInt(m[1], 10);
+    const day = parseInt(m[2], 10);
+    const month = parseInt(m[3], 10);
+    if (!Number.isFinite(y) || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return { y, day, month };
+}
+
+/** Calendar YYYY-MM-DD for sort and API sold_date / sold_date_display. */
+function storedSoldYmdToCalendarIso(iso) {
+    const p = parseStoredSoldYmd(iso);
+    if (!p) return stripSoldDateToIsoHead(iso) || String(iso == null ? '' : iso);
+    return (
+        String(p.y) +
+        '-' +
+        String(p.month).padStart(2, '0') +
+        '-' +
+        String(p.day).padStart(2, '0')
+    );
+}
+
 function monthDaySwapRepairEnabled() {
     return String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL || '').trim() === '1';
 }
 
-function janDayRepairEnabled() {
-    return String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_JAN_DAY_ISO || '').trim() !== '0';
-}
-
-/**
- * UK 11/01/2026 (11 Jan) mis-read as US 01/11 → stored 2026-11-01. Rewrite YYYY-MM-01 → YYYY-01-MM (M≠1).
- * @param {unknown} iso
- */
+/** @deprecated jan-day hack; stored format is YYYY-DD-MM — no-op when parse succeeds */
 function repairIsoFirstOfMonthToJanuary(iso) {
-    if (!janDayRepairEnabled()) return stripSoldDateToIsoHead(iso) || iso;
-    const s = stripSoldDateToIsoHead(iso);
-    const m = s.match(/^(\d{4})-(\d{2})-01$/);
-    if (!m) return s;
-    const mo = parseInt(m[2], 10);
-    if (mo === 1) return s;
-    return m[1] + '-01-' + m[2];
+    return stripSoldDateToIsoHead(iso) || iso;
 }
 
-/** Canonical display/sort ISO: jan-day repair, then optional legacy month/day swap. */
+function janDayRepairEnabled() {
+    return false;
+}
+
+/** Canonical display/sort ISO (calendar). */
 function resolveSoldDateIsoForDisplay(iso) {
-    let s = stripSoldDateToIsoHead(iso);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    s = repairIsoFirstOfMonthToJanuary(s);
+    let s = storedSoldYmdToCalendarIso(iso);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return stripSoldDateToIsoHead(iso);
     if (monthDaySwapRepairEnabled()) s = repairAllMonthDaySwapIsoMisimportForDisplay(s);
     return s;
 }
@@ -85,25 +103,25 @@ function dayWithOrdinal(n) {
     return d + 'th';
 }
 
-/** @param {unknown} iso YYYY-MM-DD — segment 2 = month, segment 3 = day (no Date parsing). */
+/** User-facing label from stored YYYY-DD-MM. */
+function storedSoldYmdToOrdinalLabel(iso) {
+    const p = parseStoredSoldYmd(iso);
+    if (!p) return '';
+    return MONTH_NAMES[p.month - 1] + ' ' + dayWithOrdinal(p.day) + ' ' + p.y;
+}
+
+/** @param {unknown} iso stored YYYY-DD-MM */
 function isoYmdToOrdinalLabel(iso) {
-    const s = stripSoldDateToIsoHead(iso);
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) return '';
-    const y = parseInt(m[1], 10);
-    const mo = parseInt(m[2], 10);
-    const d = parseInt(m[3], 10);
-    if (!Number.isFinite(y) || mo < 1 || mo > 12 || d < 1 || d > 31) return '';
-    return MONTH_NAMES[mo - 1] + ' ' + dayWithOrdinal(d) + ' ' + y;
+    return storedSoldYmdToOrdinalLabel(iso);
 }
 
 /** @deprecated alias */
 function formatOrdinalEnGbFromIso(iso) {
-    return isoYmdToOrdinalLabel(iso);
+    return storedSoldYmdToOrdinalLabel(iso);
 }
 
 /**
- * @param {unknown} iso
+ * @param {unknown} iso calendar or stored — used only by legacy swap repair
  * @param {number} mo middle month 1..12
  * @param {{ decemberOff?: boolean, novemberOff?: boolean, springOff?: boolean, allOff?: boolean }} [opts]
  */
@@ -141,7 +159,6 @@ function repairAllMonthDaySwapIsoMisimportForDisplay(iso) {
 }
 
 /**
- * Resolve display ISO + label: YYYY-MM-DD = year, month (2nd), day (3rd). No swap on ISO.
  * @param {unknown} rawSoldDate
  * @param {(v: unknown) => string|null} normalizeSoldDateForDb
  */
@@ -152,10 +169,13 @@ function mapSoldItemDatesForApi(rawSoldDate, normalizeSoldDateForDb) {
         if (/^\d{4}-\d{2}-\d{2}$/.test(head)) iso = head;
         else if (/^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(head)) iso = normalizeSoldDateForDb(head);
     }
-    let isoFinal = iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : stripSoldDateToIsoHead(rawSoldDate);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(String(isoFinal))) isoFinal = resolveSoldDateIsoForDisplay(isoFinal);
-    const label = /^\d{4}-\d{2}-\d{2}$/.test(String(isoFinal))
-        ? isoYmdToOrdinalLabel(isoFinal)
+    const storedHead =
+        iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : stripSoldDateToIsoHead(rawSoldDate);
+    const isoFinal = /^\d{4}-\d{2}-\d{2}$/.test(String(storedHead))
+        ? resolveSoldDateIsoForDisplay(storedHead)
+        : '';
+    const label = /^\d{4}-\d{2}-\d{2}$/.test(String(storedHead))
+        ? storedSoldYmdToOrdinalLabel(storedHead)
         : '';
     return {
         iso: isoFinal || '',
@@ -176,6 +196,9 @@ function repairDecemberIsoMisimportForDisplay(iso) {
 
 module.exports = {
     stripSoldDateToIsoHead,
+    parseStoredSoldYmd,
+    storedSoldYmdToCalendarIso,
+    storedSoldYmdToOrdinalLabel,
     repairIsoFirstOfMonthToJanuary,
     resolveSoldDateIsoForDisplay,
     tryRepairMonthDaySwap,

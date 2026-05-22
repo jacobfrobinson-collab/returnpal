@@ -334,14 +334,14 @@
         <script src="assets/js/app.js"></script>
         <!-- Custom Js -->
         <script src="/assets/js/api.js?v=rp-api-2026"></script>
-        <script src="/assets/js/soldDateIsoDisplay.js?v=rp-sold-iso-jan-day-2026-05h"></script>
-        <script src="/assets/js/dateUk.js?v=rp-sold-iso-jan-day-2026-05h"></script>
+        <script src="/assets/js/soldDateIsoDisplay.js?v=rp-sold-iso-ydm-2026-05i"></script>
+        <script src="/assets/js/dateUk.js?v=rp-sold-iso-ydm-2026-05i"></script>
         <script src="assets/js/custom.js"></script>
-        <script src="assets/js/dashboard.js?v=rp-sold-iso-jan-day-2026-05h"></script>
+        <script src="assets/js/dashboard.js?v=rp-sold-iso-ydm-2026-05i"></script>
         <!-- Inline date display (part of this HTML file — cannot be cached separately) -->
         <script>
         (function () {
-            var BUILD = 'iso-calendar-jan-day-2026-05h';
+            var BUILD = 'iso-ydm-2026-05i';
             var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
             function ord(n) {
                 if (n >= 11 && n <= 13) return n + 'th';
@@ -351,39 +351,42 @@
                 if (j === 3) return n + 'rd';
                 return n + 'th';
             }
-            function repairJanIso(s) {
-                var m = s.match(/^(\d{4})-(\d{2})-01$/);
-                if (m && m[2] !== '01') return m[1] + '-01-' + m[2];
-                return s;
-            }
-            function labelFromIso(v) {
+            /** Stored YYYY-MM-DD = year, day (middle), month (last). */
+            function labelFromStoredYmd(v) {
                 var s = String(v == null ? '' : v).trim();
                 var t = s.indexOf('T');
                 if (t !== -1) s = s.slice(0, t);
                 else if (/^\d{4}-\d{2}-\d{2}\s/.test(s)) s = s.slice(0, 10);
-                if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s = repairJanIso(s);
                 var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
                 if (!m) return null;
-                var mo = parseInt(m[2], 10);
-                var d = parseInt(m[3], 10);
-                if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-                return MONTHS[mo - 1] + ' ' + ord(d) + ' ' + m[1];
+                var day = parseInt(m[2], 10);
+                var mo = parseInt(m[3], 10);
+                if (mo < 1 || mo > 12 || day < 1 || day > 31) return null;
+                return MONTHS[mo - 1] + ' ' + ord(day) + ' ' + m[1];
+            }
+            function calendarIsoFromStored(v) {
+                var s = String(v == null ? '' : v).trim();
+                var t = s.indexOf('T');
+                if (t !== -1) s = s.slice(0, t);
+                var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                if (!m) return s;
+                var day = parseInt(m[2], 10);
+                var mo = parseInt(m[3], 10);
+                if (mo < 1 || mo > 12 || day < 1 || day > 31) return s;
+                return m[1] + '-' + String(mo).padStart(2, '0') + '-' + String(day).padStart(2, '0');
             }
             function patchDashboard() {
                 if (!window.Dashboard) return false;
                 Dashboard.soldDateDisplayValue = function (item) {
-                    var lab = labelFromIso(item && (item.sold_date_stored || item.sold_date || item.sold_date_display));
+                    var lab = labelFromStoredYmd(item && (item.sold_date_stored || item.sold_date || item.sold_date_display));
                     return lab || '-';
                 };
                 Dashboard._soldDateSortKey = function (item) {
-                    var s = String(item && (item.sold_date_stored || item.sold_date || item.sold_date_display || '') || '').trim();
-                    var t = s.indexOf('T');
-                    if (t !== -1) s = s.slice(0, t);
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s = repairJanIso(s);
+                    var s = calendarIsoFromStored(item && (item.sold_date_stored || item.sold_date || item.sold_date_display));
                     return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '0000-00-00';
                 };
                 var el = document.getElementById('rp-sold-date-build');
-                if (el) el.textContent = 'Sold dates: ' + BUILD + ' — 2026-11-01 in DB shows as January 11th 2026';
+                if (el) el.textContent = 'Sold dates: ' + BUILD + ' — stored YYYY-DD-MM (e.g. 2026-09-03 → March 9th 2026)';
                 return true;
             }
             function boot() {

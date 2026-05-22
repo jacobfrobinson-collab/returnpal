@@ -116,8 +116,10 @@ function run() {
         delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL;
         try {
             const feb = mapSoldItemDatesForApi('2026-02-05', normalizeSoldDateForDb);
-            assert(feb.iso === '2026-02-05', 'API map: ISO unchanged');
-            assert(feb.label === 'February 5th 2026', 'API map: 2nd segment month, 3rd day');
+            assert(feb.iso === '2026-05-02', 'API map: stored YYYY-DD-MM → calendar May 2');
+            assert(feb.label === 'May 2nd 2026', 'API map: day 2, month 5');
+            const sep = mapSoldItemDatesForApi('2026-09-03', normalizeSoldDateForDb);
+            assert(sep.label === 'March 9th 2026', '2026-09-03 → 9 March');
             assert(
                 repairAllMonthDaySwapIsoMisimportForDisplay('2026-02-05') === '2026-02-05',
                 'Default: no month/day swap on ISO (Feb 5 stays)'
