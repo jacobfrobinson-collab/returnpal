@@ -503,6 +503,19 @@ async function getDb() {
         )
     `);
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS client_delegate_access (
+            hub_user_id INTEGER NOT NULL,
+            client_user_id INTEGER NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (hub_user_id, client_user_id),
+            FOREIGN KEY (hub_user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (client_user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_delegate_hub ON client_delegate_access(hub_user_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_delegate_client ON client_delegate_access(client_user_id)');
+
     if (!annSeed) {
         const seeds = [
             [

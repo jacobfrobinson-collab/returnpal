@@ -1071,6 +1071,100 @@ router.post('/announcements', async (req, res) => {
     }
 });
 
+// GET /api/admin/users/:id/delegate-hubs — hub accounts that can view this client
+router.get('/users/:id/delegate-hubs', async (req, res) => {
+    try {
+        const { listHubsForClient } = require('../utils/clientDelegate');
+        const db = await getDb();
+        const clientId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(clientId)) return res.status(400).json({ error: 'Invalid user id' });
+        const hubs = listHubsForClient(db, clientId);
+        res.json({
+            client_user_id: clientId,
+            hub_user_ids: hubs.map((h) => h.id),
+            hubs: hubs.map((h) => ({
+                id: h.id,
+                email: h.email,
+                full_name: h.full_name,
+                company_name: h.company_name,
+                display_name: h.full_name || h.company_name || h.email,
+            })),
+        });
+    } catch (err) {
+        console.error('Get delegate hubs error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PUT /api/admin/users/:id/delegate-hubs — set which hub accounts can view this client
+router.put('/users/:id/delegate-hubs', async (req, res) => {
+    try {
+        const { setHubLinksForClient } = require('../utils/clientDelegate');
+        const db = await getDb();
+        const clientId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(clientId)) return res.status(400).json({ error: 'Invalid user id' });
+        const hubUserIds = Array.isArray(req.body.hub_user_ids)
+            ? req.body.hub_user_ids
+            : Array.isArray(req.body.hub_ids)
+              ? req.body.hub_ids
+              : [];
+        setHubLinksForClient(db, clientId, hubUserIds);
+        saveDb();
+        logAdminAudit(db, req.user.id, 'delegate_hubs_set', { client_user_id: clientId, hub_user_ids: hubUserIds });
+        res.json({ message: 'Hub access updated', client_user_id: clientId, hub_user_ids: hubUserIds });
+    } catch (err) {
+        console.error('Set delegate hubs error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/users/:id/delegate-clients — clients a hub account can view
+router.get('/users/:id/delegate-clients', async (req, res) => {
+    try {
+        const { listLinkedClients } = require('../utils/clientDelegate');
+        const db = await getDb();
+        const hubId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(hubId)) return res.status(400).json({ error: 'Invalid user id' });
+        const clients = listLinkedClients(db, hubId);
+        res.json({
+            hub_user_id: hubId,
+            client_user_ids: clients.map((c) => c.id),
+            clients: clients.map((c) => ({
+                id: c.id,
+                email: c.email,
+                full_name: c.full_name,
+                company_name: c.company_name,
+                display_name: c.full_name || c.company_name || c.email,
+            })),
+        });
+    } catch (err) {
+        console.error('Get delegate clients error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PUT /api/admin/users/:id/delegate-clients — set which clients a hub account can view
+router.put('/users/:id/delegate-clients', async (req, res) => {
+    try {
+        const { setClientLinksForHub } = require('../utils/clientDelegate');
+        const db = await getDb();
+        const hubId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(hubId)) return res.status(400).json({ error: 'Invalid user id' });
+        const clientUserIds = Array.isArray(req.body.client_user_ids)
+            ? req.body.client_user_ids
+            : Array.isArray(req.body.client_ids)
+              ? req.body.client_ids
+              : [];
+        setClientLinksForHub(db, hubId, clientUserIds);
+        saveDb();
+        logAdminAudit(db, req.user.id, 'delegate_clients_set', { hub_user_id: hubId, client_user_ids: clientUserIds });
+        res.json({ message: 'Linked clients updated', hub_user_id: hubId, client_user_ids: clientUserIds });
+    } catch (err) {
+        console.error('Set delegate clients error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // POST /api/admin/partners — create partner API key (shown once)
 router.post('/partners', async (req, res) => {
     try {

@@ -201,6 +201,8 @@ router.post('/login', [
         const token = generateToken({ id: user.id, email: user.email, is_admin: isAdmin });
 
         const uid = parseInt(user.id, 10);
+        const { countLinkedClients } = require('../utils/clientDelegate');
+        const linkedClientsCount = countLinkedClients(db, uid);
         res.json({
             message: 'Login successful',
             token,
@@ -211,7 +213,9 @@ router.post('/login', [
                 company_name: user.company_name,
                 avatar_url: user.avatar_url,
                 legacy_client_id: user.legacy_client_id || '',
-                is_admin: isAdmin
+                is_admin: isAdmin,
+                is_hub_account: linkedClientsCount > 0,
+                linked_clients_count: linkedClientsCount,
             }
         });
     } catch (err) {
@@ -244,6 +248,11 @@ router.get('/me', authMiddleware, async (req, res) => {
         }
 
         user.is_admin = coerceIsAdmin(user.is_admin);
+
+        const { countLinkedClients } = require('../utils/clientDelegate');
+        const linkedClientsCount = countLinkedClients(db, user.id);
+        user.is_hub_account = linkedClientsCount > 0;
+        user.linked_clients_count = linkedClientsCount;
 
         res.json({ user });
     } catch (err) {

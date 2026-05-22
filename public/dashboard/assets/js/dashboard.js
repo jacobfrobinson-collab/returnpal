@@ -292,15 +292,20 @@ const Dashboard = {
 
     init() {
         const params = new URLSearchParams(window.location.search);
+        const viewAsToken = params.get('view_as');
         const impersonateToken = params.get('impersonate');
-        if (impersonateToken) {
-            // Use tab-scoped auth for impersonation so admin auth remains intact in other tabs.
-            API.setSessionToken(impersonateToken);
+        const sessionToken = viewAsToken || impersonateToken;
+        if (sessionToken) {
+            API.setSessionToken(sessionToken);
             API.request('/auth/me', { skipAuthRedirect: true }).then(me => {
                 if (me && me.user) API.setSessionUser(me.user);
                 window.history.replaceState({}, '', window.location.pathname + (window.location.hash || ''));
-                sessionStorage.setItem('returnpal_impersonating', '1');
-                this.injectImpersonationBanner();
+                if (viewAsToken) {
+                    sessionStorage.setItem('returnpal_delegate_viewing', '1');
+                } else {
+                    sessionStorage.setItem('returnpal_impersonating', '1');
+                }
+                this.injectViewingAsBanner();
             }).catch(() => {}).finally(() => this._initRest());
             return;
         }
@@ -309,8 +314,8 @@ const Dashboard = {
 
     /** Reimbursement page: full sidebar/search chrome without overview API. */
     _initReimbursementPage() {
-        if (sessionStorage.getItem('returnpal_impersonating') === '1') {
-            this.injectImpersonationBanner();
+        if (API.getSessionToken()) {
+            this.injectViewingAsBanner();
         }
         const user = API.getUser();
         this.updateUserIdentityUI(user);
@@ -679,8 +684,8 @@ const Dashboard = {
             return;
         }
 
-        if (sessionStorage.getItem('returnpal_impersonating') === '1') {
-            this.injectImpersonationBanner();
+        if (API.getSessionToken()) {
+            this.injectViewingAsBanner();
         }
 
         const user = API.getUser();
@@ -694,6 +699,9 @@ const Dashboard = {
                 if (useSession) API.setSessionUser(me.user);
                 else API.setUser(me.user);
                 self.updateUserIdentityUI(me.user);
+                if (me.user.linked_clients_count > 0 || me.user.is_hub_account) {
+                    self.injectMyClientsLink();
+                }
             }
             self._finishDashboardInit();
         }).catch((err) => {
@@ -772,6 +780,8 @@ const Dashboard = {
             this.loadPrepSendback();
         } else if (page.includes('scorecard')) {
             this.loadScorecard();
+        } else if (page.includes('my-clients')) {
+            this.loadMyClients();
         }
 
         this.ensureClientPreferences().catch(() => {});
@@ -805,6 +815,7 @@ const Dashboard = {
         this.injectExportsLink();
         this.injectScorecardLink();
         this.injectPrepSendbackLink();
+        this.injectMyClientsLink();
         this.injectReimbursementLink();
         this.injectConnectAmazonLink();
         this.highlightSidebarActive();
@@ -903,6 +914,7 @@ const Dashboard = {
         const page = (window.location.pathname || '').split('/').pop() || 'index.html';
         const items = [
             ['index.html', 'ri-dashboard-3-line', 'Overview'],
+            ['my-clients.html', 'ri-group-line', 'My clients'],
             ['packages.html', 'ri-box-3-line', 'Packages Sent'],
             ['received.html', 'ri-import-line', 'Received'],
             ['sold-items.html', 'ri-list-view', 'Sold Items'],
@@ -1037,21 +1049,137 @@ const Dashboard = {
         } else if ($amazon.length) $amazon.find('.rp-nav-dot').remove();
     },
 
-    injectImpersonationBanner() {
+    injectViewingAsBanner() {
         if ($('#rp-impersonation-banner').length) return;
         const user = API.getUser();
         const name = (user && (user.full_name || user.email)) || 'Client';
-        const html = '<div id="rp-impersonation-banner" class="d-flex align-items-center justify-content-between px-3 py-2 bg-warning bg-opacity-25 border-bottom border-warning" style="position:sticky;top:0;z-index:1025;">' +
-            '<span class="small"><strong>Viewing as ' + (name.replace(/</g, '&lt;')) + '</strong></span>' +
-            '<a href="/admin/index.html" class="btn btn-sm btn-outline-dark">Return to admin</a>' +
+        const isDelegate = API.isDelegateViewing();
+        const exitLabel = isDelegate ? 'Back to My clients' : 'Return to admin';
+        const exitHref = isDelegate ? 'my-clients.html' : '/admin/index.html';
+        const html =
+            '<div id="rp-impersonation-banner" class="d-flex align-items-center justify-content-between px-3 py-2 bg-warning bg-opacity-25 border-bottom border-warning" style="position:sticky;top:0;z-index:1025;">' +
+            '<span class="small"><strong>Viewing ' +
+            (isDelegate ? 'client: ' : 'as ') +
+            (name.replace(/</g, '&lt;')) +
+            '</strong></span>' +
+            '<a href="' +
+            exitHref +
+            '" class="btn btn-sm btn-outline-dark rp-exit-view-as">' +
+            exitLabel +
+            '</a>' +
             '</div>';
-        // Prepend to page-content so the sidebar stays full-height and scrollable (banner was covering it when on body)
         const $target = $('.page-content').length ? $('.page-content') : $('body');
         $target.prepend(html);
-        $('#rp-impersonation-banner a').on('click', function() {
+        $('#rp-impersonation-banner .rp-exit-view-as').on('click', function(e) {
+            e.preventDefault();
             sessionStorage.removeItem('returnpal_impersonating');
+            sessionStorage.removeItem('returnpal_delegate_viewing');
             API.clearSessionAuth();
+            window.location.assign(isDelegate ? 'my-clients.html' : '/admin/index.html');
         });
+    },
+
+    injectMyClientsLink() {
+        if ($('#navbar-nav a[href="my-clients.html"]').length) return;
+        const user = API.getUser();
+        const count = user && user.linked_clients_count;
+        if (count != null && count <= 0) return;
+        const $idx = $('#navbar-nav a[href="index.html"]').closest('li');
+        if (!$idx.length) return;
+        $idx.after(
+            '<li class="nav-item"><a class="nav-link" href="my-clients.html"><span class="nav-icon"><i class="ri-group-line"></i></span><span class="nav-text">My clients</span></a></li>'
+        );
+        if (count == null) {
+            API.getHubMeta()
+                .then((m) => {
+                    if (!m || !m.is_hub_account) {
+                        $('#navbar-nav a[href="my-clients.html"]').closest('li').remove();
+                    }
+                })
+                .catch(() => {});
+        }
+    },
+
+    async loadMyClients() {
+        const $root = $('#hub-clients-root');
+        const $totals = $('#hub-totals-row');
+        if (!$root.length) return;
+        try {
+            const data = await API.getHubOverview();
+            const clients = data.clients || [];
+            const t = data.totals || {};
+            if ($totals.length) {
+                $totals.html(
+                    '<div class="col-md-3"><div class="rp-card card border-0 p-3"><div class="text-muted small">Linked clients</div><div class="fs-4 fw-semibold">' +
+                        (data.client_count || 0) +
+                        '</div></div></div>' +
+                        '<div class="col-md-3"><div class="rp-card card border-0 p-3"><div class="text-muted small">Packages (all)</div><div class="fs-4 fw-semibold">' +
+                        (t.packages_total || 0) +
+                        '</div></div></div>' +
+                        '<div class="col-md-3"><div class="rp-card card border-0 p-3"><div class="text-muted small">Processing</div><div class="fs-4 fw-semibold">' +
+                        (t.items_processing || 0) +
+                        '</div></div></div>' +
+                        '<div class="col-md-3"><div class="rp-card card border-0 p-3"><div class="text-muted small">Open claims</div><div class="fs-4 fw-semibold">' +
+                        (t.reimbursement_claims_open || 0) +
+                        '</div></div></div>'
+                );
+            }
+            if (!clients.length) {
+                $root.html(
+                    '<p class="text-muted mb-0">No linked clients yet. Ask ReturnPal to connect your prep centre account to the client IDs you manage.</p>'
+                );
+                return;
+            }
+            let html =
+                '<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr>' +
+                '<th>Client</th><th>Packages</th><th>Processing</th><th>Claims</th><th>Recovery</th><th>Payout</th><th></th>' +
+                '</tr></thead><tbody>';
+            clients.forEach((c) => {
+                html +=
+                    '<tr><td><strong>' +
+                    this.escHtml(c.name) +
+                    '</strong><br><span class="small text-muted">' +
+                    this.escHtml(c.client_code) +
+                    (c.legacy_client_id ? ' · Legacy ' + this.escHtml(c.legacy_client_id) : '') +
+                    '</span></td>' +
+                    '<td>' +
+                    (c.packages_total || 0) +
+                    '</td><td>' +
+                    (c.items_processing || 0) +
+                    '</td><td>' +
+                    (c.reimbursement_claims_open || 0) +
+                    '</td><td>£' +
+                    Number(c.recovery_total || 0).toFixed(2) +
+                    '</td><td class="small">£' +
+                    Number(c.payout_pending || 0).toFixed(2) +
+                    ' <span class="text-muted">' +
+                    this.escHtml(c.payout_status || '') +
+                    '</span></td>' +
+                    '<td class="text-end"><button type="button" class="btn btn-sm btn-primary hub-open-dashboard-btn" data-client-id="' +
+                    c.client_id +
+                    '">Open dashboard</button></td></tr>';
+            });
+            html += '</tbody></table></div>';
+            $root.html(html);
+            const self = this;
+            $root.find('.hub-open-dashboard-btn').on('click', async function() {
+                const id = $(this).data('client-id');
+                $(this).prop('disabled', true);
+                try {
+                    const res = await API.hubViewAs(id);
+                    if (res.token) {
+                        window.location.assign(
+                            'index.html?view_as=' + encodeURIComponent(res.token)
+                        );
+                    }
+                } catch (e) {
+                    alert((e && e.error) || 'Could not open client dashboard');
+                    $(this).prop('disabled', false);
+                }
+            });
+        } catch (err) {
+            $root.html('<p class="text-danger">' + this.escHtml((err && err.error) || 'Failed to load clients') + '</p>');
+        }
     },
 
     injectCommandPalette() {

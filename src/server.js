@@ -61,6 +61,9 @@ app.get('/dashboard/prep-sendback.html', (req, res) => {
 app.get('/dashboard/scorecard.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/dashboard/scorecard.html'));
 });
+app.get('/dashboard/my-clients.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/dashboard/my-clients.html'));
+});
 app.get('/partner/embed.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/partner/embed.html'));
 });
@@ -139,6 +142,7 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/balance', require('./routes/balance'));
 app.use('/api/queries', require('./routes/queries'));
 app.use('/api/announcements', require('./routes/announcements'));
+app.use('/api/client/hub', require('./routes/clientHub'));
 app.use('/api/client', require('./routes/clientDashboard'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/reimbursement', require('./routes/reimbursement'));

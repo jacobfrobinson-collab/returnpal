@@ -32,9 +32,17 @@ const API = {
 
     // ─── Token Management ────────────────────────────────────
     getSessionToken() {
-        // Session auth is only valid during explicit impersonation mode.
-        if (sessionStorage.getItem('returnpal_impersonating') !== '1') return null;
+        // Session auth for admin impersonation or hub "view as client".
+        if (
+            sessionStorage.getItem('returnpal_impersonating') !== '1' &&
+            sessionStorage.getItem('returnpal_delegate_viewing') !== '1'
+        ) {
+            return null;
+        }
         return sessionStorage.getItem('returnpal_session_token');
+    },
+    isDelegateViewing() {
+        return sessionStorage.getItem('returnpal_delegate_viewing') === '1';
     },
     getToken() {
         return this.getSessionToken() || localStorage.getItem('returnpal_token');
@@ -55,7 +63,12 @@ const API = {
         localStorage.removeItem('returnpal_user');
     },
     getSessionUser() {
-        if (sessionStorage.getItem('returnpal_impersonating') !== '1') return null;
+        if (
+            sessionStorage.getItem('returnpal_impersonating') !== '1' &&
+            sessionStorage.getItem('returnpal_delegate_viewing') !== '1'
+        ) {
+            return null;
+        }
         try {
             return JSON.parse(sessionStorage.getItem('returnpal_session_user'));
         } catch { return null; }
@@ -99,9 +112,15 @@ const API = {
         const loginPath = onAdminPath ? '/admin/login.html' : '/login.html';
 
         const hadSessionToken = !!this.getSessionToken();
+        const wasDelegate = sessionStorage.getItem('returnpal_delegate_viewing') === '1';
         if (hadSessionToken) {
             this.clearSessionAuth();
             sessionStorage.removeItem('returnpal_impersonating');
+            sessionStorage.removeItem('returnpal_delegate_viewing');
+            if (wasDelegate) {
+                window.location.assign(o + '/dashboard/my-clients.html');
+                return;
+            }
             if (localStorage.getItem('returnpal_token') && this.isCurrentUserAdmin()) {
                 window.location.assign(o + '/admin/index.html');
                 return;
@@ -1098,6 +1117,22 @@ const API = {
 
     async patchReimbursementClaim(id, body) {
         return this.request('/reimbursement/claims/' + id, { method: 'PATCH', body });
+    },
+
+    async getHubMeta() {
+        return this.request('/client/hub');
+    },
+
+    async getHubOverview() {
+        return this.request('/client/hub/overview');
+    },
+
+    async getHubClients() {
+        return this.request('/client/hub/clients');
+    },
+
+    async hubViewAs(clientUserId) {
+        return this.request('/client/hub/view-as/' + encodeURIComponent(clientUserId), { method: 'POST' });
     },
 
     async getQueries() {

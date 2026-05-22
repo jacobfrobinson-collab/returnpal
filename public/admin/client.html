@@ -233,6 +233,16 @@
                         <button type="button" class="btn btn-dark btn-sm w-100" id="btn-send-notify">Send notification</button>
                     </div>
                 </div>
+                <div class="card mt-3">
+                    <div class="card-header bg-white py-2">Hub / prep centre access</div>
+                    <div class="card-body py-2">
+                        <p class="small text-muted mb-2">Hub accounts (e.g. prep centre logins) can open this client from <strong>My clients</strong> in their dashboard.</p>
+                        <label class="form-label small mb-1">Hub user IDs (comma-separated)</label>
+                        <input type="text" class="form-control form-control-sm mb-2" id="delegate-hub-ids" placeholder="e.g. 50, 51" />
+                        <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-2" id="btn-save-delegate-hubs">Save hub access</button>
+                        <ul class="list-unstyled small mb-0" id="delegate-hubs-list"></ul>
+                    </div>
+                </div>
                 <div class="mt-3">
                     <a href="#" id="link-view-dashboard" class="btn btn-outline-secondary btn-sm w-100" target="_blank">View client dashboard</a>
                 </div>
@@ -1450,6 +1460,37 @@
                 .then(function() { $('#notify-message, #notify-link').val(''); alert('Notification sent.'); })
                 .catch(function(e) { alert(e.error || 'Failed'); });
         });
+
+        function loadDelegateHubs() {
+            API.request('/admin/users/' + encodeURIComponent(clientId) + '/delegate-hubs')
+                .then(function(data) {
+                    var ids = (data.hub_user_ids || []).join(', ');
+                    $('#delegate-hub-ids').val(ids);
+                    var $list = $('#delegate-hubs-list');
+                    if (!(data.hubs || []).length) {
+                        $list.html('<li class="text-muted">No hub accounts linked</li>');
+                        return;
+                    }
+                    $list.html((data.hubs || []).map(function(h) {
+                        return '<li><strong>ID ' + h.id + '</strong> — ' + escapeHtml(h.display_name || h.email || '') + '</li>';
+                    }).join(''));
+                })
+                .catch(function() { $('#delegate-hubs-list').html('<li class="text-danger">Failed to load</li>'); });
+        }
+
+        $('#btn-save-delegate-hubs').on('click', function() {
+            var raw = $('#delegate-hub-ids').val() || '';
+            var hubIds = raw.split(/[\s,]+/).map(function(x) { return parseInt(x, 10); }).filter(function(n) { return Number.isFinite(n) && n > 0; });
+            API.request('/admin/users/' + encodeURIComponent(clientId) + '/delegate-hubs', {
+                method: 'PUT',
+                body: { hub_user_ids: hubIds }
+            }).then(function() {
+                alert('Hub access saved');
+                loadDelegateHubs();
+            }).catch(function(e) { alert(e.error || 'Save failed'); });
+        });
+
+        loadDelegateHubs();
 
         $('#link-view-dashboard').on('click', function(e) {
             e.preventDefault();
