@@ -6,6 +6,11 @@
 const { feesDeductedForCalendarMonth } = require('./monthlyFreeProcessing');
 const { normalizeSoldDateForDb } = require('./adminBulkImport');
 const { calendarYearMonthFromDbDate } = require('./soldDateCalendar');
+const {
+    isClientVatRegistered,
+    clientPayoutFromGrossNet,
+    invoiceVatOnSubtotal,
+} = require('./clientVatPayout');
 
 function parseResults(result) {
     if (!result || !result.length) return [];
@@ -137,8 +142,14 @@ function statementPayoutEndDateStr(y, m) {
  * @param {{ y: number, m: number, monthStart: string, monthEndStr: string, periodYm: string }} p
  * @param {object[]|null} [allSoldCache]
  */
+function getUserVatRegistered(db, userId) {
+    const urow = parseResults(db.exec('SELECT vat_registered FROM users WHERE id = ?', [userId]));
+    return isClientVatRegistered(urow[0] && urow[0].vat_registered);
+}
+
 function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
     const { y, m, monthStart, monthEndStr, periodYm } = p;
+    const vatRegistered = getUserVatRegistered(db, userId);
 
     const allSold =
         allSoldCache != null
@@ -247,8 +258,9 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
     const adjustmentsApplied = returnRows.filter((r) => r.status === 'applied').reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const subtotal = line_items.reduce((s, i) => s + i.amount * i.quantity, 0);
     const net_after_returns = Math.round((salesProfit - refundedProfit - adjustmentsApplied) * 100) / 100;
-    const total = Math.round((net_after_returns - fees) * 100) / 100;
-    const vat_amount = 0;
+    const gross_net = Math.round((net_after_returns - fees) * 100) / 100;
+    const total = clientPayoutFromGrossNet(gross_net, vatRegistered);
+    const vat_amount = invoiceVatOnSubtotal(subtotal, vatRegistered);
 
     const issueStr = statementIssueDateStr(y, m);
     const dueStr = statementPayoutEndDateStr(y, m);
@@ -266,11 +278,14 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
             sales_profit: Math.round(salesProfit * 100) / 100,
             refunds_and_returns: Math.round((refundedProfit + adjustmentsApplied) * 100) / 100,
             fees_deducted: fees,
+            gross_net,
             net_payout_estimate: total
         },
         return_lines: returnRows,
         subtotal,
         fees,
+        gross_net,
+        vat_registered: vatRegistered,
         vat_amount,
         total,
         status,
@@ -316,8 +331,11 @@ function listDistinctInvoiceMonths(db, userId) {
  */
 function getComputedMonthlyStatements(db, userId) {
     const allSold = parseResults(db.exec('SELECT * FROM sold_items WHERE user_id = ?', [userId]));
-    const urow = parseResults(db.exec('SELECT full_name, company_name FROM users WHERE id = ?', [userId]));
+    const urow = parseResults(
+        db.exec('SELECT full_name, company_name, vat_registered FROM users WHERE id = ?', [userId])
+    );
     const customerName = (urow[0] && (urow[0].full_name || urow[0].company_name)) || 'Client';
+    const vatRegistered = isClientVatRegistered(urow[0] && urow[0].vat_registered);
 
     const months = listDistinctInvoiceMonths(db, userId);
     const capYm = maxInvoicablePeriodYm();
@@ -346,9 +364,11 @@ function getComputedMonthlyStatements(db, userId) {
                 status,
                 pdf_path: '',
                 vat_amount: detail.vat_amount,
+                vat_registered: vatRegistered,
                 period: ym,
                 period_label: detail.period_label,
                 net_payout_estimate: detail.summary.net_payout_estimate,
+                gross_net: detail.gross_net,
                 source: 'computed'
             };
         })
@@ -391,6 +411,7 @@ function getComputedDashboardInvoiceAggregates(db, userId) {
 module.exports = {
     getComputedMonthlyStatements,
     getComputedDashboardInvoiceAggregates,
+    getUserVatRegistered,
     buildInvoicePeriodPayload,
     parsePeriodYm,
     maxInvoicablePeriodYm,

@@ -2928,14 +2928,21 @@ const Dashboard = {
             }
 
             const vatNumber = (localStorage.getItem('returnpal_vat_number') || '').trim();
-            const isVatRegistered = !!vatNumber;
+            const isVatRegistered = !!(data.vat_registered);
             const lineItemsRaw = data.line_items || [];
             const subtotalNet = lineItemsRaw.reduce((s, i) => s + (Number(i.amount || 0) * (Number(i.quantity) || 1)), 0);
             const lineItemsForTable = rpConsolidateInvoiceLineItemsForPrint(lineItemsRaw);
-            const vatAmount = isVatRegistered ? (subtotalNet * 0.2) : 0;
-            let amountDue = isVatRegistered ? (subtotalNet + vatAmount) : subtotalNet * 0.8;
-            if (!isVatRegistered && data.total != null && !Number.isNaN(Number(data.total))) {
-                amountDue = Number(data.total);
+            const vatAmount = isVatRegistered ? Math.round(subtotalNet * 0.2 * 100) / 100 : 0;
+            const summary = data.summary || {};
+            let amountDue = Number(data.total);
+            if (!Number.isFinite(amountDue)) {
+                amountDue = Number(summary.net_payout_estimate);
+            }
+            if (!Number.isFinite(amountDue)) {
+                const gross = Number(data.gross_net ?? summary.gross_net);
+                amountDue = isVatRegistered
+                    ? gross
+                    : Math.round((Number.isFinite(gross) ? gross : subtotalNet) * 0.8 * 100) / 100;
             }
 
             const billingName = localStorage.getItem('returnpal_billing_name') || '';
@@ -2960,7 +2967,6 @@ const Dashboard = {
             }).join('');
 
             const stmt = data.statement_lines || [];
-            const summary = data.summary || {};
             if (docKind === 'statement') {
                 if (!stmt.length) {
                     alert('No statement lines for this period.');
@@ -3025,11 +3031,15 @@ const Dashboard = {
                 tableRows +
                 '<tr class="totals-row"><td colspan="' + (isVatRegistered ? 5 : 4) + '" class="num">Subtotal ' + (isVatRegistered ? '(ex. VAT)' : '') + '</td><td class="num">£' + subtotalNet.toFixed(2) + '</td></tr>' +
                 (isVatRegistered ? ('<tr class="totals-row"><td colspan="5" class="num">VAT 20%</td><td class="num">£' + vatAmount.toFixed(2) + '</td></tr>' +
-                '<tr class="totals-row"><td colspan="5" class="num">Total GBP</td><td class="num">£' + (subtotalNet + vatAmount).toFixed(2) + '</td></tr>') : '') +
-                '<tr class="totals-row final"><td colspan="' + (isVatRegistered ? 5 : 4) + '" class="num">Amount due</td><td class="num">£' + amountDue.toFixed(2) + '</td></tr>' +
+                '<tr class="totals-row"><td colspan="5" class="num">Invoice total (incl. VAT)</td><td class="num">£' + (subtotalNet + vatAmount).toFixed(2) + '</td></tr>') : '') +
+                '<tr class="totals-row final"><td colspan="' + (isVatRegistered ? 5 : 4) + '" class="num">Amount due (your payout)</td><td class="num">£' + amountDue.toFixed(2) + '</td></tr>' +
                 '</tbody></table>' +
                 '<div class="terms-box">' +
-                (isVatRegistered && vatNumber ? '<p><strong>VAT No.</strong> ' + vatNumber + '. VAT may be subject to reverse charge where applicable.</p>' : '<p>This is a non-VAT invoice. A 20% deduction has been applied as you are not VAT registered.</p>') +
+                (isVatRegistered
+                    ? (vatNumber
+                        ? '<p><strong>VAT registered.</strong> VAT No. ' + escLite(vatNumber) + '. No 20% withholding on your payout. VAT may be subject to reverse charge where applicable.</p>'
+                        : '<p><strong>VAT registered.</strong> No 20% withholding is applied to your payout. Add your VAT number in Settings if you want it shown on invoices.</p>')
+                    : '<p>This is a non-VAT invoice. A 20% deduction has been applied as you are not VAT registered.</p>') +
                 '<p>For a line-by-line breakdown of each sale and return, use <strong>Statement (each line)</strong> from the payouts table.</p>' +
                 '<p>Payment is due by the date stated above. Thank you for selling with ReturnPal.</p>' +
                 '</div></div></body></html>';
