@@ -540,11 +540,13 @@ const Dashboard = {
             this.loadExportsHub();
         }
 
+        this.ensureDashboardSidebarNav();
         this.injectAnnouncementsLink();
         this.injectQueriesLink();
         this.injectExportsLink();
         this.injectReimbursementLink();
         this.injectConnectAmazonLink();
+        this.highlightSidebarActive();
         this.fetchAnnouncementsList().finally(() => this.updateNotificationDots());
 
         $('#activity-date-range').on('change', () => this.loadActivity());
@@ -613,6 +615,58 @@ const Dashboard = {
             $('#refer-message').val('');
             alert('Invite will be sent to ' + email + ' when the backend is connected.');
         });
+    },
+
+    /** Pages like exports.html ship with an empty #navbar-nav; inject the standard menu. */
+    ensureDashboardSidebarNav() {
+        const $nav = $('#navbar-nav');
+        if (!$nav.length) return;
+        if ($nav.find('li.nav-item a.nav-link[href]').length >= 5) return;
+
+        const page = (window.location.pathname || '').split('/').pop() || 'index.html';
+        const items = [
+            ['index.html', 'ri-dashboard-3-line', 'Overview'],
+            ['packages.html', 'ri-box-3-line', 'Packages Sent'],
+            ['received.html', 'ri-import-line', 'Received'],
+            ['sold-items.html', 'ri-list-view', 'Sold Items'],
+            ['item-pending.html', 'ri-time-line', 'Items Pending'],
+            ['activity.html', 'ri-history-line', 'Activity'],
+            ['inventory.html', 'ri-archive-drawer-line', 'Inventory'],
+            ['analytics.html', 'ri-line-chart-line', 'Analytics'],
+            ['invoices.html', 'ri-receipt-line', 'Payouts & Invoices'],
+            ['queries.html', 'ri-question-answer-line', 'My queries'],
+            ['exports.html', 'ri-download-cloud-2-line', 'Exports hub'],
+            ['roi-report.html', 'ri-file-text-line', 'ROI Report'],
+            ['reimbursement.html', 'ri-refund-line', 'Reimbursement / Claims'],
+            ['referrals.html', 'ri-user-shared-line', 'Referrals'],
+            ['settings.html', 'ri-settings-3-line', 'Settings'],
+            ['faq.html', 'ri-question-line', 'FAQ'],
+        ];
+
+        let html = '<li class="menu-title">Menu</li>';
+        items.forEach(([href, icon, text]) => {
+            const active = href === page ? ' active' : '';
+            html +=
+                '<li class="nav-item"><a class="nav-link' +
+                active +
+                '" href="' +
+                href +
+                '"><span class="nav-icon"><i class="' +
+                icon +
+                '"></i></span><span class="nav-text">' +
+                text +
+                '</span></a></li>';
+        });
+        html +=
+            '<li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#referFriendModal"><span class="nav-icon"><i class="ri-user-shared-line"></i></span><span class="nav-text">Refer a seller</span></a></li>';
+        $nav.html(html);
+    },
+
+    highlightSidebarActive() {
+        const page = (window.location.pathname || '').split('/').pop() || 'index.html';
+        const norm = page === '' || page === 'dashboard' ? 'index.html' : page;
+        $('#navbar-nav .nav-link').removeClass('active');
+        $('#navbar-nav .nav-link[href="' + norm + '"]').addClass('active');
     },
 
     injectReferModal() {

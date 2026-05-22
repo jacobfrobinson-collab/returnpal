@@ -13,26 +13,77 @@
 </head>
 <body>
     <div class="wrapper">
-        <header class=""><div class="topbar"><div class="container-fluid"><div class="navbar-header">
-            <div class="d-flex align-items-center gap-2">
-                <div class="topbar-item"><button type="button" class="button-toggle-menu topbar-button"><i class="ri-menu-2-line fs-24"></i></button></div>
-            </div>
-            <div class="d-flex align-items-center gap-1">
-                <div class="topbar-item"><button type="button" class="topbar-button" id="light-dark-mode"><i class="ri-moon-line fs-24 light-mode"></i><i class="ri-sun-line fs-24 dark-mode"></i></button></div>
-                <div class="dropdown topbar-item">
-                    <a type="button" class="topbar-button" data-bs-toggle="dropdown"><img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="" /></a>
-                    <div class="dropdown-menu dropdown-menu-end">
-                        <a class="dropdown-item" href="settings.html">Settings</a>
-                        <a class="dropdown-item text-danger" href="login.html">Logout</a>
+        <header class="">
+            <div class="topbar">
+                <div class="container-fluid">
+                    <div class="navbar-header">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="topbar-item">
+                                <button type="button" class="button-toggle-menu topbar-button" aria-label="Toggle menu">
+                                    <i class="ri-menu-2-line fs-24"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <div class="topbar-item">
+                                <button type="button" class="topbar-button" id="light-dark-mode" aria-label="Toggle theme">
+                                    <i class="ri-moon-line fs-24 light-mode"></i>
+                                    <i class="ri-sun-line fs-24 dark-mode"></i>
+                                </button>
+                            </div>
+                            <div class="dropdown topbar-item">
+                                <a type="button" class="topbar-button" id="page-header-user-dropdown" data-bs-toggle="dropdown">
+                                    <img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="User" />
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <h6 class="dropdown-header">Welcome!</h6>
+                                    <a class="dropdown-item" href="settings.html"><i class="ri-settings-3-line me-1"></i>Settings</a>
+                                    <div class="dropdown-divider my-1"></div>
+                                    <a class="dropdown-item text-danger" href="login.html"><i class="ri-logout-circle-line me-1"></i>Logout</a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div></div></div></header>
+        </header>
+
         <div class="main-nav">
-            <div class="logo-box"><a href="index.html"><img src="assets/images/logo-dark.png" class="logo-lg" alt="" /></a></div>
-            <button type="button" class="button-sm-hover"><i class="ri-menu-2-line fs-24"></i></button>
-            <div class="scrollbar" data-simplebar><ul class="navbar-nav" id="navbar-nav"></ul></div>
+            <div class="logo-box">
+                <a href="index.html" class="logo-dark">
+                    <img src="assets/images/logo-sm-dark.png" class="logo-sm" alt="" />
+                    <img src="assets/images/logo-dark.png" class="logo-lg" alt="" />
+                </a>
+                <a href="index.html" class="logo-light">
+                    <img src="assets/images/logo-sm-light.png" class="logo-sm" alt="" />
+                    <img src="assets/images/logo-light.png" class="logo-lg" alt="" />
+                </a>
+            </div>
+            <button type="button" class="button-sm-hover" aria-label="Show sidebar"><i class="ri-menu-2-line fs-24"></i></button>
+            <div class="scrollbar" data-simplebar>
+                <ul class="navbar-nav" id="navbar-nav">
+                    <li class="menu-title">Menu</li>
+                    <li class="nav-item"><a class="nav-link" href="index.html"><span class="nav-icon"><i class="ri-dashboard-3-line"></i></span><span class="nav-text">Overview</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="packages.html"><span class="nav-icon"><i class="ri-box-3-line"></i></span><span class="nav-text">Packages Sent</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="received.html"><span class="nav-icon"><i class="ri-import-line"></i></span><span class="nav-text">Received</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="sold-items.html"><span class="nav-icon"><i class="ri-list-view"></i></span><span class="nav-text">Sold Items</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="item-pending.html"><span class="nav-icon"><i class="ri-time-line"></i></span><span class="nav-text">Items Pending</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="activity.html"><span class="nav-icon"><i class="ri-history-line"></i></span><span class="nav-text">Activity</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="inventory.html"><span class="nav-icon"><i class="ri-archive-drawer-line"></i></span><span class="nav-text">Inventory</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="analytics.html"><span class="nav-icon"><i class="ri-line-chart-line"></i></span><span class="nav-text">Analytics</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="invoices.html"><span class="nav-icon"><i class="ri-receipt-line"></i></span><span class="nav-text">Payouts & Invoices</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="queries.html"><span class="nav-icon"><i class="ri-question-answer-line"></i></span><span class="nav-text">My queries</span></a></li>
+                    <li class="nav-item"><a class="nav-link active" href="exports.html"><span class="nav-icon"><i class="ri-download-cloud-2-line"></i></span><span class="nav-text">Exports hub</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="roi-report.html"><span class="nav-icon"><i class="ri-file-text-line"></i></span><span class="nav-text">ROI Report</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="reimbursement.html"><span class="nav-icon"><i class="ri-refund-line"></i></span><span class="nav-text">Reimbursement / Claims</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="referrals.html"><span class="nav-icon"><i class="ri-user-shared-line"></i></span><span class="nav-text">Referrals</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="settings.html"><span class="nav-icon"><i class="ri-settings-3-line"></i></span><span class="nav-text">Settings</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="faq.html"><span class="nav-icon"><i class="ri-question-line"></i></span><span class="nav-text">FAQ</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#referFriendModal"><span class="nav-icon"><i class="ri-user-shared-line"></i></span><span class="nav-text">Refer a seller</span></a></li>
+                </ul>
+            </div>
         </div>
+
         <div class="page-content">
             <div class="container-fluid">
                 <div class="row mb-4">
@@ -51,7 +102,11 @@
                     <div class="col-12 text-muted">Loading…</div>
                 </div>
             </div>
-            <footer class="footer rp-footer"><div class="container-fluid text-center"><script>document.write(new Date().getFullYear());</script> &copy; ReturnPal.</div></footer>
+            <footer class="footer rp-footer">
+                <div class="container-fluid text-center">
+                    <script>document.write(new Date().getFullYear());</script> &copy; ReturnPal.
+                </div>
+            </footer>
         </div>
     </div>
     <script src="assets/js/vendor.js"></script>
@@ -59,6 +114,6 @@
     <script src="/assets/js/api.js?v=rp-api-2026"></script>
     <script src="/assets/js/dateUk.js"></script>
     <script src="assets/js/custom.js"></script>
-    <script src="assets/js/dashboard.js?v=rp-dashboard-features-2026"></script>
+    <script src="assets/js/dashboard.js?v=rp-dashboard-features-2026b"></script>
 </body>
 </html>
