@@ -88,6 +88,19 @@ function setClientLinksForHub(db, hubUserId, clientUserIds) {
     }
 }
 
+function listHubAccountsSummary(db) {
+    return parseResults(
+        db.exec(
+            `SELECT u.id AS hub_user_id, u.email, u.full_name, u.company_name,
+                    COUNT(cda.client_user_id) AS linked_clients_count
+             FROM client_delegate_access cda
+             JOIN users u ON u.id = cda.hub_user_id
+             GROUP BY cda.hub_user_id
+             ORDER BY u.full_name, u.company_name, u.email`
+        )
+    );
+}
+
 function getHubOverview(db, hubUserId) {
     const clients = listLinkedClients(db, hubUserId);
     const summaries = clients.map((c) => {
@@ -134,5 +147,6 @@ module.exports = {
     listHubsForClient,
     setHubLinksForClient,
     setClientLinksForHub,
+    listHubAccountsSummary,
     getHubOverview,
 };

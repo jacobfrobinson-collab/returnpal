@@ -236,11 +236,12 @@
                 <div class="card mt-3">
                     <div class="card-header bg-white py-2">Hub / prep centre access</div>
                     <div class="card-body py-2">
-                        <p class="small text-muted mb-2">Hub accounts (e.g. prep centre logins) can open this client from <strong>My clients</strong> in their dashboard.</p>
-                        <label class="form-label small mb-1">Hub user IDs (comma-separated)</label>
-                        <input type="text" class="form-control form-control-sm mb-2" id="delegate-hub-ids" placeholder="e.g. 50, 51" />
-                        <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-2" id="btn-save-delegate-hubs">Save hub access</button>
-                        <ul class="list-unstyled small mb-0" id="delegate-hubs-list"></ul>
+                        <p class="small text-muted mb-2">Tick which <strong>non-admin</strong> accounts (prep centre owners) may view this client via <strong>My clients</strong> on their dashboard. They do not get admin access.</p>
+                        <div class="border rounded p-2 bg-light mb-2" style="max-height:160px;overflow-y:auto" id="delegate-hub-checks">
+                            <span class="small text-muted">Loading accounts…</span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary w-100" id="btn-save-delegate-hubs">Save hub access</button>
+                        <p class="small text-muted mt-2 mb-0">Or configure from <a href="/admin/index.html#hub-access-section">Admin → Hub access</a>.</p>
                     </div>
                 </div>
                 <div class="mt-3">
@@ -1461,33 +1462,59 @@
                 .catch(function(e) { alert(e.error || 'Failed'); });
         });
 
+        function renderDelegateHubChecks(allUsers, selectedHubIds) {
+            var $box = $('#delegate-hub-checks');
+            $box.empty();
+            var selected = {};
+            (selectedHubIds || []).forEach(function(id) { selected[String(id)] = true; });
+            var hubs = (allUsers || []).filter(function(u) {
+                if (u.is_admin === true || u.is_admin === 1 || u.is_admin === '1') return false;
+                if (String(u.id) === String(clientId)) return false;
+                return true;
+            });
+            if (!hubs.length) {
+                $box.html('<span class="small text-muted">No other accounts</span>');
+                return;
+            }
+            hubs.forEach(function(u) {
+                var id = u.id;
+                var checked = selected[String(id)] ? ' checked' : '';
+                var label = String(id).padStart(4, '0') + ' — ' + (u.full_name || u.email || 'Account');
+                $box.append(
+                    '<div class="form-check">' +
+                    '<input class="form-check-input delegate-hub-cb" type="checkbox" value="' + id + '" id="deleg-hub-' + id + '"' + checked + ' />' +
+                    '<label class="form-check-label small" for="deleg-hub-' + id + '">' + escapeHtml(label) + '</label></div>'
+                );
+            });
+        }
+
         function loadDelegateHubs() {
-            API.request('/admin/users/' + encodeURIComponent(clientId) + '/delegate-hubs')
-                .then(function(data) {
-                    var ids = (data.hub_user_ids || []).join(', ');
-                    $('#delegate-hub-ids').val(ids);
-                    var $list = $('#delegate-hubs-list');
-                    if (!(data.hubs || []).length) {
-                        $list.html('<li class="text-muted">No hub accounts linked</li>');
-                        return;
-                    }
-                    $list.html((data.hubs || []).map(function(h) {
-                        return '<li><strong>ID ' + h.id + '</strong> — ' + escapeHtml(h.display_name || h.email || '') + '</li>';
-                    }).join(''));
-                })
-                .catch(function() { $('#delegate-hubs-list').html('<li class="text-danger">Failed to load</li>'); });
+            Promise.all([
+                API.request('/admin/users'),
+                API.request('/admin/users/' + encodeURIComponent(clientId) + '/delegate-hubs')
+            ]).then(function(results) {
+                var users = (results[0] && results[0].users) || [];
+                var data = results[1] || {};
+                renderDelegateHubChecks(users, data.hub_user_ids || []);
+            }).catch(function() {
+                $('#delegate-hub-checks').html('<span class="text-danger small">Failed to load</span>');
+            });
         }
 
         $('#btn-save-delegate-hubs').on('click', function() {
-            var raw = $('#delegate-hub-ids').val() || '';
-            var hubIds = raw.split(/[\s,]+/).map(function(x) { return parseInt(x, 10); }).filter(function(n) { return Number.isFinite(n) && n > 0; });
+            var hubIds = [];
+            $('#delegate-hub-checks .delegate-hub-cb:checked').each(function() {
+                hubIds.push(parseInt($(this).val(), 10));
+            });
+            var $btn = $(this).prop('disabled', true).text('Saving…');
             API.request('/admin/users/' + encodeURIComponent(clientId) + '/delegate-hubs', {
                 method: 'PUT',
                 body: { hub_user_ids: hubIds }
             }).then(function() {
-                alert('Hub access saved');
+                alert('Hub access saved (' + hubIds.length + ' account(s)).');
                 loadDelegateHubs();
-            }).catch(function(e) { alert(e.error || 'Save failed'); });
+            }).catch(function(e) { alert(e.error || 'Save failed'); })
+            .finally(function() { $btn.prop('disabled', false).text('Save hub access'); });
         });
 
         loadDelegateHubs();

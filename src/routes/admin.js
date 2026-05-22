@@ -68,13 +68,45 @@ router.get('/users', async (req, res) => {
         const rows = parseResults(
             db.exec(
                 `SELECT id, email, full_name, company_name, created_at, COALESCE(is_admin, 0) AS is_admin,
-                        COALESCE(legacy_client_id, '') AS legacy_client_id
+                        COALESCE(legacy_client_id, '') AS legacy_client_id,
+                        (SELECT COUNT(*) FROM client_delegate_access cda WHERE cda.hub_user_id = users.id) AS linked_clients_count,
+                        (SELECT COUNT(*) FROM client_delegate_access cda2 WHERE cda2.client_user_id = users.id) AS delegate_hub_count
                  FROM users ORDER BY created_at DESC`
             )
         );
         res.json({ users: rows });
     } catch (err) {
         console.error('Admin list users error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/hub-accounts — prep-centre hub accounts and who they can view
+router.get('/hub-accounts', async (req, res) => {
+    try {
+        const { listHubAccountsSummary, listLinkedClients } = require('../utils/clientDelegate');
+        const db = await getDb();
+        const hubs = listHubAccountsSummary(db);
+        const out = hubs.map((h) => {
+            const clients = listLinkedClients(db, h.hub_user_id);
+            return {
+                hub_user_id: h.hub_user_id,
+                email: h.email,
+                full_name: h.full_name,
+                company_name: h.company_name,
+                display_name: h.full_name || h.company_name || h.email,
+                linked_clients_count: h.linked_clients_count,
+                clients: clients.map((c) => ({
+                    id: c.id,
+                    client_code: 'RP' + c.id,
+                    display_name: c.full_name || c.company_name || c.email,
+                    email: c.email,
+                })),
+            };
+        });
+        res.json({ hubs: out });
+    } catch (err) {
+        console.error('Admin hub accounts error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

@@ -24,6 +24,7 @@
                     <a href="/admin/insights.html" class="small">Client insights</a>
                     <a href="/admin/audit.html" class="small">Audit log</a>
                     <a href="/admin/queries.html" class="small">Open queries</a>
+                    <a href="#hub-access-section" class="small">Hub access</a>
                     <a href="/admin/index.html" class="small">Refresh</a>
                     <a href="/login.html" class="small" id="admin-logout">Logout</a>
                 </div>
@@ -172,6 +173,37 @@
             </div>
         </div>
 
+        <div class="section-card card border-secondary shadow-sm" id="hub-access-section">
+            <div class="card-header bg-white py-3">
+                <h2 class="h6 mb-1">Prep centre hub access</h2>
+                <p class="small text-muted mb-0">Give a <strong>normal client login</strong> (not admin) access to view other clients in <strong>My clients</strong> on their dashboard. They cannot change admin data — only open linked client dashboards to view.</p>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-lg-4">
+                        <label class="form-label small fw-semibold">Hub account (prep centre owner)</label>
+                        <select class="form-select form-select-sm" id="hub-access-hub-select">
+                            <option value="">— Select account —</option>
+                        </select>
+                        <p class="small text-muted mt-2 mb-0">This must be an existing user (create them via register if needed). Do <strong>not</strong> tick them as admin.</p>
+                    </div>
+                    <div class="col-lg-8">
+                        <label class="form-label small fw-semibold">Clients they can view</label>
+                        <div class="border rounded p-2 bg-light" style="max-height:200px;overflow-y:auto" id="hub-access-client-checks">
+                            <span class="small text-muted">Loading clients…</span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-2">
+                            <button type="button" class="btn btn-sm btn-primary" id="hub-access-save-btn">Save access</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="hub-access-clear-btn">Clear selection</button>
+                        </div>
+                    </div>
+                </div>
+                <hr class="my-3" />
+                <h3 class="h6 mb-2">Configured hub accounts</h3>
+                <div id="hub-access-list" class="small text-muted">Loading…</div>
+            </div>
+        </div>
+
         <div class="card shadow-sm">
             <div class="card-header bg-white py-3">
                 <h2 class="h6 mb-0">All clients</h2>
@@ -191,6 +223,7 @@
                                 <th>Email</th>
                                 <th>Company</th>
                                 <th>Joined</th>
+                                <th>Hub</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -382,13 +415,110 @@
                 $links.append(row);
             });
         }
+        window._adminUsersList = [];
+
+        function hubBadgeCell(u) {
+            var hubCount = parseInt(u.linked_clients_count, 10) || 0;
+            var viewerCount = parseInt(u.delegate_hub_count, 10) || 0;
+            var parts = [];
+            if (hubCount > 0) {
+                parts.push('<span class="badge bg-info text-dark" title="Can view other clients">Hub · ' + hubCount + ' client' + (hubCount === 1 ? '' : 's') + '</span>');
+            }
+            if (viewerCount > 0) {
+                parts.push('<span class="badge bg-secondary" title="Prep centres with access">' + viewerCount + ' hub' + (viewerCount === 1 ? '' : 's') + '</span>');
+            }
+            return parts.length ? parts.join(' ') : '<span class="text-muted">—</span>';
+        }
+
+        function renderHubAccessClientChecks(users, hubId, selectedIds) {
+            var $box = $('#hub-access-client-checks');
+            $box.empty();
+            var selected = {};
+            (selectedIds || []).forEach(function(id) { selected[String(id)] = true; });
+            var list = (users || []).filter(function(u) {
+                if (u.is_admin === true || u.is_admin === 1 || u.is_admin === '1') return false;
+                if (hubId && String(u.id) === String(hubId)) return false;
+                return true;
+            });
+            if (!list.length) {
+                $box.html('<span class="small text-muted">No clients available</span>');
+                return;
+            }
+            list.forEach(function(u) {
+                var id = u.id;
+                var label = String(id).padStart(4, '0') + ' — ' + (u.full_name || u.email || 'Client');
+                var checked = selected[String(id)] ? ' checked' : '';
+                $box.append(
+                    '<div class="form-check">' +
+                    '<input class="form-check-input hub-client-cb" type="checkbox" value="' + id + '" id="hub-cb-' + id + '"' + checked + ' />' +
+                    '<label class="form-check-label small" for="hub-cb-' + id + '">' + escapeHtml(label) + '</label></div>'
+                );
+            });
+        }
+
+        function populateHubAccessHubSelect(users) {
+            var $sel = $('#hub-access-hub-select');
+            var prev = $sel.val();
+            $sel.find('option:not(:first)').remove();
+            (users || []).forEach(function(u) {
+                if (u.is_admin === true || u.is_admin === 1 || u.is_admin === '1') return;
+                var id = u.id;
+                var hubN = parseInt(u.linked_clients_count, 10) || 0;
+                var label = String(id).padStart(4, '0') + ' — ' + (u.full_name || u.email || 'Account');
+                if (hubN > 0) label += ' (' + hubN + ' linked)';
+                $sel.append($('<option></option>').attr('value', String(id)).text(label));
+            });
+            if (prev && $sel.find('option[value="' + prev + '"]').length) $sel.val(prev);
+        }
+
+        function loadHubAccessEditorForHub(hubId) {
+            if (!hubId) {
+                renderHubAccessClientChecks(window._adminUsersList, null, []);
+                return;
+            }
+            API.request('/admin/users/' + encodeURIComponent(hubId) + '/delegate-clients')
+                .then(function(data) {
+                    renderHubAccessClientChecks(window._adminUsersList, hubId, data.client_user_ids || []);
+                })
+                .catch(function() {
+                    renderHubAccessClientChecks(window._adminUsersList, hubId, []);
+                });
+        }
+
+        function renderHubAccountsList() {
+            var $list = $('#hub-access-list');
+            API.request('/admin/hub-accounts')
+                .then(function(data) {
+                    var hubs = data.hubs || [];
+                    if (!hubs.length) {
+                        $list.html('<p class="text-muted mb-0">No hub access configured yet. Select a prep centre account above and tick the clients they should view.</p>');
+                        return;
+                    }
+                    var html = '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Hub account</th><th>Clients</th><th></th></tr></thead><tbody>';
+                    hubs.forEach(function(h) {
+                        var names = (h.clients || []).map(function(c) {
+                            return escapeHtml(c.display_name) + ' <span class="text-muted">(' + escapeHtml(c.client_code) + ')</span>';
+                        }).join(', ') || '<span class="text-muted">—</span>';
+                        html += '<tr><td><strong>ID ' + String(h.hub_user_id).padStart(4, '0') + '</strong> — ' + escapeHtml(h.display_name) +
+                            '<br><span class="text-muted">' + escapeHtml(h.email || '') + '</span></td><td class="small">' + names + '</td>' +
+                            '<td class="text-nowrap"><button type="button" class="btn btn-sm btn-outline-primary hub-edit-btn" data-hub-id="' + h.hub_user_id + '">Edit</button></td></tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    $list.html(html);
+                })
+                .catch(function(e) {
+                    $list.html('<p class="text-danger mb-0">' + escapeHtml(e && e.error ? e.error : 'Failed to load') + '</p>');
+                });
+        }
+
         function showTable(users) {
+            window._adminUsersList = users || [];
             $('#admin-loading').addClass('d-none');
             $('#admin-error').addClass('d-none');
             var $tbody = $('#admin-users-tbody');
             $tbody.empty();
             if (!users || users.length === 0) {
-                $tbody.html('<tr><td colspan="7" class="text-center py-4 text-muted">No clients yet.</td></tr>');
+                $tbody.html('<tr><td colspan="8" class="text-center py-4 text-muted">No clients yet.</td></tr>');
             } else {
                 users.forEach(function(u) {
                     var date = u.created_at ? RP_DATE.formatOrdinalEnGb(u.created_at) : '-';
@@ -412,6 +542,7 @@
                         '<td>' + escapeHtml(u.email || '') + '</td>' +
                         '<td>' + escapeHtml(u.company_name || '-') + '</td>' +
                         '<td>' + date + '</td>' +
+                        '<td class="small">' + hubBadgeCell(u) + '</td>' +
                         '<td class="text-nowrap">' +
                         deleteBtn +
                         '<a href="client.html?id=' + u.id + '" class="btn btn-sm btn-outline-secondary me-1">Update data</a>' +
@@ -423,6 +554,10 @@
             }
             $('#admin-table-wrap').removeClass('d-none');
             populateBulkImportClientSelect(users);
+            populateHubAccessHubSelect(users);
+            var hubSel = $('#hub-access-hub-select').val();
+            if (hubSel) loadHubAccessEditorForHub(hubSel);
+            else renderHubAccessClientChecks(users, null, []);
             var q = new URLSearchParams(window.location.search || '');
             if (window.location.hash === '#bulk-import-spreadsheet' || q.get('all_client_sales') === '1' || q.get('marketplace_orders') === '1') {
                 setTimeout(function() {
@@ -432,8 +567,49 @@
             }
         }
 
+        $('#hub-access-hub-select').on('change', function() {
+            loadHubAccessEditorForHub($(this).val() || '');
+        });
+
+        $('#hub-access-save-btn').on('click', function() {
+            var hubId = $('#hub-access-hub-select').val();
+            if (!hubId) {
+                alert('Select the prep centre (hub) account first.');
+                return;
+            }
+            var clientIds = [];
+            $('#hub-access-client-checks .hub-client-cb:checked').each(function() {
+                clientIds.push(parseInt($(this).val(), 10));
+            });
+            var $btn = $(this).prop('disabled', true).text('Saving…');
+            API.request('/admin/users/' + encodeURIComponent(hubId) + '/delegate-clients', {
+                method: 'PUT',
+                body: { client_user_ids: clientIds }
+            }).then(function() {
+                alert('Hub access saved. They will see ' + clientIds.length + ' client(s) under My clients when they log in.');
+                loadUsers();
+                renderHubAccountsList();
+            }).catch(function(e) {
+                alert(e && e.error ? e.error : 'Save failed');
+            }).finally(function() {
+                $btn.prop('disabled', false).text('Save access');
+            });
+        });
+
+        $('#hub-access-clear-btn').on('click', function() {
+            $('#hub-access-client-checks .hub-client-cb').prop('checked', false);
+        });
+
+        $(document).on('click', '.hub-edit-btn', function() {
+            var hubId = $(this).data('hub-id');
+            $('#hub-access-hub-select').val(String(hubId));
+            loadHubAccessEditorForHub(hubId);
+            document.getElementById('hub-access-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
         function loadUsers() {
             showLoading();
+            renderHubAccountsList();
             API.request('/admin/users')
                 .then(function(data) {
                     showTable(data.users || []);
