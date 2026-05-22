@@ -1,8 +1,11 @@
 const express = require('express');
-const { getDb } = require('../database');
+const { getDb, saveDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { getPayoutForecast } = require('../utils/payoutForecast');
 const { getComputedMonthlyStatements, buildInvoicePeriodPayload, parsePeriodYm } = require('../utils/computedMonthlyStatements');
+const { getRecoveryScorecard } = require('../utils/recoveryScorecard');
+const { buildPackageJourney } = require('../utils/packageJourney');
+const { parseClientPreferences } = require('../utils/clientPreferences');
 const { clientIsAdmin, redactOrderNumberForClientRow } = require('../utils/internalFields');
 
 const router = express.Router();
@@ -153,6 +156,102 @@ router.get('/search', authMiddleware, async (req, res) => {
         res.json({ query: q, results: results.slice(0, 24) });
     } catch (err) {
         console.error('Search error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/scorecard?period=YYYY-MM
+router.get('/scorecard', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const period = String(req.query.period || '').trim() || undefined;
+        res.json(getRecoveryScorecard(db, req.user.id, period));
+    } catch (err) {
+        console.error('Scorecard error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/package-journey?package_id= or reference=
+router.get('/package-journey', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const uid = req.user.id;
+        const packageId = parseInt(req.query.package_id, 10);
+        const ref = String(req.query.reference || '').trim();
+        let pkg = null;
+        if (Number.isFinite(packageId)) {
+            const rows = parseResults(
+                db.exec('SELECT id, reference FROM packages WHERE id = ? AND user_id = ?', [packageId, uid])
+            );
+            pkg = rows[0] || null;
+        } else if (ref) {
+            const rows = parseResults(
+                db.exec('SELECT id, reference FROM packages WHERE user_id = ? AND reference = ? LIMIT 1', [uid, ref])
+            );
+            pkg = rows[0] || null;
+        } else {
+            return res.status(400).json({ error: 'Provide package_id or reference' });
+        }
+        if (!pkg) return res.status(404).json({ error: 'Package not found' });
+        res.json(buildPackageJourney(db, uid, pkg.id, pkg.reference));
+    } catch (err) {
+        console.error('Package journey error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/prep-sendback
+router.get('/prep-sendback', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec(
+                `SELECT * FROM prep_sendback_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 100`,
+                [req.user.id]
+            )
+        );
+        const prefsRow = parseResults(
+            db.exec('SELECT client_preferences FROM users WHERE id = ?', [req.user.id])
+        );
+        const prefs = parseClientPreferences(prefsRow[0]?.client_preferences);
+        res.json({ requests: rows, prep_address: prefs });
+    } catch (err) {
+        console.error('Prep sendback list error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/client/prep-sendback
+router.post('/prep-sendback', authMiddleware, async (req, res) => {
+    try {
+        const packageReference = String(req.body.package_reference || '').trim();
+        const itemDescription = String(req.body.item_description || '').trim();
+        const quantity = Math.max(1, parseInt(req.body.quantity, 10) || 1);
+        const notes = String(req.body.notes || '').trim();
+        if (!packageReference || !itemDescription) {
+            return res.status(400).json({ error: 'Package reference and item description are required.' });
+        }
+        const db = await getDb();
+        const prefsRow = parseResults(
+            db.exec('SELECT client_preferences FROM users WHERE id = ?', [req.user.id])
+        );
+        const prefs = parseClientPreferences(prefsRow[0]?.client_preferences);
+        if (!prefs.prep_name && !prefs.prep_address) {
+            return res.status(400).json({
+                error: 'Add your prep centre details in Settings before requesting a send-back.',
+            });
+        }
+        db.run(
+            `INSERT INTO prep_sendback_requests (user_id, package_reference, item_description, quantity, notes, status)
+             VALUES (?, ?, ?, ?, ?, 'requested')`,
+            [req.user.id, packageReference, itemDescription, quantity, notes]
+        );
+        saveDb();
+        const id = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        res.status(201).json({ id, message: 'Send-back request submitted. ReturnPal will queue shipment to your prep centre.' });
+    } catch (err) {
+        console.error('Prep sendback create error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

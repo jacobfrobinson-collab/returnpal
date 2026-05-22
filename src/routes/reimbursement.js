@@ -5,6 +5,7 @@ const multer = require('multer');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
+const { enrichClaimRow, buildCaseText, normalizeCaseStatus, CASE_STATUSES } = require('../utils/reimbursementCase');
 
 const router = express.Router();
 
@@ -44,11 +45,72 @@ router.get('/claims', async (req, res) => {
                 db.exec('SELECT id, file_path, created_at FROM reimbursement_claim_photos WHERE claim_id = ? ORDER BY id', [c.id])
             );
             c.photos = photos;
+            Object.assign(c, enrichClaimRow(c));
         }
         const out = clientIsAdmin(req) ? claims : redactOrderNumberForClientRows(claims);
-        res.json({ claims: out });
+        res.json({ claims: out, case_statuses: CASE_STATUSES });
     } catch (err) {
         console.error('Reimbursement list error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/reimbursement/claims/:id/case-pack
+router.get('/claims/:id/case-pack', async (req, res) => {
+    try {
+        const claimId = parseInt(req.params.id, 10);
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec('SELECT * FROM reimbursement_claims WHERE id = ? AND user_id = ?', [claimId, req.user.id])
+        );
+        if (!rows.length) return res.status(404).json({ error: 'Claim not found' });
+        const claim = enrichClaimRow(rows[0]);
+        claim.photos = parseResults(
+            db.exec('SELECT id, file_path, created_at FROM reimbursement_claim_photos WHERE claim_id = ? ORDER BY id', [claimId])
+        );
+        claim.photo_urls = claim.photos.map((p) => '/uploads/' + p.file_path);
+        res.json({ claim });
+    } catch (err) {
+        console.error('Case pack error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PATCH /api/reimbursement/claims/:id — client updates (mark submitted, case id)
+router.patch('/claims/:id', async (req, res) => {
+    try {
+        const claimId = parseInt(req.params.id, 10);
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec('SELECT * FROM reimbursement_claims WHERE id = ? AND user_id = ?', [claimId, req.user.id])
+        );
+        if (!rows.length) return res.status(404).json({ error: 'Claim not found' });
+        const cur = rows[0];
+        let status = cur.case_status || 'draft';
+        if (req.body.case_status !== undefined) {
+            const next = normalizeCaseStatus(req.body.case_status);
+            if (!['submitted', 'ready'].includes(next) && next !== status) {
+                return res.status(400).json({ error: 'Clients can only mark claims as ready or submitted.' });
+            }
+            status = next;
+        }
+        const scId =
+            req.body.seller_central_case_id !== undefined
+                ? String(req.body.seller_central_case_id || '').trim().slice(0, 120)
+                : cur.seller_central_case_id || '';
+        let submittedAt = cur.submitted_at || '';
+        if (status === 'submitted' && !submittedAt) submittedAt = new Date().toISOString();
+        db.run(
+            `UPDATE reimbursement_claims SET case_status = ?, seller_central_case_id = ?, submitted_at = ?, case_text = ? WHERE id = ?`,
+            [status, scId, submittedAt, buildCaseText({ ...cur, case_status: status }), claimId]
+        );
+        saveDb();
+        const updated = enrichClaimRow(
+            parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0]
+        );
+        res.json({ claim: updated, message: 'Claim updated' });
+    } catch (err) {
+        console.error('Patch claim error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -68,9 +130,17 @@ router.post('/claims', reimbursementMulter.array('photos', 10), async (req, res)
         }
 
         const db = await getDb();
+        const caseText = buildCaseText({
+            package_reference: packageReference,
+            item_description: itemDescription,
+            reimbursement_type: reimbursementType,
+            notes,
+            order_number: orderNumber,
+        });
         db.run(
-            'INSERT INTO reimbursement_claims (user_id, package_reference, item_description, reimbursement_type, notes, order_number) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, packageReference, itemDescription, reimbursementType, notes, orderNumber]
+            `INSERT INTO reimbursement_claims (user_id, package_reference, item_description, reimbursement_type, notes, order_number, case_status, case_text)
+             VALUES (?, ?, ?, ?, ?, ?, 'ready', ?)`,
+            [userId, packageReference, itemDescription, reimbursementType, notes, orderNumber, caseText]
         );
         const claimId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
 
@@ -97,9 +167,11 @@ router.post('/claims', reimbursementMulter.array('photos', 10), async (req, res)
             '/dashboard/reimbursement.html'
         );
 
-        const claim = parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0];
+        const claim = enrichClaimRow(
+            parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0]
+        );
         claim.photos = parseResults(db.exec('SELECT id, file_path FROM reimbursement_claim_photos WHERE claim_id = ?', [claimId]));
-        res.status(201).json({ claim, message: 'Claim submitted. Our team will review it for Seller Central.' });
+        res.status(201).json({ claim, message: 'Claim submitted. Use the case cockpit to file in Seller Central.' });
     } catch (err) {
         console.error('Client create reimbursement claim error:', err);
         res.status(500).json({ error: 'Server error' });

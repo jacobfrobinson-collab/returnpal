@@ -450,6 +450,59 @@ async function getDb() {
     } catch (e) {
         annSeed = 0;
     }
+    const reimbursementClaimAlters = [
+        "ALTER TABLE reimbursement_claims ADD COLUMN case_status TEXT DEFAULT 'draft'",
+        "ALTER TABLE reimbursement_claims ADD COLUMN seller_central_case_id TEXT DEFAULT ''",
+        "ALTER TABLE reimbursement_claims ADD COLUMN expected_amount REAL DEFAULT 0",
+        "ALTER TABLE reimbursement_claims ADD COLUMN recovered_amount REAL DEFAULT 0",
+        "ALTER TABLE reimbursement_claims ADD COLUMN submitted_at TEXT DEFAULT ''",
+        "ALTER TABLE reimbursement_claims ADD COLUMN resolved_at TEXT DEFAULT ''",
+        "ALTER TABLE reimbursement_claims ADD COLUMN case_text TEXT DEFAULT ''",
+    ];
+    for (const sql of reimbursementClaimAlters) {
+        try {
+            db.run(sql);
+        } catch (e) {
+            /* exists */
+        }
+    }
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS prep_sendback_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            package_reference TEXT NOT NULL,
+            item_description TEXT NOT NULL,
+            quantity INTEGER DEFAULT 1,
+            status TEXT DEFAULT 'requested' CHECK(status IN ('requested','queued','shipped','delivered','cancelled')),
+            notes TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_prep_sendback_user ON prep_sendback_requests(user_id)');
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS partner_integrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            api_key_hash TEXT NOT NULL UNIQUE,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS partner_client_access (
+            partner_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            PRIMARY KEY (partner_id, user_id),
+            FOREIGN KEY (partner_id) REFERENCES partner_integrations(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+
     if (!annSeed) {
         const seeds = [
             [

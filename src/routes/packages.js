@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
+const { buildPackageJourney } = require('../utils/packageJourney');
 
 const router = express.Router();
 
@@ -59,6 +60,14 @@ router.get('/:id', authMiddleware, async (req, res) => {
             db.exec('SELECT * FROM package_products WHERE package_id = ?', [pkg.id])
         );
         pkg.total_qty = pkg.products.reduce((sum, p) => sum + p.quantity, 0);
+        const journey = buildPackageJourney(db, req.user.id, pkg.id, pkg.reference);
+        pkg.timeline = journey.events.map((e) => ({
+            timestamp: e.timestamp,
+            message: e.label + ': ' + e.message,
+            icon: e.icon,
+            stage: e.stage,
+        }));
+        pkg.journey = journey;
         const pkgOut = clientIsAdmin(req) ? pkg : redactOrderNumberForClientRow(pkg);
         res.json({ package: pkgOut });
     } catch (err) {

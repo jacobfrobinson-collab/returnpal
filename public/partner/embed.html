@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>ReturnPal client status</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f8f9fa; color: #1a1a1a; }
+        .card { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); max-width: 420px; }
+        h1 { font-size: 1rem; margin: 0 0 12px; }
+        .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+        .row:last-child { border: 0; }
+        .err { color: #b02a37; font-size: 13px; }
+        .muted { color: #666; font-size: 12px; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <div class="card" id="embed-root">
+        <p class="muted">Loading client status…</p>
+    </div>
+    <script>
+        (function () {
+            const params = new URLSearchParams(window.location.search);
+            const clientId = params.get('client_id') || params.get('user_id');
+            const key = params.get('key') || params.get('api_key');
+            const root = document.getElementById('embed-root');
+            if (!clientId || !key) {
+                root.innerHTML = '<p class="err">Missing client_id and key query parameters.</p>';
+                return;
+            }
+            fetch('/api/partner/v1/clients/' + encodeURIComponent(clientId) + '/status', {
+                headers: { 'X-Partner-Key': key },
+            })
+                .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+                .then(({ ok, d }) => {
+                    if (!ok) {
+                        root.innerHTML = '<p class="err">' + (d.error || 'Unable to load status') + '</p>';
+                        return;
+                    }
+                    const s = d.status || {};
+                    root.innerHTML =
+                        '<h1>' + (s.name || 'Client') + ' <span style="font-weight:normal;color:#666">(' + (s.client_code || '') + ')</span></h1>' +
+                        '<div class="row"><span>Items processing</span><strong>' + (s.items_processing || 0) + '</strong></div>' +
+                        '<div class="row"><span>Open reimbursement claims</span><strong>' + (s.reimbursement_claims_open || 0) + '</strong></div>' +
+                        '<div class="row"><span>Recovery (period)</span><strong>£' + Number(s.recovery_total || 0).toFixed(2) + '</strong></div>' +
+                        '<div class="row"><span>Payout pending</span><strong>£' + Number(s.payout_pending || 0).toFixed(2) + ' · ' + (s.payout_status || '') + '</strong></div>' +
+                        '<div class="row"><span>Unpaid statements</span><strong>' + (s.unpaid_invoices_count || 0) + ' · £' + Number(s.unpaid_invoices_total || 0).toFixed(2) + '</strong></div>' +
+                        '<p class="muted">ReturnPal partner embed · updated ' + new Date(s.updated_at || Date.now()).toLocaleString('en-GB') + '</p>';
+                })
+                .catch(() => {
+                    root.innerHTML = '<p class="err">Network error loading status.</p>';
+                });
+        })();
+    </script>
+</body>
+</html>

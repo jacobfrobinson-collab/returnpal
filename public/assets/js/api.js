@@ -324,6 +324,7 @@ const API = {
                 reference: (pkg.reference || '') + '-' + (i + 1),
                 status: pkg.status || 'Processing'
             }));
+            const timeline = pkg.timeline || (pkg.journey && pkg.journey.events) || [];
             return {
                 reference: pkg.reference,
                 shipping_status: pkg.status,
@@ -331,7 +332,8 @@ const API = {
                 received_date: pkg.date_added || null,
                 carrier: 'Royal Mail',
                 items,
-                timeline: []
+                timeline,
+                journey: pkg.journey,
             };
         } catch (err) {
             if (err.status === 404 || err.status === 501) return this._getPackageDetailMock(id);
@@ -1067,6 +1069,35 @@ const API = {
 
     async getExportsHub() {
         return this.request('/client/exports-hub');
+    },
+
+    async getRecoveryScorecard(period) {
+        const q = period ? '?period=' + encodeURIComponent(period) : '';
+        return this.request('/client/scorecard' + q);
+    },
+
+    async getPackageJourney(opts) {
+        const o = opts || {};
+        const parts = [];
+        if (o.package_id) parts.push('package_id=' + encodeURIComponent(o.package_id));
+        if (o.reference) parts.push('reference=' + encodeURIComponent(o.reference));
+        return this.request('/client/package-journey?' + parts.join('&'));
+    },
+
+    async getPrepSendback() {
+        return this.request('/client/prep-sendback');
+    },
+
+    async submitPrepSendback(body) {
+        return this.request('/client/prep-sendback', { method: 'POST', body });
+    },
+
+    async getReimbursementCasePack(id) {
+        return this.request('/reimbursement/claims/' + id + '/case-pack');
+    },
+
+    async patchReimbursementClaim(id, body) {
+        return this.request('/reimbursement/claims/' + id, { method: 'PATCH', body });
     },
 
     async getQueries() {

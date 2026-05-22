@@ -307,7 +307,7 @@ const Dashboard = {
         this._initRest();
     },
 
-    /** Minimal dashboard chrome for reimbursement.html only (avoids duplicate summary API + overview detection). */
+    /** Reimbursement page: full sidebar/search chrome without overview API. */
     _initReimbursementPage() {
         if (sessionStorage.getItem('returnpal_impersonating') === '1') {
             this.injectImpersonationBanner();
@@ -315,31 +315,30 @@ const Dashboard = {
         const user = API.getUser();
         this.updateUserIdentityUI(user);
         const useSession = !!API.getSessionToken();
-        API.request('/auth/me', { skipAuthRedirect: true }).then(me => {
-            if (!me || !me.user) return;
-            if (useSession) API.setSessionUser(me.user);
-            else API.setUser(me.user);
-            this.updateUserIdentityUI(me.user);
-        }).catch((err) => {
-            if (err && err.status === 401) API.navigateAwayOnUnauthorized();
-        });
-
-        $(document).on('click', 'a[href="login.html"], a[href="../login.html"], a[href="/login.html"]', function(e) {
-            if ($(this).text().trim() === 'Logout') {
-                e.preventDefault();
-                API.logout();
-            }
-        });
-
-        this.injectFooter();
-        this.initReimbursementSubmit();
-        this.loadReimbursementClaims();
+        const self = this;
+        API.request('/auth/me', { skipAuthRedirect: true })
+            .then((me) => {
+                if (!me || !me.user) return;
+                if (useSession) API.setSessionUser(me.user);
+                else API.setUser(me.user);
+                self.updateUserIdentityUI(me.user);
+            })
+            .catch((err) => {
+                if (err && err.status === 401) API.navigateAwayOnUnauthorized();
+            })
+            .finally(() => {
+                self.ensureClientPreferences().catch(() => {});
+                self._initDashboardChrome();
+                self.initReimbursementSubmit();
+                self.loadReimbursementClaims();
+            });
     },
 
-    /** Fills #reimbursement-list — same flow as other dashboard pages (no second inline ready handler). */
+    /** Reimbursement case cockpit — #reimbursement-list */
     loadReimbursementClaims() {
         const $list = $('#reimbursement-list');
         if (!$list.length) return;
+        const self = this;
 
         function fmtDate(s) {
             return s ? RP_DATE.formatOrdinalEnGb(s) : '-';
@@ -360,81 +359,312 @@ const Dashboard = {
             a.click();
             a.remove();
         }
+        function statusBadgeClass(st) {
+            const m = {
+                draft: 'bg-secondary',
+                ready: 'bg-primary',
+                submitted: 'bg-warning text-dark',
+                approved: 'bg-success',
+                partial: 'bg-info',
+                denied: 'bg-danger',
+            };
+            return m[st] || 'bg-secondary';
+        }
 
-        API.request('/reimbursement/claims', { skipAuthRedirect: true }).then((data) => {
-            const claims = data.claims || [];
-            if (claims.length === 0) {
-                $list.html('<div class="text-muted text-center py-5"><p class="mb-2">No reimbursement items yet.</p><p class="small">When ReturnPal adds an item with photos for an Amazon claim, it will appear here so you can view the package reference and photos to use in Seller Central.</p></div>');
-                return;
-            }
-            let html = '';
-            claims.forEach((c, claimIdx) => {
+        API.request('/reimbursement/claims', { skipAuthRedirect: true })
+            .then((data) => {
+                window._reimbursementClaims = data.claims || [];
+                self.renderReimbursementCockpit($list, window._reimbursementClaims, fmtDate, escHtml, statusBadgeClass);
+            })
+            .catch((err) => {
+                if (err && err.status === 401) {
+                    API.navigateAwayOnUnauthorized();
+                    return;
+                }
+                $list.html('<div class="text-danger text-center py-4">Failed to load claims.</div>');
+            });
+    },
+
+    renderReimbursementCockpit($list, claims, fmtDate, escHtml, statusBadgeClass) {
+        const self = this;
+        const filter = window._reimbursementFilter || 'all';
+        const filtered =
+            filter === 'all'
+                ? claims
+                : claims.filter((c) => (c.case_status || 'draft') === filter);
+
+        let filterHtml =
+            '<div class="d-flex flex-wrap gap-2 mb-3">' +
+            ['all', 'ready', 'submitted', 'approved', 'partial', 'denied'].map((f) => {
+                const label = f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1);
+                const active = filter === f ? ' active' : '';
+                return (
+                    '<button type="button" class="btn btn-sm btn-outline-secondary reimb-filter-btn' +
+                    active +
+                    '" data-filter="' +
+                    f +
+                    '">' +
+                    label +
+                    ' (' +
+                    (f === 'all' ? claims.length : claims.filter((c) => (c.case_status || 'draft') === f).length) +
+                    ')</button>'
+                );
+            }).join('') +
+            '</div>';
+
+        if (!claims.length) {
+            $list.html(
+                filterHtml +
+                    '<div class="text-muted text-center py-5"><p class="mb-2">No reimbursement cases yet.</p><p class="small">Submit a claim above or wait for ReturnPal to add evidence for Amazon.</p></div>'
+            );
+        } else if (!filtered.length) {
+            $list.html(filterHtml + '<p class="text-muted small">No claims in this status.</p>');
+        } else {
+            let html = filterHtml;
+            filtered.forEach((c, claimIdx) => {
+                const st = c.case_status || 'draft';
                 let photoHtml = '';
                 (c.photos || []).forEach((ph, photoIdx) => {
                     const url = '/uploads/' + (ph.file_path || '');
                     const safeUrl = escHtml(url);
                     const photoName = 'claim-' + (c.id || claimIdx + 1) + '-photo-' + (photoIdx + 1) + '.jpg';
-                    photoHtml += '<div>' +
-                        '<a href="' + safeUrl + '" target="_blank" rel="noopener"><img src="' + safeUrl + '" alt="Photo" /></a>' +
-                        '<button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100 download-photo-btn" data-url="' + safeUrl + '" data-name="' + escHtml(photoName) + '">Download</button>' +
-                        '</div>';
+                    photoHtml +=
+                        '<div><a href="' +
+                        safeUrl +
+                        '" target="_blank" rel="noopener"><img src="' +
+                        safeUrl +
+                        '" alt="Photo" /></a>' +
+                        '<button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100 download-photo-btn" data-url="' +
+                        safeUrl +
+                        '" data-name="' +
+                        escHtml(photoName) +
+                        '">Download</button></div>';
                 });
-                if (!photoHtml) photoHtml = '<span class="text-muted">No photos</span>';
-                const detailText = [
-                    'Package reference: ' + (c.package_reference || ''),
-                    'Item: ' + (c.item_description || ''),
-                    'Reimbursement type: ' + (c.reimbursement_type || ''),
-                    'Notes: ' + (c.notes || ''),
-                    'Added: ' + fmtDate(c.created_at)
-                ].join('\n');
-                html += '<div class="reimb-card card border"><div class="card-body">' +
-                    '<div class="d-flex flex-wrap align-items-center gap-2 mb-2">' +
-                    '<span class="badge bg-secondary">' + escHtml(c.package_reference || '') + '</span>' +
-                    '<span class="badge bg-info">' + escHtml(c.reimbursement_type || '') + '</span>' +
+                if (!photoHtml) photoHtml = '<span class="text-muted small">No photos</span>';
+                const recovered = Number(c.recovered_amount);
+                const expected = Number(c.expected_amount);
+                html +=
+                    '<div class="reimb-card card border mb-3" data-claim-id="' +
+                    c.id +
+                    '"><div class="card-body">' +
+                    '<div class="d-flex flex-wrap justify-content-between gap-2 mb-2">' +
+                    '<div class="d-flex flex-wrap gap-2">' +
+                    '<span class="badge ' +
+                    statusBadgeClass(st) +
+                    '">' +
+                    escHtml(c.case_status_label || st) +
+                    '</span>' +
+                    '<span class="badge bg-secondary">' +
+                    escHtml(c.package_reference || '') +
+                    '</span></div>' +
+                    (Number.isFinite(recovered) && recovered > 0
+                        ? '<span class="text-success fw-semibold">Recovered £' + recovered.toFixed(2) + '</span>'
+                        : Number.isFinite(expected) && expected > 0
+                          ? '<span class="text-muted small">Expected £' + expected.toFixed(2) + '</span>'
+                          : '') +
                     '</div>' +
-                    '<h6 class="card-title">' + escHtml(c.item_description || 'Item') + '</h6>' +
-                    (c.notes ? '<p class="small text-muted mb-2">' + escHtml(c.notes) + '</p>' : '') +
-                    '<p class="small mb-1">Photos (open to view or download for your Amazon case):</p>' +
-                    '<div class="reimb-photos">' + photoHtml + '</div>' +
-                    '<div class="reimb-actions">' +
-                    '<button type="button" class="btn btn-sm btn-primary copy-claim-btn" data-claim="' + escHtml(detailText) + '"><i class="ri-file-copy-line me-1"></i>Copy claim details</button>' +
-                    '<button type="button" class="btn btn-sm btn-outline-primary download-all-photos-btn" data-claim-id="' + (c.id || '') + '"><i class="ri-download-2-line me-1"></i>Download all photos</button>' +
-                    '<a class="btn btn-sm btn-outline-success" href="https://sellercentral.amazon.co.uk/help/hub/reference/G202130860" target="_blank" rel="noopener"><i class="ri-external-link-line me-1"></i>Open case in Seller Central</a>' +
+                    '<h6 class="card-title">' +
+                    escHtml(c.item_description || 'Item') +
+                    '</h6>' +
+                    '<p class="small text-muted mb-2">' +
+                    escHtml(c.reimbursement_type || '') +
+                    (c.seller_central_case_id ? ' · SC case: ' + escHtml(c.seller_central_case_id) : '') +
+                    '</p>' +
+                    '<div class="mb-2"><label class="form-label small mb-1">Seller Central case text</label>' +
+                    '<textarea class="form-control form-control-sm reimb-case-text" rows="4" readonly>' +
+                    escHtml(c.case_text || '') +
+                    '</textarea></div>' +
+                    '<div class="reimb-photos mb-2">' +
+                    photoHtml +
                     '</div>' +
-                    '<p class="small text-muted mt-2 mb-0">Added ' + fmtDate(c.created_at) + '</p>' +
-                    '</div></div>';
+                    '<div class="reimb-actions flex-wrap">' +
+                    '<button type="button" class="btn btn-sm btn-primary copy-case-text-btn" data-id="' +
+                    c.id +
+                    '"><i class="ri-file-copy-line me-1"></i>Copy case text</button>' +
+                    '<button type="button" class="btn btn-sm btn-outline-primary mark-submitted-btn" data-id="' +
+                    c.id +
+                    '"' +
+                    (st === 'submitted' || st === 'approved' || st === 'partial' || st === 'denied' ? ' disabled' : '') +
+                    '>Mark submitted</button>' +
+                    '<a class="btn btn-sm btn-outline-success" href="' +
+                    escHtml(c.seller_central_url || 'https://sellercentral.amazon.co.uk/help/hub/reference/G202130860') +
+                    '" target="_blank" rel="noopener"><i class="ri-external-link-line me-1"></i>Seller Central</a>' +
+                    '</div>' +
+                    '<p class="small text-muted mt-2 mb-0">Added ' +
+                    fmtDate(c.created_at) +
+                    (c.submitted_at ? ' · Submitted ' + fmtDate(c.submitted_at) : '') +
+                    '</p></div></div>';
             });
             $list.html(html);
+        }
 
-            $(document).off('click', '.download-photo-btn').on('click', '.download-photo-btn', function() {
+        $list.find('.reimb-filter-btn')
+            .off('click')
+            .on('click', function() {
+                window._reimbursementFilter = $(this).data('filter');
+                self.renderReimbursementCockpit($list, window._reimbursementClaims, fmtDate, escHtml, statusBadgeClass);
+            });
+
+        $list.find('.copy-case-text-btn')
+            .off('click')
+            .on('click', function() {
+                const id = $(this).data('id');
+                const $ta = $list.find('.reimb-card[data-claim-id="' + id + '"] .reimb-case-text');
+                const text = $ta.val() || '';
+                navigator.clipboard.writeText(text).then(() => self.showToast('Case text copied'));
+            });
+
+        $list.find('.mark-submitted-btn')
+            .off('click')
+            .on('click', async function() {
+                const id = $(this).data('id');
+                const sc = prompt('Amazon case ID (optional):', '') || '';
+                try {
+                    await API.patchReimbursementClaim(id, { case_status: 'submitted', seller_central_case_id: sc });
+                    self.showToast('Marked as submitted');
+                    self.loadReimbursementClaims();
+                } catch (e) {
+                    alert((e && e.error) || 'Update failed');
+                }
+            });
+
+        $list.find('.download-photo-btn')
+            .off('click')
+            .on('click', function() {
                 downloadOne($(this).data('url'), $(this).data('name'));
             });
+    },
 
-            $(document).off('click', '.download-all-photos-btn').on('click', '.download-all-photos-btn', function() {
-                const $card = $(this).closest('.reimb-card');
-                const $buttons = $card.find('.download-photo-btn');
-                if (!$buttons.length) return;
-                $buttons.each(function(i) {
-                    const $btn = $(this);
-                    setTimeout(() => {
-                        downloadOne($btn.data('url'), $btn.data('name'));
-                    }, i * 250);
-                });
-            });
-
-            $(document).off('click', '.copy-claim-btn').on('click', '.copy-claim-btn', function() {
-                const text = $(this).data('claim') || '';
-                navigator.clipboard.writeText(text).then(() => {
-                    Dashboard.showToast('Claim details copied', 'success');
-                }).catch(() => { alert('Could not copy claim details.'); });
-            });
-        }).catch((err) => {
-            if (err && err.status === 401) {
-                API.navigateAwayOnUnauthorized();
+    async loadPrepSendback() {
+        const $list = $('#prep-sendback-list');
+        const $addr = $('#prep-sendback-address');
+        if (!$list.length) return;
+        try {
+            await this.ensureClientPreferences();
+            const data = await API.getPrepSendback();
+            const prefs = data.prep_address || {};
+            if ($addr.length) {
+                const lines = [
+                    prefs.prep_name,
+                    prefs.prep_address,
+                    prefs.prep_contact,
+                    prefs.prep_phone,
+                    prefs.prep_email,
+                ].filter(Boolean);
+                $addr.html(
+                    lines.length
+                        ? '<pre class="mb-0 small bg-light p-2 rounded">' + this.escHtml(lines.join('\n')) + '</pre>'
+                        : '<p class="text-warning small mb-0">Add prep centre details in <a href="settings.html">Settings</a> first.</p>'
+                );
+            }
+            const rows = data.requests || [];
+            if (!rows.length) {
+                $list.html('<p class="text-muted mb-0">No send-back requests yet.</p>');
                 return;
             }
-            $list.html('<div class="text-danger text-center py-4">Failed to load claims.</div>');
-        });
+            let html = '<div class="list-group list-group-flush">';
+            rows.forEach((r) => {
+                html +=
+                    '<div class="list-group-item px-0 py-3">' +
+                    '<div class="d-flex justify-content-between"><strong>' +
+                    this.escHtml(r.package_reference) +
+                    '</strong><span class="badge bg-secondary">' +
+                    this.escHtml(r.status) +
+                    '</span></div>' +
+                    '<p class="small mb-1">' +
+                    this.escHtml(r.item_description) +
+                    ' × ' +
+                    (r.quantity || 1) +
+                    '</p>' +
+                    '<small class="text-muted">' +
+                    (r.created_at ? RP_DATE.formatOrdinalEnGb(r.created_at) : '') +
+                    '</small></div>';
+            });
+            html += '</div>';
+            $list.html(html);
+        } catch (err) {
+            $list.html('<p class="text-danger">' + this.escHtml(err.error || 'Failed to load') + '</p>');
+        }
+        $('#prep-sendback-form')
+            .off('submit')
+            .on('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    await API.submitPrepSendback({
+                        package_reference: $('#prep-ref').val().trim(),
+                        item_description: $('#prep-item').val().trim(),
+                        quantity: $('#prep-qty').val(),
+                        notes: $('#prep-notes').val().trim(),
+                    });
+                    this.showToast('Request submitted');
+                    $('#prep-sendback-form')[0].reset();
+                    this.loadPrepSendback();
+                } catch (err2) {
+                    alert((err2 && err2.error) || 'Submit failed');
+                }
+            });
+    },
+
+    async loadScorecard() {
+        const $root = $('#scorecard-root');
+        if (!$root.length) return;
+        const period = $('#scorecard-period').val() || '';
+        $root.html('<div class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm"></span> Loading…</div>');
+        try {
+            const s = await API.getRecoveryScorecard(period || undefined);
+            if ($('#scorecard-period').children().length <= 1) {
+                const $sel = $('#scorecard-period');
+                $sel.empty();
+                (s.available_periods || []).forEach((p) => {
+                    $sel.append(
+                        '<option value="' +
+                            p.period +
+                            '"' +
+                            (p.period === s.period ? ' selected' : '') +
+                            '>' +
+                            p.period +
+                            ' · £' +
+                            Number(p.amount || 0).toFixed(2) +
+                            '</option>'
+                    );
+                });
+            }
+            const delta =
+                s.payout.delta_vs_prior_month != null
+                    ? (s.payout.delta_vs_prior_month >= 0 ? '+' : '') + '£' + Number(s.payout.delta_vs_prior_month).toFixed(2) + ' vs prior month'
+                    : '';
+            $root.html(
+                '<div class="row g-3">' +
+                '<div class="col-md-4"><div class="rp-card card border-0 p-3 h-100"><div class="small text-muted">Total recovered</div><div class="fs-3 fw-bold">£' +
+                Number(s.recovery.total_recovered).toFixed(2) +
+                '</div><div class="small">Resale £' +
+                Number(s.recovery.resale_profit).toFixed(2) +
+                ' · Reimb £' +
+                Number(s.recovery.reimbursement_recovered).toFixed(2) +
+                '</div></div></div>' +
+                '<div class="col-md-4"><div class="rp-card card border-0 p-3 h-100"><div class="small text-muted">Payout (' +
+                this.escHtml(s.period) +
+                ')</div><div class="fs-3 fw-bold">£' +
+                Number(s.payout.amount).toFixed(2) +
+                '</div><div class="small">' +
+                this.escHtml(s.payout.status) +
+                (delta ? ' · ' + delta : '') +
+                '</div></div></div>' +
+                '<div class="col-md-4"><div class="rp-card card border-0 p-3 h-100"><div class="small text-muted">Pipeline</div><div class="fs-5 fw-bold">' +
+                s.pipeline.items_processing +
+                ' processing</div><div class="small">' +
+                s.pipeline.reimbursement_claims_open +
+                ' open claims · ' +
+                s.pipeline.open_queries +
+                ' open queries</div></div></div>' +
+                '</div>'
+            );
+        } catch (err) {
+            $root.html('<p class="text-danger">' + this.escHtml(err.error || 'Failed to load scorecard') + '</p>');
+        }
+        $('#scorecard-period')
+            .off('change')
+            .on('change', () => this.loadScorecard());
     },
 
     _initRest() {
@@ -538,16 +768,14 @@ const Dashboard = {
             this.loadQueries();
         } else if (page.includes('exports')) {
             this.loadExportsHub();
+        } else if (page.includes('prep-sendback')) {
+            this.loadPrepSendback();
+        } else if (page.includes('scorecard')) {
+            this.loadScorecard();
         }
 
-        this.ensureDashboardSidebarNav();
-        this.injectAnnouncementsLink();
-        this.injectQueriesLink();
-        this.injectExportsLink();
-        this.injectReimbursementLink();
-        this.injectConnectAmazonLink();
-        this.highlightSidebarActive();
-        this.fetchAnnouncementsList().finally(() => this.updateNotificationDots());
+        this.ensureClientPreferences().catch(() => {});
+        this._initDashboardChrome();
 
         $('#activity-date-range').on('change', () => this.loadActivity());
         $('#invoices-date-range').on('change', () => this.loadInvoices());
@@ -566,11 +794,28 @@ const Dashboard = {
         $('#invoices-download-accountant').on('click', () => this.exportInvoicesForAccountant());
         $('#invoices-export-xero').on('click', (e) => { e.preventDefault(); this.exportInvoicesXero(); });
         $('#invoices-export-quickbooks').on('click', (e) => { e.preventDefault(); this.exportInvoicesQuickBooks(); });
+    },
 
-        // Inject topbar search/notifications/help on pages that don't have them
+    /** Shared nav, search, modals, and attention badges for all dashboard pages. */
+    _initDashboardChrome() {
+        this.loadDashboardNotifications();
+        this.ensureDashboardSidebarNav();
+        this.injectAnnouncementsLink();
+        this.injectQueriesLink();
+        this.injectExportsLink();
+        this.injectScorecardLink();
+        this.injectPrepSendbackLink();
+        this.injectReimbursementLink();
+        this.injectConnectAmazonLink();
+        this.highlightSidebarActive();
+        this.fetchAnnouncementsList()
+            .finally(() => {
+                this.updateNotificationDots();
+                this.refreshClientAttentionBadges();
+            });
+
         this.injectTopbarExtras();
         this.initGlobalSearch();
-        // Inject Refer a seller modal and sidebar link if missing
         this.injectReferModal();
         this.injectReferSidebarLink();
         this.injectReturnsSettingsLink();
@@ -579,42 +824,74 @@ const Dashboard = {
         this.initCommandPalette();
         this.injectFooter();
         this.initMonthlySnapshotButtons();
-        $(document).on('click', '#support-submit-btn', function() {
-            const regarding = $('#support-regarding').val() || 'general';
-            const ref = $('#support-reference').val().trim();
-            const msg = $('#support-message').val().trim();
-            if (!msg) return alert('Please enter a message.');
-            const subj = 'Support: ' + regarding + (ref ? ' – ' + ref : '');
-            const mailto = 'mailto:support@returnpal.co?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(msg);
-            const modal = bootstrap.Modal.getInstance(document.getElementById('supportModal'));
-            if (modal) modal.hide();
-            $('#support-reference, #support-message').val('');
-            window.location.href = mailto;
-        });
-        // Recovery-route alert: remove if previously dismissed so it never comes back
-        (function() {
+
+        if (!this._dashboardChromeBound) {
+            this._dashboardChromeBound = true;
+            $(document).on('click', 'a[href="login.html"], a[href="../login.html"], a[href="/login.html"]', function(e) {
+                if ($(this).text().trim() === 'Logout') {
+                    e.preventDefault();
+                    API.logout();
+                }
+            });
+            $(document).on('click', '#support-submit-btn', function() {
+                const regarding = $('#support-regarding').val() || 'general';
+                const ref = $('#support-reference').val().trim();
+                const msg = $('#support-message').val().trim();
+                if (!msg) return alert('Please enter a message.');
+                const subj = 'Support: ' + regarding + (ref ? ' – ' + ref : '');
+                const mailto =
+                    'mailto:support@returnpal.co?subject=' +
+                    encodeURIComponent(subj) +
+                    '&body=' +
+                    encodeURIComponent(msg);
+                const modal = bootstrap.Modal.getInstance(document.getElementById('supportModal'));
+                if (modal) modal.hide();
+                $('#support-reference, #support-message').val('');
+                window.location.href = mailto;
+            });
             if (localStorage.getItem('returnpal_dismissed_recovery_route_alert') === 'true') {
                 $('#dashboard-recovery-route-alert').remove();
             }
-        })();
-        $(document).on('click', '#dashboard-recovery-route-alert-dismiss', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            localStorage.setItem('returnpal_dismissed_recovery_route_alert', 'true');
-            $('#dashboard-recovery-route-alert').remove();
-        });
-
-        // Refer a friend: send invite (UI only; backend later)
-        $(document).on('click', '#refer-send-btn', function() {
-            const email = $('#refer-email').val().trim();
-            if (!email) return alert('Please enter their email.');
-            const msg = $('#refer-message').val().trim();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('referFriendModal'));
-            if (modal) modal.hide();
-            $('#refer-email').val('');
-            $('#refer-message').val('');
-            alert('Invite will be sent to ' + email + ' when the backend is connected.');
-        });
+            $(document).on('click', '#dashboard-recovery-route-alert-dismiss', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                localStorage.setItem('returnpal_dismissed_recovery_route_alert', 'true');
+                $('#dashboard-recovery-route-alert').remove();
+            });
+            $(document).on('click', '#refer-send-btn', async function() {
+                const email = $('#refer-email').val().trim();
+                if (!email) return alert('Please enter their email.');
+                const msg = $('#refer-message').val().trim();
+                let link = ($('#referral-link-input').val() || '').trim();
+                if (!link) {
+                    try {
+                        const d = await API.getReferrals();
+                        link = d.referral_link || '';
+                    } catch (e) { /* ignore */ }
+                }
+                const modal = bootstrap.Modal.getInstance(document.getElementById('referFriendModal'));
+                if (modal) modal.hide();
+                $('#refer-email').val('');
+                $('#refer-message').val('');
+                const body = (msg ? msg + '\n\n' : '') + (link ? 'Sign up with my ReturnPal referral link:\n' + link : 'Try ReturnPal for Amazon returns recovery.');
+                window.location.href =
+                    'mailto:' +
+                    encodeURIComponent(email) +
+                    '?subject=' +
+                    encodeURIComponent('ReturnPal referral') +
+                    '&body=' +
+                    encodeURIComponent(body);
+            });
+            $(document).on('show.bs.modal', '#referFriendModal', async function() {
+                const $inp = $('#referral-link-input');
+                if ($inp.length && !$inp.val()) {
+                    try {
+                        const d = await API.getReferrals();
+                        if (d.referral_link) $inp.val(d.referral_link);
+                    } catch (e) { /* ignore */ }
+                }
+            });
+        }
     },
 
     /** Pages like exports.html ship with an empty #navbar-nav; inject the standard menu. */
@@ -636,6 +913,8 @@ const Dashboard = {
             ['invoices.html', 'ri-receipt-line', 'Payouts & Invoices'],
             ['queries.html', 'ri-question-answer-line', 'My queries'],
             ['exports.html', 'ri-download-cloud-2-line', 'Exports hub'],
+            ['scorecard.html', 'ri-pie-chart-2-line', 'Recovery scorecard'],
+            ['prep-sendback.html', 'ri-truck-line', 'Prep send-back'],
             ['roi-report.html', 'ri-file-text-line', 'ROI Report'],
             ['reimbursement.html', 'ri-refund-line', 'Reimbursement / Claims'],
             ['referrals.html', 'ri-user-shared-line', 'Referrals'],
@@ -715,6 +994,26 @@ const Dashboard = {
             const $inv = $('#navbar-nav a[href="invoices.html"]').closest('li');
             if ($inv.length) $inv.after('<li class="nav-item"><a class="nav-link" href="exports.html"><span class="nav-icon"><i class="ri-download-cloud-2-line"></i></span><span class="nav-text">Exports hub</span></a></li>');
         }
+    },
+    injectScorecardLink() {
+        if ($('#navbar-nav a[href="scorecard.html"]').length) return;
+        const $exp = $('#navbar-nav a[href="exports.html"]').closest('li');
+        const $inv = $('#navbar-nav a[href="invoices.html"]').closest('li');
+        const $anchor = $exp.length ? $exp : $inv;
+        if (!$anchor.length) return;
+        $anchor.after(
+            '<li class="nav-item"><a class="nav-link" href="scorecard.html"><span class="nav-icon"><i class="ri-pie-chart-2-line"></i></span><span class="nav-text">Recovery scorecard</span></a></li>'
+        );
+    },
+    injectPrepSendbackLink() {
+        if ($('#navbar-nav a[href="prep-sendback.html"]').length) return;
+        const $sc = $('#navbar-nav a[href="scorecard.html"]').closest('li');
+        const $exp = $('#navbar-nav a[href="exports.html"]').closest('li');
+        const $anchor = $sc.length ? $sc : $exp;
+        if (!$anchor.length) return;
+        $anchor.after(
+            '<li class="nav-item"><a class="nav-link" href="prep-sendback.html"><span class="nav-icon"><i class="ri-truck-line"></i></span><span class="nav-text">Prep send-back</span></a></li>'
+        );
     },
     injectConnectAmazonLink() {
         if ($('#nav-link-connect-amazon').length) return;
@@ -2595,6 +2894,59 @@ const Dashboard = {
 
     // ─── PAYOUT FORECAST, SEARCH, QUERIES, EXPORTS, SNAPSHOT ───
     _announcementsCache: null,
+    _clientPrefsCache: null,
+
+    async ensureClientPreferences(force) {
+        if (!force && this._clientPrefsCache) return this._clientPrefsCache;
+        try {
+            const data = await API.getSettings();
+            this._clientPrefsCache = (data.settings && data.settings.preferences) || {};
+        } catch (e) {
+            this._clientPrefsCache = this._clientPrefsCache || {};
+        }
+        return this._clientPrefsCache;
+    },
+
+    getBillingDetailsForPrint() {
+        const p = this._clientPrefsCache || {};
+        const user = API.getUser() || {};
+        return {
+            name: (p.billing_name || user.full_name || '').trim(),
+            company: (p.billing_company || user.company_name || '').trim(),
+            address: (p.billing_address || '').trim(),
+            phone: (p.billing_phone || '').trim(),
+            vat_number: (p.vat_number || '').trim(),
+        };
+    },
+
+    async refreshClientAttentionBadges() {
+        const $queriesLink = $('#navbar-nav a[href="queries.html"]').first();
+        if (!$queriesLink.length) return;
+        try {
+            const data = await API.getQueries();
+            const list = data.queries || [];
+            const seenAt = localStorage.getItem('returnpal_queries_seen_at') || '';
+            const withReply = list.filter((q) => String(q.admin_reply || '').trim());
+            const unread = withReply.filter((q) => {
+                const replied = String(q.replied_at || q.created_at || '');
+                return !seenAt || (replied && replied > seenAt);
+            });
+            $queriesLink.find('.rp-nav-dot-queries').remove();
+            if (unread.length > 0) {
+                if (!$queriesLink.hasClass('position-relative')) $queriesLink.addClass('position-relative');
+                $queriesLink.append(
+                    '<span class="rp-nav-dot-queries position-absolute top-0 end-0 translate-middle badge rounded-pill bg-danger" style="font-size:9px;min-width:16px;">' +
+                        (unread.length > 9 ? '9+' : String(unread.length)) +
+                        '</span>'
+                );
+            }
+        } catch (e) { /* ignore */ }
+    },
+
+    markQueriesSeen() {
+        localStorage.setItem('returnpal_queries_seen_at', new Date().toISOString());
+        $('#navbar-nav a[href="queries.html"] .rp-nav-dot-queries').remove();
+    },
 
     async fetchAnnouncementsList(force) {
         if (!force && this._announcementsCache) return this._announcementsCache;
@@ -2646,9 +2998,33 @@ const Dashboard = {
                     (f.pipeline_pending_count !== 1 ? 's' : '') +
                     ' still processing in pipeline</div>';
             }
+            const schedule = (f.schedule || []).slice(0, 6);
+            if (schedule.length > 1) {
+                html += '<ul class="list-unstyled small mb-0 mt-2 border-top pt-2">';
+                schedule.forEach((row) => {
+                    const due = row.due_date ? RP_DATE.formatOrdinalEnGb(row.due_date) : '';
+                    html +=
+                        '<li class="d-flex justify-content-between py-1">' +
+                        '<span>' +
+                        this.escHtml(row.period_label || row.period || '') +
+                        '</span>' +
+                        '<span>£' +
+                        Number(row.amount || 0).toFixed(2) +
+                        ' <span class="text-muted">' +
+                        this.escHtml(row.status || '') +
+                        (due ? ' · ' + due : '') +
+                        '</span></span></li>';
+                });
+                html += '</ul>';
+            }
             $el.html(html);
         } catch (err) {
-            $el.html('<span class="text-danger small">' + this.escHtml(err.error || 'Could not load forecast') + '</span>');
+            $el.html(
+                '<span class="text-danger small">' +
+                    this.escHtml(err.error || 'Could not load forecast') +
+                    '</span> <button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="payout-forecast-retry">Try again</button>'
+            );
+            $el.find('#payout-forecast-retry').on('click', () => this.renderPayoutForecast($el));
         }
     },
 
@@ -2758,6 +3134,26 @@ const Dashboard = {
         try {
             const data = await API.getQueries();
             const list = data.queries || [];
+            const seenAt = localStorage.getItem('returnpal_queries_seen_at') || '';
+            const newReplies = list.filter(
+                (q) =>
+                    String(q.admin_reply || '').trim() &&
+                    (!seenAt || String(q.replied_at || '') > seenAt)
+            );
+            if (newReplies.length) {
+                const $banner = $('#queries-reply-banner');
+                if ($banner.length) {
+                    $banner
+                        .removeClass('d-none')
+                        .html(
+                            '<i class="ri-mail-check-line me-2"></i><strong>' +
+                                newReplies.length +
+                                ' new ' +
+                                (newReplies.length === 1 ? 'reply' : 'replies') +
+                                '</strong> from ReturnPal below.'
+                        );
+                }
+            }
             if (!list.length) {
                 $inbox.html('<p class="text-muted text-center py-5 mb-0">No queries yet. Use the form to ask about a pending item or package.</p>');
             } else {
@@ -2780,6 +3176,8 @@ const Dashboard = {
                 html += '</div>';
                 $inbox.html(html);
             }
+            this.markQueriesSeen();
+            this.refreshClientAttentionBadges();
         } catch (err) {
             $inbox.html('<p class="text-danger text-center py-4">' + this.escHtml(err.error || 'Failed to load queries') + '</p>');
         }
@@ -2814,6 +3212,7 @@ const Dashboard = {
         try {
             const data = await API.getExportsHub();
             const periods = data.periods || [];
+            window._exportsHubPeriods = periods;
             if ($period.length) {
                 $period.empty();
                 periods.forEach(function(p, i) {
@@ -2822,12 +3221,15 @@ const Dashboard = {
                 if (!periods.length) $period.append('<option value="">No completed periods yet</option>');
             }
             const cards = [
-                { title: 'Sold items CSV', desc: 'All sold lines for your records.', href: 'sold-items.html', action: 'export', id: 'exports-goto-sold' },
+                { title: 'Sold items CSV', desc: 'All sold lines for your records.', href: 'sold-items.html', action: 'link' },
                 { title: 'Payouts & invoices', desc: 'Print statement or invoice per month.', href: 'invoices.html', action: 'link' },
-                { title: 'Monthly snapshot', desc: 'One-page summary for a statement month.', action: 'snapshot' },
+                { title: 'Monthly snapshot', desc: 'One-page summary for the selected month.', action: 'snapshot' },
+                { title: 'Statement month CSV', desc: 'Download payout row for the selected month.', action: 'period-csv' },
+                { title: 'Print statement', desc: 'Full line-by-line statement for selected month.', action: 'period-statement' },
+                { title: 'Print invoice', desc: 'Consolidated invoice PDF for selected month.', action: 'period-invoice' },
                 { title: 'Analytics CSV', desc: 'Recovery over time from Analytics.', href: 'analytics.html', action: 'link' },
                 { title: 'ROI report', desc: 'Printable ROI summary.', href: 'roi-report.html', action: 'link' },
-                { title: 'Accountant pack', desc: 'VAT-friendly export from Invoices.', href: 'invoices.html', action: 'link' },
+                { title: 'All invoices CSV', desc: 'Every statement month in one spreadsheet.', href: 'invoices.html', action: 'link' },
             ];
             $grid.html(
                 cards
@@ -2840,26 +3242,67 @@ const Dashboard = {
                             Dashboard.escHtml(c.desc) +
                             '</p>' +
                             (c.action === 'snapshot'
-                                ? '<button type="button" class="btn btn-primary btn-sm" id="exports-snapshot-btn"><i class="ri-printer-line me-1"></i>Print snapshot</button>'
-                                : '<a href="' +
-                                  Dashboard.escHtml(c.href) +
-                                  '" class="btn btn-outline-primary btn-sm">' +
-                                  (c.action === 'export' ? 'Open & export' : 'Open') +
-                                  '</a>') +
+                                ? '<button type="button" class="btn btn-primary btn-sm exports-action-btn" data-action="snapshot"><i class="ri-printer-line me-1"></i>Print snapshot</button>'
+                                : c.action === 'period-csv'
+                                  ? '<button type="button" class="btn btn-outline-primary btn-sm exports-action-btn" data-action="period-csv"><i class="ri-download-2-line me-1"></i>Download CSV</button>'
+                                  : c.action === 'period-statement'
+                                    ? '<button type="button" class="btn btn-outline-primary btn-sm exports-action-btn" data-action="period-statement"><i class="ri-printer-line me-1"></i>Print statement</button>'
+                                    : c.action === 'period-invoice'
+                                      ? '<button type="button" class="btn btn-outline-primary btn-sm exports-action-btn" data-action="period-invoice"><i class="ri-printer-line me-1"></i>Print invoice</button>'
+                                      : '<a href="' +
+                                        Dashboard.escHtml(c.href) +
+                                        '" class="btn btn-outline-primary btn-sm">Open</a>') +
                             '</div></div></div>'
                         );
                     })
                     .join('')
             );
-            $('#exports-snapshot-btn')
+            $grid.find('.exports-action-btn')
                 .off('click')
                 .on('click', function() {
                     const p = $period.val();
-                    Dashboard.printMonthlySnapshot(p || undefined);
+                    if (!p) {
+                        Dashboard.showToast('Choose a statement month first', 'error');
+                        return;
+                    }
+                    const act = $(this).data('action');
+                    if (act === 'snapshot') Dashboard.printMonthlySnapshot(p);
+                    else if (act === 'period-csv') Dashboard.exportExportsHubPeriodCsv(p);
+                    else if (act === 'period-statement') Dashboard.downloadInvoiceMonth(p, 'statement');
+                    else if (act === 'period-invoice') Dashboard.downloadInvoiceMonth(p, 'invoice');
                 });
         } catch (err) {
-            $grid.html('<div class="col-12 text-danger">' + this.escHtml(err.error || 'Failed to load exports') + '</div>');
+            $grid.html(
+                '<div class="col-12 text-danger">' +
+                    this.escHtml(err.error || 'Failed to load exports') +
+                    ' <button type="button" class="btn btn-sm btn-outline-primary" id="exports-hub-retry">Try again</button></div>'
+            );
+            $('#exports-hub-retry').on('click', () => this.loadExportsHub());
         }
+    },
+
+    exportExportsHubPeriodCsv(period) {
+        const row = (window._exportsHubPeriods || []).find((p) => p.period === period);
+        if (!row) {
+            this.showToast('No data for that month', 'error');
+            return;
+        }
+        const csv =
+            'Sales month (YYYY-MM),Payout amount (£),Status,Due date\n' +
+            period +
+            ',' +
+            Number(row.amount || 0).toFixed(2) +
+            ',"' +
+            String(row.status || '').replace(/"/g, '""') +
+            '",' +
+            (row.due_date || '');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'returnpal-payout-' + period + '.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        this.showToast('Downloaded ' + period);
     },
 
     initReimbursementSubmit() {
@@ -2928,7 +3371,9 @@ const Dashboard = {
     },
 
     async saveClientPreferences() {
-        return API.updatePreferences(this.buildClientPreferencesFromForm());
+        const merged = await API.updatePreferences(this.buildClientPreferencesFromForm());
+        this._clientPrefsCache = (merged && merged.preferences) || this.buildClientPreferencesFromForm();
+        return merged;
     },
 
     // ─── ANNOUNCEMENTS ───────────────────────────────────────
@@ -3233,9 +3678,10 @@ const Dashboard = {
         URL.revokeObjectURL(a.href);
     },
 
-    exportInvoicesForAccountant() {
+    async exportInvoicesForAccountant() {
+        await this.ensureClientPreferences();
         const monthly = window._lastInvoicesData || [];
-        const vatNumber = localStorage.getItem('returnpal_vat_number') || '';
+        const vatNumber = this.getBillingDetailsForPrint().vat_number;
         let csv = 'ReturnPal - Invoice summary for accountant\n';
         csv += 'Exported: ' + this.formatDateIso(new Date()) + '\n';
         if (vatNumber) csv += 'VAT number: ' + vatNumber + '\n';
@@ -3328,6 +3774,7 @@ const Dashboard = {
      */
     async downloadInvoiceMonth(period, kind) {
         try {
+            await this.ensureClientPreferences();
             const docKind = kind === 'statement' ? 'statement' : 'invoice';
             const data = await API.getInvoiceDetail(period);
             const [y, m] = period.split('-').map(Number);
@@ -3364,7 +3811,8 @@ const Dashboard = {
                 sessionStorage.setItem('returnpal_statement_num_' + period, statementNum);
             }
 
-            const vatNumber = (localStorage.getItem('returnpal_vat_number') || '').trim();
+            const billing = this.getBillingDetailsForPrint();
+            const vatNumber = billing.vat_number;
             const isVatRegistered = !!(data.vat_registered);
             const lineItemsRaw = data.line_items || [];
             const subtotalNet = lineItemsRaw.reduce((s, i) => s + (Number(i.amount || 0) * (Number(i.quantity) || 1)), 0);
@@ -3399,10 +3847,10 @@ const Dashboard = {
                 fmtMoney(amountDue) +
                 '</td></tr>';
 
-            const billingName = localStorage.getItem('returnpal_billing_name') || '';
-            const billingCompany = localStorage.getItem('returnpal_billing_company') || '';
-            const billingAddress = (localStorage.getItem('returnpal_billing_address') || '').replace(/\n/g, '<br/>');
-            const billingPhone = localStorage.getItem('returnpal_billing_phone') || '';
+            const billingName = billing.name;
+            const billingCompany = billing.company;
+            const billingAddress = (billing.address || '').replace(/\n/g, '<br/>');
+            const billingPhone = billing.phone;
 
             const sender = 'JR Liquidations Limited<br/>Co. Reg. No.: 16355878<br/>Email: invoice@returnpal.co.uk<br/>Phone: +447774904697<br/>Website: returnpal.co.uk';
             const billTo = (billingName ? billingName + '<br/>' : '') + (billingCompany ? billingCompany + '<br/>' : '') + (billingAddress || '') + (billingPhone ? '<br/>' + billingPhone : '');
@@ -3553,12 +4001,33 @@ const Dashboard = {
             items.forEach(it => {
                 $list.append('<li class="list-group-item d-flex justify-content-between"><a href="item-detail.html?id=' + (it.id || '') + '">' + (it.title || it.reference) + '</a>' + this.statusBadge(it.status || '') + '</li>');
             });
-            const timeline = data.timeline || [];
+            const timeline = data.timeline || (data.journey && data.journey.events) || [];
             const $tl = $('#pkg-timeline');
             $tl.empty();
-            timeline.forEach(t => {
-                $tl.append('<div class="d-flex mb-2"><small class="text-muted me-2">' + (t.timestamp ? this.formatTimeAgo(t.timestamp) : '') + '</small><span>' + (t.message || '') + '</span></div>');
-            });
+            if (!timeline.length) {
+                $tl.html('<p class="text-muted small mb-0">No journey events yet.</p>');
+            } else {
+                timeline.forEach((t) => {
+                    const icon = t.icon || 'ri-circle-line';
+                    const msg = t.message || '';
+                    const label = t.stage ? String(t.stage).replace(/_/g, ' ') : '';
+                    const when = t.timestamp ? RP_DATE.formatOrdinalEnGb(t.timestamp) : '';
+                    $tl.append(
+                        '<div class="d-flex gap-2 mb-3 pb-2 border-bottom border-light-subtle">' +
+                        '<i class="' +
+                        icon +
+                        ' fs-5 text-primary mt-1"></i>' +
+                        '<div><div class="small fw-medium text-capitalize">' +
+                        (label || 'Update') +
+                        '</div>' +
+                        '<div class="small">' +
+                        msg +
+                        '</div>' +
+                        (when ? '<small class="text-muted">' + when + '</small>' : '') +
+                        '</div></div>'
+                    );
+                });
+            }
         } catch (err) {
             console.error('Load package detail error:', err);
             if ($card.length) this.showError($card, err.error || 'Unable to load package.', () => this.loadPackageDetail());
@@ -3677,6 +4146,7 @@ const Dashboard = {
                 API.updatePreferences(prefs).catch(() => {});
             }
             this.applyClientPreferencesToForm(prefs);
+            this._clientPrefsCache = prefs;
 
             const savePrefsClick = async function($btn, doneLabel, savingLabel) {
                 try {

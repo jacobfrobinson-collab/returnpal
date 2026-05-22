@@ -55,6 +55,15 @@ app.get('/dashboard/queries.html', (req, res) => {
 app.get('/dashboard/exports.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/dashboard/exports.html'));
 });
+app.get('/dashboard/prep-sendback.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/dashboard/prep-sendback.html'));
+});
+app.get('/dashboard/scorecard.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/dashboard/scorecard.html'));
+});
+app.get('/partner/embed.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/partner/embed.html'));
+});
 // Marketing site has no register.html; SPA fallback was serving index.html and dropping ?ref=
 app.get('/register.html', (req, res) => {
     const ref = req.query.ref;
@@ -133,6 +142,7 @@ app.use('/api/announcements', require('./routes/announcements'));
 app.use('/api/client', require('./routes/clientDashboard'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/reimbursement', require('./routes/reimbursement'));
+app.use('/api/partner', require('./routes/partner'));
 // ─── Health Check ────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
     res.json({

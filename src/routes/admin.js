@@ -412,19 +412,37 @@ router.put('/reimbursement-claims/:id', async (req, res) => {
             return res.status(400).json({ error: 'package_reference and item_description are required' });
         }
 
+        const { enrichClaimRow, normalizeCaseStatus, buildCaseText } = require('../utils/reimbursementCase');
+        const caseStatus =
+            req.body.case_status !== undefined ? normalizeCaseStatus(req.body.case_status) : cur.case_status || 'draft';
+        const expectedAmount =
+            req.body.expected_amount !== undefined ? Number(req.body.expected_amount) || 0 : Number(cur.expected_amount) || 0;
+        const recoveredAmount =
+            req.body.recovered_amount !== undefined ? Number(req.body.recovered_amount) || 0 : Number(cur.recovered_amount) || 0;
+        const scCase = req.body.seller_central_case_id !== undefined ? String(req.body.seller_central_case_id || '').trim() : cur.seller_central_case_id || '';
+        let submittedAt = cur.submitted_at || '';
+        let resolvedAt = cur.resolved_at || '';
+        if (caseStatus === 'submitted' && !submittedAt) submittedAt = new Date().toISOString();
+        if (['approved', 'partial', 'denied'].includes(caseStatus) && !resolvedAt) resolvedAt = new Date().toISOString();
+        const caseText = buildCaseText({ ...cur, package_reference: pkg, item_description: item, reimbursement_type: rtype, notes: note });
+
         if (orderUpd !== null) {
             db.run(
-                'UPDATE reimbursement_claims SET package_reference = ?, item_description = ?, reimbursement_type = ?, notes = ?, order_number = ? WHERE id = ?',
-                [pkg, item, rtype, note, orderUpd, claimId]
+                `UPDATE reimbursement_claims SET package_reference = ?, item_description = ?, reimbursement_type = ?, notes = ?, order_number = ?,
+                 case_status = ?, seller_central_case_id = ?, expected_amount = ?, recovered_amount = ?, submitted_at = ?, resolved_at = ?, case_text = ?
+                 WHERE id = ?`,
+                [pkg, item, rtype, note, orderUpd, caseStatus, scCase, expectedAmount, recoveredAmount, submittedAt, resolvedAt, caseText, claimId]
             );
         } else {
             db.run(
-                'UPDATE reimbursement_claims SET package_reference = ?, item_description = ?, reimbursement_type = ?, notes = ? WHERE id = ?',
-                [pkg, item, rtype, note, claimId]
+                `UPDATE reimbursement_claims SET package_reference = ?, item_description = ?, reimbursement_type = ?, notes = ?,
+                 case_status = ?, seller_central_case_id = ?, expected_amount = ?, recovered_amount = ?, submitted_at = ?, resolved_at = ?, case_text = ?
+                 WHERE id = ?`,
+                [pkg, item, rtype, note, caseStatus, scCase, expectedAmount, recoveredAmount, submittedAt, resolvedAt, caseText, claimId]
             );
         }
         saveDb();
-        const updated = parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0];
+        const updated = enrichClaimRow(parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0]);
         updated.photos = parseResults(db.exec('SELECT id, file_path FROM reimbursement_claim_photos WHERE claim_id = ?', [claimId]));
         res.json({ claim: updated });
     } catch (err) {
@@ -1049,6 +1067,38 @@ router.post('/announcements', async (req, res) => {
         res.status(201).json({ id, message: 'Announcement published' });
     } catch (err) {
         console.error('Admin create announcement error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/partners — create partner API key (shown once)
+router.post('/partners', async (req, res) => {
+    try {
+        const { hashApiKey } = require('../middleware/partnerAuth');
+        const crypto = require('crypto');
+        const name = String(req.body.name || '').trim();
+        const userIds = Array.isArray(req.body.user_ids) ? req.body.user_ids.map((x) => parseInt(x, 10)).filter(Number.isFinite) : [];
+        if (!name) return res.status(400).json({ error: 'Partner name is required' });
+        const apiKey = 'rp_' + crypto.randomBytes(24).toString('hex');
+        const db = await getDb();
+        db.run('INSERT INTO partner_integrations (name, api_key_hash, is_active) VALUES (?, ?, 1)', [
+            name,
+            hashApiKey(apiKey),
+        ]);
+        const partnerId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        for (const uid of userIds) {
+            db.run('INSERT OR IGNORE INTO partner_client_access (partner_id, user_id) VALUES (?, ?)', [partnerId, uid]);
+        }
+        saveDb();
+        res.status(201).json({
+            partner_id: partnerId,
+            name,
+            api_key: apiKey,
+            user_ids: userIds,
+            message: 'Store the API key now — it cannot be retrieved again.',
+        });
+    } catch (err) {
+        console.error('Create partner error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
