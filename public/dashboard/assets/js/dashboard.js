@@ -316,6 +316,8 @@ const Dashboard = {
     _initReimbursementPage() {
         if (API.getSessionToken()) {
             this.injectViewingAsBanner();
+        } else if (API.isDelegateViewing()) {
+            this.applyDelegateReadOnlyUI();
         }
         const user = API.getUser();
         this.updateUserIdentityUI(user);
@@ -398,8 +400,9 @@ const Dashboard = {
                 ? claims
                 : claims.filter((c) => (c.case_status || 'draft') === filter);
 
-        let filterHtml =
-            '<div class="d-flex flex-wrap gap-2 mb-3">' +
+        let filterHtml = API.isDelegateViewing()
+            ? ''
+            : '<div class="d-flex flex-wrap gap-2 mb-3">' +
             ['all', 'ready', 'submitted', 'approved', 'partial', 'denied'].map((f) => {
                 const label = f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1);
                 const active = filter === f ? ' active' : '';
@@ -486,11 +489,13 @@ const Dashboard = {
                     '<button type="button" class="btn btn-sm btn-primary copy-case-text-btn" data-id="' +
                     c.id +
                     '"><i class="ri-file-copy-line me-1"></i>Copy case text</button>' +
-                    '<button type="button" class="btn btn-sm btn-outline-primary mark-submitted-btn" data-id="' +
-                    c.id +
-                    '"' +
-                    (st === 'submitted' || st === 'approved' || st === 'partial' || st === 'denied' ? ' disabled' : '') +
-                    '>Mark submitted</button>' +
+                    (API.isDelegateViewing()
+                        ? ''
+                        : '<button type="button" class="btn btn-sm btn-outline-primary mark-submitted-btn" data-id="' +
+                          c.id +
+                          '"' +
+                          (st === 'submitted' || st === 'approved' || st === 'partial' || st === 'denied' ? ' disabled' : '') +
+                          '>Mark submitted</button>') +
                     '<a class="btn btn-sm btn-outline-success" href="' +
                     escHtml(c.seller_central_url || 'https://sellercentral.amazon.co.uk/help/hub/reference/G202130860') +
                     '" target="_blank" rel="noopener"><i class="ri-external-link-line me-1"></i>Seller Central</a>' +
@@ -686,6 +691,8 @@ const Dashboard = {
 
         if (API.getSessionToken()) {
             this.injectViewingAsBanner();
+        } else if (API.isDelegateViewing()) {
+            this.applyDelegateReadOnlyUI();
         }
 
         const user = API.getUser();
@@ -786,6 +793,7 @@ const Dashboard = {
 
         this.ensureClientPreferences().catch(() => {});
         this._initDashboardChrome();
+        if (API.isDelegateViewing()) this.applyDelegateReadOnlyUI();
 
         $('#activity-date-range').on('change', () => this.loadActivity());
         $('#invoices-date-range').on('change', () => this.loadInvoices());
@@ -1056,12 +1064,17 @@ const Dashboard = {
         const isDelegate = API.isDelegateViewing();
         const exitLabel = isDelegate ? 'Back to My clients' : 'Return to admin';
         const exitHref = isDelegate ? 'my-clients.html' : '/admin/index.html';
+        const readOnlyNote = isDelegate
+            ? ' <span class="text-muted">· Read-only (no add/edit/delete)</span>'
+            : '';
         const html =
             '<div id="rp-impersonation-banner" class="d-flex align-items-center justify-content-between px-3 py-2 bg-warning bg-opacity-25 border-bottom border-warning" style="position:sticky;top:0;z-index:1025;">' +
             '<span class="small"><strong>Viewing ' +
             (isDelegate ? 'client: ' : 'as ') +
             (name.replace(/</g, '&lt;')) +
-            '</strong></span>' +
+            '</strong>' +
+            readOnlyNote +
+            '</span>' +
             '<a href="' +
             exitHref +
             '" class="btn btn-sm btn-outline-dark rp-exit-view-as">' +
@@ -1076,6 +1089,63 @@ const Dashboard = {
             sessionStorage.removeItem('returnpal_delegate_viewing');
             API.clearSessionAuth();
             window.location.assign(isDelegate ? 'my-clients.html' : '/admin/index.html');
+        });
+        if (isDelegate) this.applyDelegateReadOnlyUI();
+    },
+
+    applyDelegateReadOnlyUI() {
+        if (!API.isDelegateViewing()) return;
+        document.body.classList.add('rp-delegate-readonly');
+
+        const hideSel = [
+            '#reimbursement-submit-card',
+            '#reimbursement-submit-form',
+            '#prep-sendback-form',
+            '#prep-sendback-address',
+            '#support-submit-btn',
+            '#queries-new-form',
+            '#query-submit-btn',
+            '#settings-password-form',
+            '#settings-prefs-form',
+            '#settings-prep-form',
+            '#settings-email-form',
+            '#returns-settings-save',
+            '#refer-invite-form',
+        ];
+        hideSel.forEach((sel) => {
+            const $el = $(sel);
+            if (!$el.length) return;
+            $el.closest('.rp-card, .card, form').addClass('d-none');
+            $el.addClass('d-none');
+        });
+
+        $('.mark-submitted-btn, .reimb-filter-btn, .rp-query-item-btn').addClass('d-none');
+        $('#reimbursement-list .reimb-actions .btn').not('.copy-case-text-btn').addClass('d-none');
+
+        $('button[type="submit"], input[type="submit"]')
+            .not('.rp-exit-view-as')
+            .prop('disabled', true)
+            .addClass('disabled');
+
+        $('form').each(function() {
+            const $f = $(this);
+            if ($f.closest('#commandPaletteModal').length) return;
+            $f.on('submit.rpDelegateReadonly', function(e) {
+                e.preventDefault();
+                Dashboard.showToast('Read-only — contact ReturnPal to make changes');
+                return false;
+            });
+        });
+
+        $(document).on('click.rpDelegateReadonly', 'a.btn-primary, button.btn-primary', function(e) {
+            if (!API.isDelegateViewing()) return;
+            const $t = $(this);
+            if ($t.closest('#rp-impersonation-banner, .main-nav, .topbar').length) return;
+            if ($t.hasClass('copy-case-text-btn') || $t.hasClass('hub-open-dashboard-btn')) return;
+            if ($t.attr('href') && $t.attr('href').indexOf('.html') >= 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            Dashboard.showToast('Read-only — contact ReturnPal to make changes');
         });
     },
 

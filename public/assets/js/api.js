@@ -131,6 +131,12 @@ const API = {
         window.location.assign(o + loginPath);
     },
 
+    /** True when session token is a hub prep-centre read-only client view. */
+    isDelegateReadOnlyToken() {
+        const payload = this._decodeJwtPayload(this.getSessionToken());
+        return payload != null && payload.delegate_hub_id != null;
+    },
+
     /** Decode JWT payload (no verify — for UI routing only). */
     _decodeJwtPayload(token) {
         try {
