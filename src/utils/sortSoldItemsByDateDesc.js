@@ -1,15 +1,11 @@
-const {
-    normalizeSoldDateForDb,
-    repairNovemberIsoMisimportForDisplay,
-    repairDecemberIsoMisimportForDisplay,
-} = require('./adminBulkImport');
+const { normalizeSoldDateForDb } = require('./adminBulkImport');
+const { stripSoldDateToIsoHead } = require('./soldDateDisplayRepair');
 
-/** Calendar sort key aligned with sold list display repairs (Nov/Dec mis-import). */
+/** Calendar sort key: ISO YYYY-MM-DD = year, month, day (no display swap). */
 function sortKeySoldDate(row) {
     const canon = normalizeSoldDateForDb(row.sold_date);
-    const raw = canon || String(row.sold_date || '').trim();
-    const chain = repairDecemberIsoMisimportForDisplay(repairNovemberIsoMisimportForDisplay(raw));
-    if (chain && /^\d{4}-\d{2}-\d{2}$/.test(String(chain))) return chain;
+    const head = canon || stripSoldDateToIsoHead(row.sold_date);
+    if (head && /^\d{4}-\d{2}-\d{2}$/.test(String(head))) return head;
     return canon || '0000-00-00';
 }
 

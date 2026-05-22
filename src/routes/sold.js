@@ -3,7 +3,8 @@ const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
-const { normalizeSoldDateForDb, repairNovemberIsoMisimportForDisplay, repairDecemberIsoMisimportForDisplay } = require('../utils/adminBulkImport');
+const { normalizeSoldDateForDb } = require('../utils/adminBulkImport');
+const { mapSoldItemDatesForApi } = require('../utils/soldDateDisplayRepair');
 const { sortSoldItemsByDateDesc } = require('../utils/sortSoldItemsByDateDesc');
 
 const router = express.Router();
@@ -104,14 +105,13 @@ router.get('/', authMiddleware, async (req, res) => {
             const w = promo.winner_by_item_id[String(row.id)];
             const ret = returnsBySold[String(row.id)] || 0;
             const profit = Number(row.profit) || 0;
-            const canon = normalizeSoldDateForDb(row.sold_date);
-            const rawDisp = canon || String(row.sold_date || '').trim();
-            const sold_date_display = repairDecemberIsoMisimportForDisplay(
-                repairNovemberIsoMisimportForDisplay(rawDisp)
-            );
+            const dates = mapSoldItemDatesForApi(row.sold_date, normalizeSoldDateForDb);
             return {
                 ...row,
-                sold_date_display: sold_date_display || row.sold_date,
+                sold_date_stored: dates.stored,
+                sold_date: dates.iso || row.sold_date,
+                sold_date_display: dates.iso || row.sold_date,
+                sold_date_label: dates.label,
                 is_monthly_free_processing: !!w,
                 monthly_free_processing_month: w ? w.year_month : null,
                 returns_deducted: ret,
@@ -121,6 +121,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
         const outItems = clientIsAdmin(req) ? itemsWithPromo : itemsWithPromo.map((row) => redactOrderNumberForClientRow(row));
         res.json({
+            sold_date_display_version: 'iso-calendar-2026-05f',
             items: outItems,
             stats,
             total: items.length,

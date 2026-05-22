@@ -836,37 +836,37 @@ const Dashboard = {
         return RP_DATE.formatIso(dateStr);
     },
 
-    /**
-     * Normalised YYYY-MM-DD for sold rows (API may send sold_date_display; optional window repair on client).
-     */
-    _soldDateRepairedIso(item) {
-        let iso = item.sold_date_display
-            ? RP_DATE.formatIso(item.sold_date_display)
-            : RP_DATE.formatIso(item.sold_date);
-        if (iso === '-') return '-';
-        if (String(typeof window !== 'undefined' ? window.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO : '').trim() !== '0') {
-            const mn = iso.match(/^(\d{4})-11-(\d{1,2})$/);
-            if (mn) {
-                const d = parseInt(mn[2], 10);
-                if (d >= 2 && d <= 11) iso = mn[1] + '-' + String(d).padStart(2, '0') + '-11';
-            }
+    /** Sold list date label: ISO YYYY-MM-DD → month from 2nd segment, day from 3rd (see RP_SOLD_ISO). */
+    soldDateDisplayValue(item) {
+        if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem) {
+            const lab = RP_SOLD_ISO.labelForSoldItem(item);
+            if (lab && lab !== '-') return lab;
         }
-        if (String(typeof window !== 'undefined' ? window.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO : '').trim() !== '0') {
-            const m = iso.match(/^(\d{4})-12-(0[2-9]|1[01])$/);
-            if (m) iso = m[1] + '-' + m[2] + '-12';
+        if (item.sold_date_label && String(item.sold_date_label).trim() !== '') {
+            return String(item.sold_date_label);
         }
-        return iso;
+        return this.formatDate(item.sold_date_stored || item.sold_date);
     },
 
-    soldDateDisplayValue(item) {
-        const iso = this._soldDateRepairedIso(item);
-        return iso === '-' ? this.formatDate(item.sold_date) : this.formatDate(iso);
+    _soldDateSortKey(item) {
+        if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.sortKeyForSoldItem) {
+            return RP_SOLD_ISO.sortKeyForSoldItem(item);
+        }
+        const raw =
+            item.sold_date_display != null && String(item.sold_date_display).trim() !== ''
+                ? item.sold_date_display
+                : item.sold_date;
+        const iso =
+            typeof RP_DATE !== 'undefined' && RP_DATE.stripSoldDateToIsoHead
+                ? RP_DATE.stripSoldDateToIsoHead(raw)
+                : String(raw || '').trim();
+        return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '0000-00-00';
     },
 
     /** Newest sold_date first (matches API sort); tie-break by id descending. */
     soldItemsSortRecentFirst(a, b) {
-        const ia = this._soldDateRepairedIso(a);
-        const ib = this._soldDateRepairedIso(b);
+        const ia = this._soldDateSortKey(a);
+        const ib = this._soldDateSortKey(b);
         const sa = ia && ia !== '-' ? ia : '0000-00-00';
         const sb = ib && ib !== '-' ? ib : '0000-00-00';
         if (sa !== sb) return sb.localeCompare(sa);
@@ -2849,7 +2849,7 @@ const Dashboard = {
             const ret = Number(item.returns_deducted != null ? item.returns_deducted : 0);
             const net = Number(item.net_after_returns != null ? item.net_after_returns : gross - ret);
             rows.push([
-                this.formatDateIso(this._soldDateRepairedIso(item)),
+                this.formatDateIso(this._soldDateSortKey(item)),
                 item.product || '',
                 String(item.quantity != null ? item.quantity : ''),
                 gross.toFixed(2),

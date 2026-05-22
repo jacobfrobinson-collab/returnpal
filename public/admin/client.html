@@ -446,7 +446,8 @@
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp11"></script>
-    <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
+    <script src="/assets/js/soldDateIsoDisplay.js?v=rp-sold-iso-foolproof-2026-05e"></script>
+    <script src="/assets/js/dateUk.js?v=rp-sold-iso-foolproof-2026-05e"></script>
     <script>
     $(function() {
         var ao = window.location.origin || '';
@@ -471,7 +472,15 @@
                 .catch(function(e) { $pre.text(e && e.error ? e.error : String(e)); });
         });
 
-        function fmtDate(s) { return s ? RP_DATE.formatOrdinalEnGb(s) : '-'; }
+        function fmtDateSold(s) {
+            if (!s) return '-';
+            if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem) {
+                var lab = RP_SOLD_ISO.labelForSoldItem(s);
+                if (lab && lab !== '-') return lab;
+            }
+            if (s.sold_date_label && String(s.sold_date_label).trim() !== '') return s.sold_date_label;
+            return RP_DATE.formatOrdinalEnGb(s.sold_date_stored != null ? s.sold_date_stored : s.sold_date);
+        }
 
         function escapeHtml(s) {
             if (s == null) return '';
@@ -849,7 +858,7 @@
                     var idStr = String(s.id);
                     var chk = selectedSoldIds.has(idStr) ? ' checked' : '';
                     $tr.append('<td class="text-center"><input type="checkbox" class="sold-select form-check-input m-0" data-id="' + s.id + '"' + chk + ' /></td>');
-                    $tr.append('<td>' + fmtDate(s.sold_date) + '</td><td class="text-muted small">' + escapeHtml(s.order_number || '') + '</td><td>' + escapeHtml(s.product || '') + '</td><td>' + escapeHtml(String(s.quantity != null ? s.quantity : '')) + '</td><td>£' + earn.toFixed(2) + '</td>');
+                    $tr.append('<td>' + fmtDateSold(s) + '</td><td class="text-muted small">' + escapeHtml(s.order_number || '') + '</td><td>' + escapeHtml(s.product || '') + '</td><td>' + escapeHtml(String(s.quantity != null ? s.quantity : '')) + '</td><td>£' + earn.toFixed(2) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
                     var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
@@ -860,7 +869,7 @@
                         $('#sale-product').val(s.product || '');
                         $('#sale-qty').val(s.quantity || 1);
                         $('#sale-earnings').val(earn.toFixed(2));
-                        $('#sale-sold-date').val(toDateInputVal(s.sold_date));
+                        $('#sale-sold-date').val(toDateInputVal(s.sold_date_stored != null ? s.sold_date_stored : s.sold_date));
                         $('#sale-order-number').val(s.order_number || '');
                         new bootstrap.Modal(document.getElementById('modal-record-sale')).show();
                     });
@@ -1496,8 +1505,16 @@
                 ['Sold date (YYYY-MM-DD)', 'Order #', 'Product', 'Quantity', 'Earnings', 'Reference'],
                 list.map(function(s) {
                     var earn = Number(s.profit != null ? s.profit : 0);
-                    var sd = RP_DATE.formatOrdinalEnGb(s.sold_date);
-                    if (sd === '-') sd = String(s.sold_date || '');
+                    var sd = s.sold_date_label && String(s.sold_date_label).trim() !== ''
+                        ? s.sold_date_label
+                        : (function() {
+                            var raw = s.sold_date_display != null && String(s.sold_date_display).trim() !== ''
+                                ? s.sold_date_display
+                                : (s.sold_date_stored != null ? s.sold_date_stored : s.sold_date);
+                            var sdIso = RP_DATE.repairSoldDateIsoForDisplay(raw);
+                            var out = sdIso && sdIso !== '-' ? RP_DATE.formatOrdinalEnGb(sdIso) : RP_DATE.formatOrdinalEnGb(raw);
+                            return out === '-' ? String(s.sold_date || '') : out;
+                        })();
                     return [sd, s.order_number || '', s.product || '', s.quantity != null ? s.quantity : '', earn.toFixed(2), s.reference || ''];
                 })
             );

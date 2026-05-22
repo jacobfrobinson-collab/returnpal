@@ -21,6 +21,8 @@ const { listPendingImportGroups, applyPendingRowsToUser } = require('../utils/bu
 const { logAdminAudit, listAdminAudit } = require('../utils/adminAudit');
 const { buildInvoiceMonthSourcesPayload } = require('../utils/invoiceMonthDebug');
 const { sortSoldItemsByDateDesc } = require('../utils/sortSoldItemsByDateDesc');
+const { normalizeSoldDateForDb } = require('../utils/adminBulkImport');
+const { mapSoldItemDatesForApi } = require('../utils/soldDateDisplayRepair');
 
 const router = express.Router();
 
@@ -238,6 +240,16 @@ router.get('/users/:id/sold', async (req, res) => {
             db.exec('SELECT * FROM sold_items WHERE user_id = ? ORDER BY id DESC', [userId])
         );
         items = sortSoldItemsByDateDesc(items);
+        items = items.map((row) => {
+            const dates = mapSoldItemDatesForApi(row.sold_date, normalizeSoldDateForDb);
+            return {
+                ...row,
+                sold_date_stored: dates.stored,
+                sold_date: dates.iso || row.sold_date,
+                sold_date_display: dates.iso || row.sold_date,
+                sold_date_label: dates.label,
+            };
+        });
         const statsResult = parseResults(
             db.exec(
                 'SELECT COALESCE(SUM(profit), 0) as total_earnings, COUNT(*) as items_sold, COALESCE(AVG(profit), 0) as avg_earnings, COALESCE(AVG(margin), 0) as avg_margin FROM sold_items WHERE user_id = ?',

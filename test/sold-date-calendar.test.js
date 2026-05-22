@@ -8,7 +8,25 @@ const assert = (cond, msg) => {
 };
 
 const { calendarYearMonthFromDbDate, calendarIsoDateFromDbDate } = require('../src/utils/soldDateCalendar');
-const { normalizeSoldDateForDb, repairNovemberIsoMisimportForDisplay, repairDecemberIsoMisimportForDisplay } = require('../src/utils/adminBulkImport');
+const { normalizeSoldDateForDb } = require('../src/utils/adminBulkImport');
+const {
+    repairAllMonthDaySwapIsoMisimportForDisplay,
+    repairNovemberIsoMisimportForDisplay,
+    repairDecemberIsoMisimportForDisplay,
+    mapSoldItemDatesForApi,
+} = require('../src/utils/soldDateDisplayRepair');
+
+function withAllMonthDaySwapRepair(on, fn) {
+    const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL');
+    const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL;
+    process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL = on ? '1' : '0';
+    try {
+        fn();
+    } finally {
+        if (had) process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL = prev;
+        else delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL;
+    }
+}
 
 function withNovemberRepair(on, fn) {
     const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO');
@@ -22,7 +40,6 @@ function withNovemberRepair(on, fn) {
     }
 }
 
-/** @param {string|undefined|null} order '' to clear to default DMY */
 function withDecemberRepair(on, fn) {
     const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO');
     const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO;
@@ -32,6 +49,18 @@ function withDecemberRepair(on, fn) {
     } finally {
         if (had) process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO = prev;
         else delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO;
+    }
+}
+
+function withSpringDayRepair(on, fn) {
+    const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_SPRING_DAY_ISO');
+    const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_SPRING_DAY_ISO;
+    process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_SPRING_DAY_ISO = on ? '1' : '0';
+    try {
+        fn();
+    } finally {
+        if (had) process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_SPRING_DAY_ISO = prev;
+        else delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_SPRING_DAY_ISO;
     }
 }
 
@@ -76,57 +105,74 @@ function run() {
     });
 
     assert(normalizeSoldDateForDb('2026-01-04') === '2026-01-04', 'Leading ISO YYYY-MM-DD unchanged (4 Jan)');
+    assert(normalizeSoldDateForDb('2026-02-05') === '2026-02-05', 'ISO 2026-02-05 = 5 February');
     withAmbiguousOrder('MDY', () => {
         assert(normalizeSoldDateForDb('2026-01-04') === '2026-01-04', 'Leading ISO not overridden by MDY');
     });
 
     {
-        const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO');
-        const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO;
-        delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO;
+        const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL');
+        const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL;
+        delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL;
         try {
+            const feb = mapSoldItemDatesForApi('2026-02-05', normalizeSoldDateForDb);
+            assert(feb.iso === '2026-02-05', 'API map: ISO unchanged');
+            assert(feb.label === 'February 5th 2026', 'API map: 2nd segment month, 3rd day');
             assert(
-                repairDecemberIsoMisimportForDisplay('2026-12-04') === '2026-04-12',
-                'Default (env unset): repair 12 Apr mis-stored as 2026-12-04'
+                repairAllMonthDaySwapIsoMisimportForDisplay('2026-02-05') === '2026-02-05',
+                'Default: no month/day swap on ISO (Feb 5 stays)'
             );
-            assert(repairDecemberIsoMisimportForDisplay('2026-12-12') === '2026-12-12', 'Dec 12 unchanged when repair default on');
+            assert(
+                repairAllMonthDaySwapIsoMisimportForDisplay('2026-10-04') === '2026-10-04',
+                'Default: Oct 4 ISO not swapped to April'
+            );
         } finally {
-            if (had) process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO = prev;
-            else delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_DECEMBER_ISO;
+            if (had) process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL = prev;
+            else delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL;
         }
     }
 
-    withDecemberRepair(false, () => {
-        assert(repairDecemberIsoMisimportForDisplay('2026-12-04') === '2026-12-04', 'December repair off leaves ISO as-is');
-    });
-    withDecemberRepair(true, () => {
-        assert(repairDecemberIsoMisimportForDisplay('2026-12-04') === '2026-04-12', 'December repair on: common mis-import');
-        assert(repairDecemberIsoMisimportForDisplay('2026-12-01') === '2026-12-01', 'Dec 1 not rewritten');
-    });
+    withAllMonthDaySwapRepair(true, () => {
+        withDecemberRepair(false, () => {
+            assert(repairDecemberIsoMisimportForDisplay('2026-12-04') === '2026-12-04', 'December repair off leaves ISO as-is');
+        });
+        withDecemberRepair(true, () => {
+            assert(repairDecemberIsoMisimportForDisplay('2026-12-04') === '2026-04-12', 'December repair on: common mis-import');
+            assert(repairDecemberIsoMisimportForDisplay('2026-12-01') === '2026-01-12', 'Dec 1 → 12 Jan when legacy repair on');
+        });
 
-    withNovemberRepair(false, () => {
-        assert(repairNovemberIsoMisimportForDisplay('2026-11-04') === '2026-11-04', 'November repair off leaves ISO as-is');
-    });
-    withNovemberRepair(true, () => {
-        assert(repairNovemberIsoMisimportForDisplay('2026-11-04') === '2026-04-11', 'November repair on: 11 Apr mis-stored as Nov 4');
-        assert(repairNovemberIsoMisimportForDisplay('2026-11-12') === '2026-11-12', 'Nov 12 unchanged');
-        assert(repairNovemberIsoMisimportForDisplay('2026-11-01') === '2026-11-01', 'Nov 1 not rewritten');
-    });
+        withNovemberRepair(false, () => {
+            assert(repairNovemberIsoMisimportForDisplay('2026-11-04') === '2026-11-04', 'November repair off leaves ISO as-is');
+        });
+        withNovemberRepair(true, () => {
+            assert(repairNovemberIsoMisimportForDisplay('2026-11-04') === '2026-04-11', 'November repair on: 11 Apr mis-stored as Nov 4');
+            assert(repairNovemberIsoMisimportForDisplay('2026-11-12') === '2026-11-12', 'Nov 12 unchanged');
+            assert(repairNovemberIsoMisimportForDisplay('2026-11-01') === '2026-01-11', 'Nov 1 → 11 Jan when legacy repair on');
+        });
 
-    {
-        const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO');
-        const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO;
-        delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO;
-        try {
+        assert(
+            repairAllMonthDaySwapIsoMisimportForDisplay('2026-10-04') === '2026-04-10',
+            'Legacy repair on: 10 Apr mis-stored as 2026-10-04'
+        );
+        assert(
+            repairAllMonthDaySwapIsoMisimportForDisplay('2026-10-04 00:00:00') === '2026-04-10',
+            'Legacy repair: datetime suffix stripped'
+        );
+
+        withSpringDayRepair(false, () => {
             assert(
-                repairNovemberIsoMisimportForDisplay('2026-11-04') === '2026-04-11',
-                'Default (env unset): repair 11 Apr mis-stored as 2026-11-04'
+                repairAllMonthDaySwapIsoMisimportForDisplay('2026-10-04') === '2026-10-04',
+                'Spring-day sub-flag off: October swap skipped'
             );
-        } finally {
-            if (had) process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO = prev;
-            else delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_NOVEMBER_ISO;
-        }
-    }
+        });
+    });
+
+    withAllMonthDaySwapRepair(false, () => {
+        assert(
+            repairAllMonthDaySwapIsoMisimportForDisplay('2026-10-04') === '2026-10-04',
+            'MONTH_DAY_SWAP_ALL not 1: no display swap'
+        );
+    });
 
     console.log('sold-date-calendar: all checks passed');
 }
