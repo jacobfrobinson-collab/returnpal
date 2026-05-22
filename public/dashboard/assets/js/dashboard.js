@@ -2932,18 +2932,70 @@ const Dashboard = {
             const lineItemsRaw = data.line_items || [];
             const subtotalNet = lineItemsRaw.reduce((s, i) => s + (Number(i.amount || 0) * (Number(i.quantity) || 1)), 0);
             const lineItemsForTable = rpConsolidateInvoiceLineItemsForPrint(lineItemsRaw);
-            const vatAmount = isVatRegistered ? Math.round(subtotalNet * 0.2 * 100) / 100 : 0;
             const summary = data.summary || {};
+            const refundsReturns = Number(summary.refunds_and_returns) || 0;
+            const feesDeducted = Number(summary.fees_deducted ?? data.fees) || 0;
+            const grossNet = Number(data.gross_net ?? summary.gross_net);
+            const vatAmount = isVatRegistered ? Math.round(feesDeducted * 0.2 * 100) / 100 : 0;
             let amountDue = Number(data.total);
             if (!Number.isFinite(amountDue)) {
                 amountDue = Number(summary.net_payout_estimate);
             }
             if (!Number.isFinite(amountDue)) {
-                const gross = Number(data.gross_net ?? summary.gross_net);
                 amountDue = isVatRegistered
-                    ? gross
-                    : Math.round((Number.isFinite(gross) ? gross : subtotalNet) * 0.8 * 100) / 100;
+                    ? grossNet
+                    : Math.round((Number.isFinite(grossNet) ? grossNet : subtotalNet) * 0.8 * 100) / 100;
             }
+            const withholding =
+                !isVatRegistered && Number.isFinite(grossNet) && grossNet > 0 && Number.isFinite(amountDue)
+                    ? Math.round((grossNet - amountDue) * 100) / 100
+                    : 0;
+            const colSpan = 4;
+            const fmtMoney = (n) => '£' + Math.abs(Number(n) || 0).toFixed(2);
+            let payoutTotalRows =
+                '<tr class="totals-row"><td colspan="' +
+                colSpan +
+                '" class="num">Sales share (line items)</td><td class="num">' +
+                fmtMoney(subtotalNet) +
+                '</td></tr>';
+            if (refundsReturns > 0.005) {
+                payoutTotalRows +=
+                    '<tr class="totals-row"><td colspan="' +
+                    colSpan +
+                    '" class="num">Less returns &amp; clawbacks</td><td class="num">−' +
+                    fmtMoney(refundsReturns) +
+                    '</td></tr>';
+            }
+            if (feesDeducted > 0.005) {
+                payoutTotalRows +=
+                    '<tr class="totals-row"><td colspan="' +
+                    colSpan +
+                    '" class="num">Less processing fees</td><td class="num">−' +
+                    fmtMoney(feesDeducted) +
+                    '</td></tr>';
+            }
+            if (isVatRegistered && vatAmount > 0.005) {
+                payoutTotalRows +=
+                    '<tr class="totals-row"><td colspan="' +
+                    colSpan +
+                    '" class="num">VAT 20% on processing fees</td><td class="num">' +
+                    fmtMoney(vatAmount) +
+                    '</td></tr>';
+            }
+            if (!isVatRegistered && withholding > 0.005) {
+                payoutTotalRows +=
+                    '<tr class="totals-row"><td colspan="' +
+                    colSpan +
+                    '" class="num">Less 20% (not VAT registered)</td><td class="num">−' +
+                    fmtMoney(withholding) +
+                    '</td></tr>';
+            }
+            payoutTotalRows +=
+                '<tr class="totals-row final"><td colspan="' +
+                colSpan +
+                '" class="num">Amount due (your payout)</td><td class="num">' +
+                fmtMoney(amountDue) +
+                '</td></tr>';
 
             const billingName = localStorage.getItem('returnpal_billing_name') || '';
             const billingCompany = localStorage.getItem('returnpal_billing_company') || '';
@@ -2962,8 +3014,7 @@ const Dashboard = {
                 const qty = Number(i.quantity) || 1;
                 const netPerUnit = Number(i.amount || 0);
                 const lineTotal = netPerUnit * qty;
-                const vatCol = isVatRegistered ? '<td class="num">20%</td>' : '';
-                return '<tr><td>' + escLite(i.description || '') + '</td><td class="num">' + qty + '</td><td>' + unitLabel + '</td><td class="num">£' + netPerUnit.toFixed(2) + '</td>' + vatCol + '<td class="num">£' + lineTotal.toFixed(2) + '</td></tr>';
+                return '<tr><td>' + escLite(i.description || '') + '</td><td class="num">' + qty + '</td><td>' + unitLabel + '</td><td class="num">£' + netPerUnit.toFixed(2) + '</td><td class="num">£' + lineTotal.toFixed(2) + '</td></tr>';
             }).join('');
 
             const stmt = data.statement_lines || [];
@@ -3027,18 +3078,15 @@ const Dashboard = {
                 '</div>' +
                 '<p class="period-note">Payout for period: <strong>' + periodDisplay + '</strong> (items sold and recovered). Quantities and amounts are consolidated by product title.</p>' +
                 '<table class="items-table">' +
-                '<thead><tr><th>Description</th><th class="num">Quantity</th><th>Unit</th><th class="num">Price</th>' + (isVatRegistered ? '<th class="num">VAT</th>' : '') + '<th class="num">Amount</th></tr></thead><tbody>' +
+                '<thead><tr><th>Description</th><th class="num">Quantity</th><th>Unit</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>' +
                 tableRows +
-                '<tr class="totals-row"><td colspan="' + (isVatRegistered ? 5 : 4) + '" class="num">Subtotal ' + (isVatRegistered ? '(ex. VAT)' : '') + '</td><td class="num">£' + subtotalNet.toFixed(2) + '</td></tr>' +
-                (isVatRegistered ? ('<tr class="totals-row"><td colspan="5" class="num">VAT 20%</td><td class="num">£' + vatAmount.toFixed(2) + '</td></tr>' +
-                '<tr class="totals-row"><td colspan="5" class="num">Invoice total (incl. VAT)</td><td class="num">£' + (subtotalNet + vatAmount).toFixed(2) + '</td></tr>') : '') +
-                '<tr class="totals-row final"><td colspan="' + (isVatRegistered ? 5 : 4) + '" class="num">Amount due (your payout)</td><td class="num">£' + amountDue.toFixed(2) + '</td></tr>' +
+                payoutTotalRows +
                 '</tbody></table>' +
                 '<div class="terms-box">' +
                 (isVatRegistered
                     ? (vatNumber
-                        ? '<p><strong>VAT registered.</strong> VAT No. ' + escLite(vatNumber) + '. No 20% withholding on your payout. VAT may be subject to reverse charge where applicable.</p>'
-                        : '<p><strong>VAT registered.</strong> No 20% withholding is applied to your payout. Add your VAT number in Settings if you want it shown on invoices.</p>')
+                        ? '<p><strong>VAT registered.</strong> VAT No. ' + escLite(vatNumber) + '. Your payout is sales share minus returns and processing fees; no 20% withholding. VAT line (if shown) is on ReturnPal fees only.</p>'
+                        : '<p><strong>VAT registered.</strong> Your payout is sales share minus returns and processing fees; no 20% withholding is applied.</p>')
                     : '<p>This is a non-VAT invoice. A 20% deduction has been applied as you are not VAT registered.</p>') +
                 '<p>For a line-by-line breakdown of each sale and return, use <strong>Statement (each line)</strong> from the payouts table.</p>' +
                 '<p>Payment is due by the date stated above. Thank you for selling with ReturnPal.</p>' +

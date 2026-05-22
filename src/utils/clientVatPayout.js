@@ -25,16 +25,16 @@ function clientPayoutFromGrossNet(grossNet, vatRegistered) {
     return net;
 }
 
-/** VAT column on invoices (20% of line subtotal when registered). */
-function invoiceVatOnSubtotal(subtotalNet, vatRegistered) {
-    const sub = Number(subtotalNet) || 0;
-    if (!isClientVatRegistered(vatRegistered) || sub <= 0) return 0;
-    return Math.round(sub * 0.2 * 100) / 100;
+/** VAT on ReturnPal processing fees (not on client sales share). */
+function invoiceVatOnFees(fees, vatRegistered) {
+    const f = Number(fees) || 0;
+    if (!isClientVatRegistered(vatRegistered) || f <= 0) return 0;
+    return Math.round(f * 0.2 * 100) / 100;
 }
 
 module.exports = {
     NON_VAT_CLIENT_PAYOUT_RATE,
     isClientVatRegistered,
     clientPayoutFromGrossNet,
-    invoiceVatOnSubtotal,
+    invoiceVatOnFees,
 };

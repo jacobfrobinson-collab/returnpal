@@ -9,7 +9,7 @@ const { calendarYearMonthFromDbDate } = require('./soldDateCalendar');
 const {
     isClientVatRegistered,
     clientPayoutFromGrossNet,
-    invoiceVatOnSubtotal,
+    invoiceVatOnFees,
 } = require('./clientVatPayout');
 
 function parseResults(result) {
@@ -260,7 +260,7 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
     const net_after_returns = Math.round((salesProfit - refundedProfit - adjustmentsApplied) * 100) / 100;
     const gross_net = Math.round((net_after_returns - fees) * 100) / 100;
     const total = clientPayoutFromGrossNet(gross_net, vatRegistered);
-    const vat_amount = invoiceVatOnSubtotal(subtotal, vatRegistered);
+    const vat_amount = invoiceVatOnFees(fees, vatRegistered);
 
     const issueStr = statementIssueDateStr(y, m);
     const dueStr = statementPayoutEndDateStr(y, m);
