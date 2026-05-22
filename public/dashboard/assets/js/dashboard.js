@@ -2933,67 +2933,32 @@ const Dashboard = {
             const subtotalNet = lineItemsRaw.reduce((s, i) => s + (Number(i.amount || 0) * (Number(i.quantity) || 1)), 0);
             const lineItemsForTable = rpConsolidateInvoiceLineItemsForPrint(lineItemsRaw);
             const summary = data.summary || {};
-            const refundsReturns = Number(summary.refunds_and_returns) || 0;
-            const feesDeducted = Number(summary.fees_deducted ?? data.fees) || 0;
-            const grossNet = Number(data.gross_net ?? summary.gross_net);
-            const vatAmount = isVatRegistered ? Math.round(feesDeducted * 0.2 * 100) / 100 : 0;
             let amountDue = Number(data.total);
             if (!Number.isFinite(amountDue)) {
                 amountDue = Number(summary.net_payout_estimate);
             }
             if (!Number.isFinite(amountDue)) {
+                const grossNet = Number(data.gross_net ?? summary.gross_net);
                 amountDue = isVatRegistered
                     ? grossNet
                     : Math.round((Number.isFinite(grossNet) ? grossNet : subtotalNet) * 0.8 * 100) / 100;
             }
-            const withholding =
-                !isVatRegistered && Number.isFinite(grossNet) && grossNet > 0 && Number.isFinite(amountDue)
-                    ? Math.round((grossNet - amountDue) * 100) / 100
-                    : 0;
             const colSpan = 4;
-            const fmtMoney = (n) => '£' + Math.abs(Number(n) || 0).toFixed(2);
+            const fmtMoney = (n) => {
+                const x = Number(n) || 0;
+                const neg = x < 0;
+                return (neg ? '−' : '') + '£' + Math.abs(x).toFixed(2);
+            };
+            const invoiceSubtotal = Math.round(subtotalNet * 100) / 100;
             let payoutTotalRows =
                 '<tr class="totals-row"><td colspan="' +
                 colSpan +
-                '" class="num">Sales share (line items)</td><td class="num">' +
-                fmtMoney(subtotalNet) +
-                '</td></tr>';
-            if (refundsReturns > 0.005) {
-                payoutTotalRows +=
-                    '<tr class="totals-row"><td colspan="' +
-                    colSpan +
-                    '" class="num">Less returns &amp; clawbacks</td><td class="num">−' +
-                    fmtMoney(refundsReturns) +
-                    '</td></tr>';
-            }
-            if (feesDeducted > 0.005) {
-                payoutTotalRows +=
-                    '<tr class="totals-row"><td colspan="' +
-                    colSpan +
-                    '" class="num">Less processing fees</td><td class="num">−' +
-                    fmtMoney(feesDeducted) +
-                    '</td></tr>';
-            }
-            if (isVatRegistered && vatAmount > 0.005) {
-                payoutTotalRows +=
-                    '<tr class="totals-row"><td colspan="' +
-                    colSpan +
-                    '" class="num">VAT 20% on processing fees</td><td class="num">' +
-                    fmtMoney(vatAmount) +
-                    '</td></tr>';
-            }
-            if (!isVatRegistered && withholding > 0.005) {
-                payoutTotalRows +=
-                    '<tr class="totals-row"><td colspan="' +
-                    colSpan +
-                    '" class="num">Less 20% (not VAT registered)</td><td class="num">−' +
-                    fmtMoney(withholding) +
-                    '</td></tr>';
-            }
-            payoutTotalRows +=
+                '" class="num">Subtotal</td><td class="num">' +
+                fmtMoney(invoiceSubtotal) +
+                '</td></tr>' +
                 '<tr class="totals-row final"><td colspan="' +
                 colSpan +
-                '" class="num">Amount due (your payout)</td><td class="num">' +
+                '" class="num">Amount due</td><td class="num">' +
                 fmtMoney(amountDue) +
                 '</td></tr>';
 
@@ -3014,7 +2979,9 @@ const Dashboard = {
                 const qty = Number(i.quantity) || 1;
                 const netPerUnit = Number(i.amount || 0);
                 const lineTotal = netPerUnit * qty;
-                return '<tr><td>' + escLite(i.description || '') + '</td><td class="num">' + qty + '</td><td>' + unitLabel + '</td><td class="num">£' + netPerUnit.toFixed(2) + '</td><td class="num">£' + lineTotal.toFixed(2) + '</td></tr>';
+                return (
+                    '<tr><td>' + escLite(i.description || '') + '</td><td class="num">' + qty + '</td><td>' + unitLabel + '</td><td class="num">' + fmtMoney(netPerUnit) + '</td><td class="num">' + fmtMoney(lineTotal) + '</td></tr>'
+                );
             }).join('');
 
             const stmt = data.statement_lines || [];
@@ -3085,9 +3052,9 @@ const Dashboard = {
                 '<div class="terms-box">' +
                 (isVatRegistered
                     ? (vatNumber
-                        ? '<p><strong>VAT registered.</strong> VAT No. ' + escLite(vatNumber) + '. Your payout is sales share minus returns and processing fees; no 20% withholding. VAT line (if shown) is on ReturnPal fees only.</p>'
-                        : '<p><strong>VAT registered.</strong> Your payout is sales share minus returns and processing fees; no 20% withholding is applied.</p>')
-                    : '<p>This is a non-VAT invoice. A 20% deduction has been applied as you are not VAT registered.</p>') +
+                        ? '<p><strong>VAT registered.</strong> VAT No. ' + escLite(vatNumber) + '. Amount due is your payout for this period (line items include returns as negative lines where applicable). No 20% withholding.</p>'
+                        : '<p><strong>VAT registered.</strong> Amount due is your payout for this period. No 20% withholding is applied.</p>')
+                    : '<p>Amount due is your payout for this period. A 20% deduction applies when you are not VAT registered (see Settings).</p>') +
                 '<p>For a line-by-line breakdown of each sale and return, use <strong>Statement (each line)</strong> from the payouts table.</p>' +
                 '<p>Payment is due by the date stated above. Thank you for selling with ReturnPal.</p>' +
                 '</div></div></body></html>';

@@ -9,7 +9,6 @@ const { calendarYearMonthFromDbDate } = require('./soldDateCalendar');
 const {
     isClientVatRegistered,
     clientPayoutFromGrossNet,
-    invoiceVatOnFees,
 } = require('./clientVatPayout');
 
 function parseResults(result) {
@@ -213,18 +212,35 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
             linked_sold_item_id: r.linked_sold_item_id
         }));
 
-    const line_items = items.map((i) => {
+    /** Invoice / payout lines: sales (positive), refunds and clawbacks (negative). No separate fee rows. */
+    const line_items = [];
+    items.forEach((i) => {
         const qty = Number(i.quantity) || 1;
-        const profitPerUnit = (Number(i.profit) || 0) / qty;
-        return {
-            description: i.description,
+        const lineProfit = Number(i.profit) || 0;
+        const isRefunded = i.status === 'Refunded';
+        const profitPerUnit = (isRefunded ? -Math.abs(lineProfit) : lineProfit) / qty;
+        line_items.push({
+            description: (i.description || 'Item') + (isRefunded ? ' (returned)' : ''),
             quantity: qty,
             unit_price: Number(i.unit_price) || 0,
             amount: profitPerUnit,
             status: i.status || 'Completed',
             sold_item_id: i.id,
             reference: i.reference || ''
-        };
+        });
+    });
+    returnRows.forEach((r) => {
+        const amt = Number(r.amount) || 0;
+        if (amt <= 0) return;
+        line_items.push({
+            description: (r.product || 'Item') + ' (return / clawback)',
+            quantity: 1,
+            unit_price: 0,
+            amount: -Math.abs(amt),
+            status: r.status || 'applied',
+            sold_item_id: r.linked_sold_item_id,
+            reference: r.reference || ''
+        });
     });
 
     const statement_lines = [];
@@ -256,11 +272,12 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
     const salesProfit = items.filter((i) => i.status !== 'Refunded').reduce((s, i) => s + (Number(i.profit) || 0), 0);
     const refundedProfit = items.filter((i) => i.status === 'Refunded').reduce((s, i) => s + (Number(i.profit) || 0), 0);
     const adjustmentsApplied = returnRows.filter((r) => r.status === 'applied').reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const subtotal = line_items.reduce((s, i) => s + i.amount * i.quantity, 0);
+    const subtotal = Math.round(line_items.reduce((s, i) => s + i.amount * i.quantity, 0) * 100) / 100;
     const net_after_returns = Math.round((salesProfit - refundedProfit - adjustmentsApplied) * 100) / 100;
-    const gross_net = Math.round((net_after_returns - fees) * 100) / 100;
+    /** Client payout: sales/returns only (fees already reflected in per-line profit). */
+    const gross_net = Math.round(net_after_returns * 100) / 100;
     const total = clientPayoutFromGrossNet(gross_net, vatRegistered);
-    const vat_amount = invoiceVatOnFees(fees, vatRegistered);
+    const vat_amount = 0;
 
     const issueStr = statementIssueDateStr(y, m);
     const dueStr = statementPayoutEndDateStr(y, m);
