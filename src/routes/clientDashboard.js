@@ -102,10 +102,10 @@ router.get('/search', authMiddleware, async (req, res) => {
         );
         const pending = parseResults(
             db.exec(
-                `SELECT id, description, reference, stage, order_number FROM pending_items
-                 WHERE user_id = ? AND (description LIKE ? OR reference LIKE ? OR order_number LIKE ?)
+                `SELECT id, product, reference, current_stage, order_number FROM pending_items
+                 WHERE user_id = ? AND (product LIKE ? OR reference LIKE ? OR order_number LIKE ? OR notes LIKE ?)
                  ORDER BY id DESC LIMIT ?`,
-                [uid, like, like, like, limit]
+                [uid, like, like, like, like, limit]
             )
         );
 
@@ -144,8 +144,8 @@ router.get('/search', authMiddleware, async (req, res) => {
             results.push({
                 type: 'pending',
                 id: r.id,
-                title: String(r.description || r.reference || '').slice(0, 80),
-                subtitle: r.stage || 'Pending',
+                title: String(r.product || r.reference || '').slice(0, 80),
+                subtitle: r.current_stage || 'Pending',
                 href: '/dashboard/item-pending.html',
             });
         });

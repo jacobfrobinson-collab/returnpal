@@ -2638,8 +2638,13 @@ const Dashboard = {
             if (f.unpaid_count > 0) {
                 html += '<div class="small mt-2">' + f.unpaid_count + ' pending statement' + (f.unpaid_count !== 1 ? 's' : '') + ' · £' + Number(f.unpaid_total || 0).toFixed(2) + ' total</div>';
             }
-            if (f.pipeline_pending_profit > 0) {
-                html += '<div class="small text-muted mt-1">~£' + Number(f.pipeline_pending_profit).toFixed(2) + ' profit in pipeline (items still processing)</div>';
+            if (f.pipeline_pending_count > 0) {
+                html +=
+                    '<div class="small text-muted mt-1">' +
+                    f.pipeline_pending_count +
+                    ' item' +
+                    (f.pipeline_pending_count !== 1 ? 's' : '') +
+                    ' still processing in pipeline</div>';
             }
             $el.html(html);
         } catch (err) {

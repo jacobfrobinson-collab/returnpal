@@ -42,13 +42,10 @@ function getPayoutForecast(db, userId) {
             ? pending.sort((a, b) => String(a.due_date || '').localeCompare(String(b.due_date || '')))[0]
             : null;
 
-    const pendingProfit = parseResults(
-        db.exec(
-            `SELECT COALESCE(SUM(profit), 0) AS s FROM pending_items WHERE user_id = ?`,
-            [userId]
-        )
+    const pendingPipeline = parseResults(
+        db.exec('SELECT COUNT(*) AS c FROM pending_items WHERE user_id = ?', [userId])
     );
-    const pipelineHint = Math.round((Number(pendingProfit[0]?.s) || 0) * 100) / 100;
+    const pipelinePendingCount = Number(pendingPipeline[0]?.c) || 0;
 
     return {
         vat_registered: vatRegistered,
@@ -63,7 +60,8 @@ function getPayoutForecast(db, userId) {
             : null,
         unpaid_total: Math.round(pending.reduce((s, i) => s + (Number(i.amount) || 0), 0) * 100) / 100,
         unpaid_count: pending.length,
-        pipeline_pending_profit: pipelineHint,
+        pipeline_pending_count: pipelinePendingCount,
+        pipeline_pending_profit: 0,
         schedule,
     };
 }
