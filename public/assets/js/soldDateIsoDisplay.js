@@ -84,9 +84,8 @@
      */
     function labelForSoldItem(item) {
         if (!item) return '-';
-        const preset = item.sold_date_label != null ? String(item.sold_date_label).trim() : '';
-        if (preset) return preset;
-        const fields = [item.sold_date_display, item.sold_date, item.sold_date_stored];
+        // Always derive from stored ISO (sold_date_stored = raw DB); never trust API sold_date_label alone.
+        const fields = [item.sold_date_stored, item.sold_date, item.sold_date_display];
         for (let i = 0; i < fields.length; i++) {
             const lab = isoYmdToOrdinalLabel(fields[i]);
             if (lab) return lab;
@@ -100,7 +99,7 @@
      */
     function sortKeyForSoldItem(item) {
         if (!item) return '0000-00-00';
-        const fields = [item.sold_date_display, item.sold_date, item.sold_date_stored];
+        const fields = [item.sold_date_stored, item.sold_date, item.sold_date_display];
         for (let i = 0; i < fields.length; i++) {
             const k = toSortKey(fields[i]);
             if (k) return k;

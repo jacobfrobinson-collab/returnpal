@@ -836,16 +836,34 @@ const Dashboard = {
         return RP_DATE.formatIso(dateStr);
     },
 
-    /** Sold list date label: ISO YYYY-MM-DD → month from 2nd segment, day from 3rd (see RP_SOLD_ISO). */
+    /** Sold list date: always from stored ISO + jan-day repair (RP_SOLD_ISO); ignores stale API labels. */
     soldDateDisplayValue(item) {
         if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem) {
             const lab = RP_SOLD_ISO.labelForSoldItem(item);
             if (lab && lab !== '-') return lab;
         }
-        if (item.sold_date_label && String(item.sold_date_label).trim() !== '') {
-            return String(item.sold_date_label);
-        }
         return this.formatDate(item.sold_date_stored || item.sold_date);
+    },
+
+    /** Re-apply display labels on sold rows after API (client-side; works even if API omits repair). */
+    relabelSoldItemsForDisplay(items) {
+        if (!Array.isArray(items)) return items;
+        return items.map((row) => {
+            const label =
+                typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem
+                    ? RP_SOLD_ISO.labelForSoldItem(row)
+                    : '';
+            const iso =
+                typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.sortKeyForSoldItem
+                    ? RP_SOLD_ISO.sortKeyForSoldItem(row)
+                    : '';
+            return {
+                ...row,
+                sold_date_label: label && label !== '-' ? label : row.sold_date_label,
+                sold_date_display: iso || row.sold_date_display,
+                sold_date: iso || row.sold_date,
+            };
+        });
     },
 
     _soldDateSortKey(item) {
@@ -1901,6 +1919,7 @@ const Dashboard = {
         if ($tbody.length) $tbody.html('<tr><td colspan="6" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getSold();
+            if (data && data.items) data.items = this.relabelSoldItemsForDisplay(data.items);
 
             const esc = (s) => String(s == null ? '' : s)
                 .replace(/&/g, '&amp;')

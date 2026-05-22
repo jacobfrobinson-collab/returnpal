@@ -82,7 +82,7 @@ function main() {
         }
 
         console.log('\n--- After deploy + refresh, under the sold table:');
-        console.log('    "Sold dates: iso-calendar-jan-day-2026-05g — 2026-11-01 in DB shows as January 11th 2026"');
+        console.log('    "Sold dates: iso-calendar-jan-day-2026-05h — 2026-11-01 in DB shows as January 11th 2026"');
     });
 }
 

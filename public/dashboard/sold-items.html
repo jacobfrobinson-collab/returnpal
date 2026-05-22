@@ -334,14 +334,14 @@
         <script src="assets/js/app.js"></script>
         <!-- Custom Js -->
         <script src="/assets/js/api.js?v=rp-api-2026"></script>
-        <script src="/assets/js/soldDateIsoDisplay.js?v=rp-sold-iso-jan-day-2026-05g"></script>
-        <script src="/assets/js/dateUk.js?v=rp-sold-iso-jan-day-2026-05g"></script>
+        <script src="/assets/js/soldDateIsoDisplay.js?v=rp-sold-iso-jan-day-2026-05h"></script>
+        <script src="/assets/js/dateUk.js?v=rp-sold-iso-jan-day-2026-05h"></script>
         <script src="assets/js/custom.js"></script>
-        <script src="assets/js/dashboard.js?v=rp-sold-iso-jan-day-2026-05g"></script>
+        <script src="assets/js/dashboard.js?v=rp-sold-iso-jan-day-2026-05h"></script>
         <!-- Inline date display (part of this HTML file — cannot be cached separately) -->
         <script>
         (function () {
-            var BUILD = 'iso-calendar-jan-day-2026-05g';
+            var BUILD = 'iso-calendar-jan-day-2026-05h';
             var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
             function ord(n) {
                 if (n >= 11 && n <= 13) return n + 'th';
@@ -372,16 +372,14 @@
             function patchDashboard() {
                 if (!window.Dashboard) return false;
                 Dashboard.soldDateDisplayValue = function (item) {
-                    if (item && item.sold_date_label && String(item.sold_date_label).trim()) {
-                        return String(item.sold_date_label);
-                    }
-                    var lab = labelFromIso(item && (item.sold_date_display || item.sold_date || item.sold_date_stored));
+                    var lab = labelFromIso(item && (item.sold_date_stored || item.sold_date || item.sold_date_display));
                     return lab || '-';
                 };
                 Dashboard._soldDateSortKey = function (item) {
-                    var s = String(item && (item.sold_date_display || item.sold_date || '') || '').trim();
+                    var s = String(item && (item.sold_date_stored || item.sold_date || item.sold_date_display || '') || '').trim();
                     var t = s.indexOf('T');
                     if (t !== -1) s = s.slice(0, t);
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s = repairJanIso(s);
                     return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '0000-00-00';
                 };
                 var el = document.getElementById('rp-sold-date-build');
