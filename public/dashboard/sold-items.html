@@ -334,14 +334,14 @@
         <script src="assets/js/app.js"></script>
         <!-- Custom Js -->
         <script src="/assets/js/api.js?v=rp-api-2026"></script>
-        <script src="/assets/js/soldDateIsoDisplay.js?v=rp-sold-iso-foolproof-2026-05e"></script>
-        <script src="/assets/js/dateUk.js?v=rp-sold-iso-foolproof-2026-05e"></script>
+        <script src="/assets/js/soldDateIsoDisplay.js?v=rp-sold-iso-jan-day-2026-05g"></script>
+        <script src="/assets/js/dateUk.js?v=rp-sold-iso-jan-day-2026-05g"></script>
         <script src="assets/js/custom.js"></script>
-        <script src="assets/js/dashboard.js?v=rp-sold-iso-foolproof-2026-05f"></script>
+        <script src="assets/js/dashboard.js?v=rp-sold-iso-jan-day-2026-05g"></script>
         <!-- Inline date display (part of this HTML file — cannot be cached separately) -->
         <script>
         (function () {
-            var BUILD = 'iso-calendar-2026-05f';
+            var BUILD = 'iso-calendar-jan-day-2026-05g';
             var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
             function ord(n) {
                 if (n >= 11 && n <= 13) return n + 'th';
@@ -351,11 +351,17 @@
                 if (j === 3) return n + 'rd';
                 return n + 'th';
             }
+            function repairJanIso(s) {
+                var m = s.match(/^(\d{4})-(\d{2})-01$/);
+                if (m && m[2] !== '01') return m[1] + '-01-' + m[2];
+                return s;
+            }
             function labelFromIso(v) {
                 var s = String(v == null ? '' : v).trim();
                 var t = s.indexOf('T');
                 if (t !== -1) s = s.slice(0, t);
                 else if (/^\d{4}-\d{2}-\d{2}\s/.test(s)) s = s.slice(0, 10);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s = repairJanIso(s);
                 var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
                 if (!m) return null;
                 var mo = parseInt(m[2], 10);
@@ -379,7 +385,7 @@
                     return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '0000-00-00';
                 };
                 var el = document.getElementById('rp-sold-date-build');
-                if (el) el.textContent = 'Sold dates: ISO calendar (' + BUILD + ') — 2026-02-05 shows as February 5th 2026';
+                if (el) el.textContent = 'Sold dates: ' + BUILD + ' — 2026-11-01 in DB shows as January 11th 2026';
                 return true;
             }
             function boot() {

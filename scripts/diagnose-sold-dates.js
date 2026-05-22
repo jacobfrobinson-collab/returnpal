@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const initSqlJs = require('sql.js');
 const { normalizeSoldDateForDb } = require('../src/utils/adminBulkImport');
-const { mapSoldItemDatesForApi } = require('../src/utils/soldDateDisplayRepair');
+const { mapSoldItemDatesForApi, resolveSoldDateIsoForDisplay } = require('../src/utils/soldDateDisplayRepair');
 
 const DB_PATH = path.resolve(process.env.DB_PATH || './data/returnpal.db');
 const fixGot = process.argv.includes('--fix-got');
@@ -73,28 +73,28 @@ function main() {
             console.log('\nUpdated', n, 'row(s) to sold_date = 2026-02-05');
             console.log('Restart the server, then hard-refresh Sold Items (Ctrl+Shift+R).');
         } else if (matched.length) {
-            const raw = String(matched[0].sold_date || '');
-            const m = mapSoldItemDatesForApi(raw, normalizeSoldDateForDb);
-            if (m.label === 'November 1st 2026' || raw === '2026-11-01') {
-                console.log('\n>>> Your database has NOVEMBER stored, not February.');
-                console.log('>>> To fix Game of Thrones (and matching titles) to 5 Feb 2026, run:');
-                console.log('    npm run fix:sold-dates-got');
-            } else if (raw === '2026-02-05' || m.label === 'February 5th 2026') {
-                console.log('\n>>> Database is correct (February). Restart server + hard refresh the Sold Items page.');
+            const m = mapSoldItemDatesForApi(matched[0].sold_date, normalizeSoldDateForDb);
+            if (String(matched[0].sold_date) === '2026-11-01' && m.label !== 'January 11th 2026') {
+                console.log('\n>>> Deploy latest code from GitHub (jan-day repair). After deploy, 2026-11-01 → January 11th 2026.');
+            } else if (m.label === 'January 11th 2026') {
+                console.log('\n>>> Display repair OK for 11 Jan (DB still 2026-11-01). Hard-refresh Sold Items after deploy.');
             }
         }
 
-        console.log('\n--- After refresh, under the sold table you should see green text:');
-        console.log('    "Sold dates: ISO calendar (iso-calendar-2026-05f)"');
-        console.log('If you do NOT see that line, the server is still serving an old sold-items.html.');
+        console.log('\n--- After deploy + refresh, under the sold table:');
+        console.log('    "Sold dates: iso-calendar-jan-day-2026-05g — 2026-11-01 in DB shows as January 11th 2026"');
     });
 }
 
 function printRow(r) {
     const m = mapSoldItemDatesForApi(r.sold_date, normalizeSoldDateForDb);
+    const rawIso = normalizeSoldDateForDb(r.sold_date) || String(r.sold_date || '').trim();
     console.log('id:', r.id);
     console.log('  product:', String(r.product || '').slice(0, 70));
     console.log('  sold_date in DB:', r.sold_date);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawIso) && resolveSoldDateIsoForDisplay(rawIso) !== rawIso) {
+        console.log('  display ISO (repaired):', resolveSoldDateIsoForDisplay(rawIso));
+    }
     console.log('  site should show:', m.label || '(not a recognised ISO date)');
     console.log('');
 }

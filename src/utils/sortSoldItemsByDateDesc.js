@@ -1,11 +1,11 @@
 const { normalizeSoldDateForDb } = require('./adminBulkImport');
-const { stripSoldDateToIsoHead } = require('./soldDateDisplayRepair');
+const { stripSoldDateToIsoHead, resolveSoldDateIsoForDisplay } = require('./soldDateDisplayRepair');
 
-/** Calendar sort key: ISO YYYY-MM-DD = year, month, day (no display swap). */
+/** Calendar sort key (same display repairs as sold list). */
 function sortKeySoldDate(row) {
     const canon = normalizeSoldDateForDb(row.sold_date);
     const head = canon || stripSoldDateToIsoHead(row.sold_date);
-    if (head && /^\d{4}-\d{2}-\d{2}$/.test(String(head))) return head;
+    if (head && /^\d{4}-\d{2}-\d{2}$/.test(String(head))) return resolveSoldDateIsoForDisplay(head);
     return canon || '0000-00-00';
 }
 

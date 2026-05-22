@@ -4,7 +4,11 @@
  * Stored/API ISO dates YYYY-MM-DD are always calendar year → month (2nd segment) → day (3rd segment).
  * E.g. 2026-02-05 → February 5th 2026. No month/day swap on ISO (that was breaking correct rows).
  *
- * Legacy month/day swap repair is opt-in only: RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL=1
+ * UK day-in-month mis-import on day 1: 11 Jan stored as 2026-11-01 → display 2026-01-11 (January 11th).
+ * On by default. Disable with RETURNPAL_SOLD_DISPLAY_REPAIR_JAN_DAY_ISO=0.
+ *
+ * Full month/day swap (2026-10-04 → April 10, etc.) is opt-in only:
+ * RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL=1
  */
 
 const MONTH_NAMES = [
@@ -36,6 +40,33 @@ function stripSoldDateToIsoHead(v) {
 
 function monthDaySwapRepairEnabled() {
     return String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL || '').trim() === '1';
+}
+
+function janDayRepairEnabled() {
+    return String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_JAN_DAY_ISO || '').trim() !== '0';
+}
+
+/**
+ * UK 11/01/2026 (11 Jan) mis-read as US 01/11 → stored 2026-11-01. Rewrite YYYY-MM-01 → YYYY-01-MM (M≠1).
+ * @param {unknown} iso
+ */
+function repairIsoFirstOfMonthToJanuary(iso) {
+    if (!janDayRepairEnabled()) return stripSoldDateToIsoHead(iso) || iso;
+    const s = stripSoldDateToIsoHead(iso);
+    const m = s.match(/^(\d{4})-(\d{2})-01$/);
+    if (!m) return s;
+    const mo = parseInt(m[2], 10);
+    if (mo === 1) return s;
+    return m[1] + '-01-' + m[2];
+}
+
+/** Canonical display/sort ISO: jan-day repair, then optional legacy month/day swap. */
+function resolveSoldDateIsoForDisplay(iso) {
+    let s = stripSoldDateToIsoHead(iso);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    s = repairIsoFirstOfMonthToJanuary(s);
+    if (monthDaySwapRepairEnabled()) s = repairAllMonthDaySwapIsoMisimportForDisplay(s);
+    return s;
 }
 
 function repairEnvOff(name) {
@@ -121,7 +152,8 @@ function mapSoldItemDatesForApi(rawSoldDate, normalizeSoldDateForDb) {
         if (/^\d{4}-\d{2}-\d{2}$/.test(head)) iso = head;
         else if (/^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(head)) iso = normalizeSoldDateForDb(head);
     }
-    const isoFinal = iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : stripSoldDateToIsoHead(rawSoldDate);
+    let isoFinal = iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : stripSoldDateToIsoHead(rawSoldDate);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(isoFinal))) isoFinal = resolveSoldDateIsoForDisplay(isoFinal);
     const label = /^\d{4}-\d{2}-\d{2}$/.test(String(isoFinal))
         ? isoYmdToOrdinalLabel(isoFinal)
         : '';
@@ -144,6 +176,8 @@ function repairDecemberIsoMisimportForDisplay(iso) {
 
 module.exports = {
     stripSoldDateToIsoHead,
+    repairIsoFirstOfMonthToJanuary,
+    resolveSoldDateIsoForDisplay,
     tryRepairMonthDaySwap,
     repairAllMonthDaySwapIsoMisimportForDisplay,
     repairNovemberIsoMisimportForDisplay,
@@ -152,4 +186,5 @@ module.exports = {
     formatOrdinalEnGbFromIso,
     mapSoldItemDatesForApi,
     monthDaySwapRepairEnabled,
+    janDayRepairEnabled,
 };

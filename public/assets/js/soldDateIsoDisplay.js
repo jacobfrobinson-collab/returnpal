@@ -40,9 +40,28 @@
         return s0;
     }
 
+    function janDayRepairEnabled() {
+        const win = w;
+        return String(win.RETURNPAL_SOLD_DISPLAY_REPAIR_JAN_DAY_ISO || '').trim() !== '0';
+    }
+
+    /** 2026-11-01 (11 Jan mis-stored) → 2026-01-11 */
+    function repairJanFirstOfMonth(iso) {
+        if (!janDayRepairEnabled()) return iso;
+        const m = iso.match(/^(\d{4})-(\d{2})-01$/);
+        if (!m || m[2] === '01') return iso;
+        return m[1] + '-01-' + m[2];
+    }
+
+    function resolveIsoForDisplay(iso) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+        return repairJanFirstOfMonth(iso);
+    }
+
     /** @returns {string|null} */
     function isoYmdToOrdinalLabel(v) {
-        const s = stripToIsoYmd(v);
+        let s = stripToIsoYmd(v);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s = resolveIsoForDisplay(s);
         const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         if (!m) return null;
         const y = parseInt(m[1], 10);
@@ -54,7 +73,8 @@
 
     /** @returns {string} YYYY-MM-DD or '' */
     function toSortKey(v) {
-        const s = stripToIsoYmd(v);
+        let s = stripToIsoYmd(v);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s = resolveIsoForDisplay(s);
         return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
     }
 

@@ -270,6 +270,10 @@
             if (f === '-') return '-';
             head = f;
         }
+        if (String(w.RETURNPAL_SOLD_DISPLAY_REPAIR_JAN_DAY_ISO || '').trim() !== '0') {
+            const jm = head.match(/^(\d{4})-(\d{2})-01$/);
+            if (jm && jm[2] !== '01') head = jm[1] + '-01-' + jm[2];
+        }
         if (soldDateRepairOpts().allOff) return head;
         for (let mo = 12; mo >= 1; mo--) {
             const n = tryRepairMonthDaySwapIso(head, mo);
