@@ -1030,6 +1030,19 @@ const API = {
     },
 
     /** Admin: validate spreadsheet without writing (Client ID → email preview). */
+    async adminCheckReturnAdjustmentDuplicate(row) {
+        return this.request('/admin/return-adjustments/check-duplicate', {
+            method: 'POST',
+            body: {
+                client_id: row.client_id,
+                order_number: row.order_number,
+                amount: row.amount,
+                refund_date: row.refund_date,
+                reference: row.reference,
+            },
+        });
+    },
+
     async adminSaveOrderClientMappings(mappings) {
         return this.request('/admin/order-client-mappings', {
             method: 'POST',

@@ -53,6 +53,7 @@
         this.cfg = cfg;
         this.prefix = cfg.prefix;
         this._saveTimers = Object.create(null);
+        this._dupTimers = Object.create(null);
     }
 
     ImportClientReview.prototype.sel = function (id) {
@@ -84,14 +85,15 @@
             var hay = this.rowHaystack(r).toLowerCase();
             if (hay.indexOf(searchQ) < 0) return false;
         }
-        if (filter === 'needs') return !resolveClientLocally(r.client_id);
-        if (filter === 'ready') return !!resolveClientLocally(r.client_id);
+        if (filter === 'imported') return !!r.already_imported;
+        if (filter === 'needs') return !resolveClientLocally(r.client_id) && !r.already_imported;
+        if (filter === 'ready') return !!resolveClientLocally(r.client_id) && !r.already_imported;
         return true;
     };
 
     ImportClientReview.prototype.matchesScope = function (r, scope, filter, searchQ) {
         if (scope === 'all') return true;
-        if (scope === 'needs') return !resolveClientLocally(r.client_id);
+        if (scope === 'needs') return !resolveClientLocally(r.client_id) && !r.already_imported;
         return this.rowMatchesFilter(r, filter, searchQ);
     };
 
@@ -110,9 +112,19 @@
     };
 
     ImportClientReview.prototype.updateRowResolve = function ($tr, clientId, row) {
-        var u = resolveClientLocally(clientId);
         var $m = $tr.find('.' + this.prefix + '-review-match');
-        $tr.toggleClass('table-warning', !u);
+        var $input = $tr.find('.' + this.prefix + '-review-client-id');
+        if (row && row.already_imported) {
+            $tr.addClass('table-secondary').removeClass('table-warning');
+            $input.prop('disabled', true);
+            var dupNote = row.duplicate_adjustment_id ? ' #' + row.duplicate_adjustment_id : '';
+            $m.html('<span class="text-muted">Already imported' + escapeHtml(dupNote) + ' — skipped on import</span>');
+            return;
+        }
+        $tr.removeClass('table-secondary');
+        $input.prop('disabled', false);
+        var u = resolveClientLocally(clientId);
+        $tr.toggleClass('table-warning', !u && !!clientId);
         if (!clientId) {
             $m.html('<span class="text-warning">Pick Client ID</span>');
             return;
@@ -137,6 +149,24 @@
                 String(u.id).padStart(4, '0') +
                 ')</span></span>'
         );
+    };
+
+    ImportClientReview.prototype.scheduleRecheckDuplicate = function (line) {
+        var self = this;
+        if (!this.cfg.checkDuplicate) return;
+        if (this._dupTimers[line]) clearTimeout(this._dupTimers[line]);
+        this._dupTimers[line] = setTimeout(function () {
+            var row = null;
+            self.getRows().forEach(function (r) {
+                if (r.line === line) row = r;
+            });
+            if (!row) return;
+            self.cfg.checkDuplicate(row).then(function (res) {
+                row.already_imported = !!(res && res.already_imported);
+                row.duplicate_adjustment_id = res && res.duplicate_adjustment_id ? res.duplicate_adjustment_id : null;
+                self.render();
+            });
+        }, 400);
     };
 
     ImportClientReview.prototype.scheduleSaveOrderMapping = function (line) {
@@ -191,13 +221,26 @@
         });
         $(this.sel('review-visible-count')).text(visible + ' row' + (visible === 1 ? '' : 's') + ' shown');
         var ready = 0;
+        var imported = 0;
+        var needs = 0;
         this.getRows().forEach(function (r) {
-            if (resolveClientLocally(r.client_id)) ready++;
+            if (r.already_imported) imported++;
+            else if (resolveClientLocally(r.client_id)) ready++;
+            else needs++;
         });
         var total = this.getRows().length;
         $(this.sel('review-summary'))
             .removeClass('d-none')
-            .text(total + ' rows · ' + ready + ' ready · ' + (total - ready) + ' need attention');
+            .text(
+                total +
+                    ' rows · ' +
+                    ready +
+                    ' to import · ' +
+                    imported +
+                    ' already imported · ' +
+                    needs +
+                    ' need attention'
+            );
     };
 
     ImportClientReview.prototype.open = function (rows, opts) {
@@ -230,8 +273,11 @@
                     row = r;
                 }
             });
+            row.already_imported = false;
+            row.duplicate_adjustment_id = null;
             self.updateRowResolve($tr, val, row);
             self.scheduleSaveOrderMapping(line);
+            self.scheduleRecheckDuplicate(line);
         });
 
         $(this.sel('review-filter') + ', ' + this.sel('review-search')).on('input change', function () {
@@ -308,14 +354,16 @@
         var rows = this.getRows();
         if (!rows.length) return alert('Load rows for review first.');
         var ready = 0;
+        var already = 0;
         rows.forEach(function (r) {
-            if (resolveClientLocally(r.client_id)) ready++;
+            if (r.already_imported) already++;
+            else if (resolveClientLocally(r.client_id)) ready++;
         });
         if (!this.cfg.onImport) return alert('Import not configured.');
         var $btn = $(this.sel('import-reviewed-btn'));
         $btn.prop('disabled', true).text('Importing…');
         try {
-            await this.cfg.onImport(rows, { ready: ready, total: rows.length });
+            await this.cfg.onImport(rows, { ready: ready, total: rows.length, already_imported: already });
         } catch (e) {
             alert((e && e.error) || e.message || 'Import failed');
         } finally {

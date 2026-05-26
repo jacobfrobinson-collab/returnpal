@@ -568,7 +568,7 @@ function convertEbayRefundsForReview(opts) {
 
 /** @param {Array<Record<string, unknown>>} rows */
 function reviewedRowsToCsvBuffer(rows) {
-    const importRows = (rows || []).map((r) => ({
+    const importRows = (rows || []).filter((r) => !r.already_imported).map((r) => ({
         clientId: String(r.clientId != null ? r.clientId : r.client_id || '').trim(),
         orderNumber: r.orderNumber != null ? r.orderNumber : r.order_number,
         product: r.product,

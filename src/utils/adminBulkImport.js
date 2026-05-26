@@ -4,6 +4,10 @@
 const XLSX = require('xlsx');
 const { saveDb, pushActivity } = require('../database');
 const { findLinkedSoldItemId } = require('./returnAdjustmentSoldLink');
+const {
+    findReturnAdjustmentDuplicate,
+    enrichReturnAdjustmentReviewDuplicates,
+} = require('./returnAdjustmentDuplicate');
 const { loadOrderClientMap, canonicalOrderNumber } = require('./orderClientMappings');
 
 /** Large multi-client marketplace sheets (e.g. eBay exports) — keep bounded for sql.js memory. */
@@ -272,6 +276,9 @@ function buildMultiImportReviewRows(db, kind, parsedRows) {
             resolved_email,
         });
     }
+    if (kind === 'return_adjustment' || kind === 'refunds') {
+        enrichReturnAdjustmentReviewDuplicates(db, resolveUserIdFromClientSpecifier, reviewRows);
+    }
     return reviewRows;
 }
 
@@ -285,6 +292,7 @@ function reviewedMultiRowsToCsvBuffer(kind, reviewedRows) {
     const headers = template[0];
     const aoa = [headers];
     for (const r of reviewedRows || []) {
+        if (r.already_imported) continue;
         const dataRow = r.row_data && typeof r.row_data === 'object' ? r.row_data : {};
         const clientId = String(r.clientId != null ? r.clientId : r.client_id || '').trim();
         const line = [clientId];
@@ -725,26 +733,20 @@ function importReturnAdjustmentRow(db, userId, row) {
     const refundDate = normalizeSoldDateForDb(row.refund_date) || '';
     const status = str(row.status).toLowerCase() === 'pending' ? 'pending' : 'applied';
 
-    if (onum) {
-        const dupParams = [userId, onum, amount];
-        let dupSql =
-            `SELECT id FROM return_adjustments WHERE user_id = ? AND status = 'applied'
-             AND order_number = ? AND ABS(amount - ?) < 0.02`;
-        if (refundDate) {
-            dupSql += " AND COALESCE(refund_date, '') = ?";
-            dupParams.push(refundDate);
-        }
-        dupSql += ' LIMIT 1';
-        const dup = parseResults(db.exec(dupSql, dupParams));
-        if (dup.length) {
-            return {
-                id: dup[0].id,
-                table: 'return_adjustments',
-                rollbackJson: '',
-                activity: null,
-                duplicate: true,
-            };
-        }
+    const dup = findReturnAdjustmentDuplicate(db, userId, {
+        order_number: onum,
+        amount,
+        refund_date: refundDate,
+        reference,
+    });
+    if (dup) {
+        return {
+            id: dup.id,
+            table: 'return_adjustments',
+            rollbackJson: '',
+            activity: null,
+            duplicate: true,
+        };
     }
 
     let linkedSoldItemId = null;
@@ -1050,7 +1052,8 @@ function previewBulkImport(db, opts) {
         }
     }
     const review_rows = multi ? buildMultiImportReviewRows(db, kind, rows) : [];
-    const review_ready = review_rows.filter((r) => r.resolve_ok).length;
+    const review_ready = review_rows.filter((r) => r.resolve_ok && !r.already_imported).length;
+    const review_already_imported = review_rows.filter((r) => r.already_imported).length;
     return {
         rows: out,
         review_rows,
@@ -1060,7 +1063,8 @@ function previewBulkImport(db, opts) {
             bad,
             rows_with_warnings: rowsWithWarnings,
             review_ready,
-            review_needs_client: review_rows.length - review_ready,
+            review_needs_client: review_rows.filter((r) => !r.resolve_ok && !r.already_imported).length,
+            review_already_imported,
         },
     };
 }
@@ -1175,6 +1179,7 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
 
     const errors = [];
     let imported = 0;
+    let duplicates_skipped = 0;
     const activities = [];
     const byUser = {};
     const inserted = [];
@@ -1214,7 +1219,10 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
         const dataRow = rowWithoutClientSpecifier(rows[i]);
         try {
             const result = importer(db, userId, dataRow);
-            if (result && result.duplicate) continue;
+            if (result && result.duplicate) {
+                duplicates_skipped++;
+                continue;
+            }
             if (result && result.activity) activities.push(result.activity);
             imported++;
             const k = String(userId);
@@ -1261,7 +1269,16 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
         }
     }
 
-    return { imported, errors, by_user: byUser, inserted, row_count: rows.length, pending_rows_saved, pending_by_key };
+    return {
+        imported,
+        errors,
+        by_user: byUser,
+        inserted,
+        row_count: rows.length,
+        pending_rows_saved,
+        pending_by_key,
+        duplicates_skipped,
+    };
 }
 
 function templateSheetAoA(kind, options = {}) {

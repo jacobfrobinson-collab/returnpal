@@ -216,6 +216,7 @@
                                 <option value="all">All rows</option>
                                 <option value="needs">Needs Client ID / fix</option>
                                 <option value="ready">Ready to import</option>
+                                <option value="imported">Already imported</option>
                             </select>
                             <input type="search" class="form-control form-control-sm" id="ebay-refunds-review-search" placeholder="Search order, title…" style="max-width:220px" />
                             <span class="small text-muted" id="ebay-refunds-review-visible-count"></span>
@@ -324,6 +325,7 @@
                             <option value="all">All rows</option>
                             <option value="needs">Needs Client ID / fix</option>
                             <option value="ready">Ready to import</option>
+                            <option value="imported">Already imported</option>
                         </select>
                         <input type="search" class="form-control form-control-sm" id="bulk-import-review-review-search" placeholder="Search order, title, SKU…" style="max-width:220px" />
                         <span class="small text-muted" id="bulk-import-review-review-visible-count"></span>
@@ -481,7 +483,7 @@
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp12"></script>
     <script src="/assets/js/ebay-refund-review.js?v=rp2"></script>
-    <script src="/assets/js/import-client-review.js?v=rp3"></script>
+    <script src="/assets/js/import-client-review.js?v=rp4"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script>
     $(function() {
@@ -1266,6 +1268,9 @@
             saveOrderMapping: function(mappings) {
                 return API.adminSaveOrderClientMappings(mappings).catch(function() {});
             },
+            checkDuplicate: function(row) {
+                return API.adminCheckReturnAdjustmentDuplicate(row);
+            },
             renderDataCells: function(r, esc) {
                 var amt = Number(r.amount != null ? r.amount : 0);
                 return (
@@ -1293,10 +1298,12 @@
                 if (
                     !confirm(
                         'Import ' +
-                            meta.total +
-                            ' refund rows (' +
                             meta.ready +
-                            ' with valid Client ID)? Rows without a valid client go to Pending imports. Undo from Recent imports if needed.'
+                            ' new refund row(s)?' +
+                            (meta.already_imported
+                                ? ' ' + meta.already_imported + ' already imported will be skipped.'
+                                : '') +
+                            ' Rows without a valid client go to Pending imports. Undo from Recent imports if needed.'
                     )
                 )
                     return;
@@ -1319,6 +1326,7 @@
                 var txt = data.message || 'Done.';
                 txt += '\n\nImported: ' + (data.imported || 0);
                 if (data.pending_rows_saved) txt += '\nPending queue: ' + data.pending_rows_saved;
+                if (data.duplicates_skipped) txt += '\nAlready imported (skipped): ' + data.duplicates_skipped;
                 if (data.job_id) txt += '\nJob #' + data.job_id;
                 if (data.error_count) txt += '\nRow errors: ' + data.error_count;
                 showEbayRefundsResult(txt);
@@ -1341,6 +1349,13 @@
             saveOrderMapping: function(mappings) {
                 return API.adminSaveOrderClientMappings(mappings).catch(function() {});
             },
+            checkDuplicate: function(row) {
+                var kind = (window._bulkImportReviewMeta && window._bulkImportReviewMeta.kind) || '';
+                if (kind !== 'return_adjustment' && kind !== 'refunds') {
+                    return Promise.resolve({ already_imported: false });
+                }
+                return API.adminCheckReturnAdjustmentDuplicate(row);
+            },
             renderDataCells: function(r, esc) {
                 var bits = esc(r.summary || '');
                 if (r.order_number) bits += ' <code class="small">' + esc(r.order_number) + '</code>';
@@ -1358,12 +1373,14 @@
                 if (
                     !confirm(
                         'Import ' +
-                            meta.total +
-                            ' rows as ' +
-                            kindMeta.kind +
-                            ' (' +
                             meta.ready +
-                            ' with valid Client ID)? Others may go to Pending imports. Undo from Recent imports if needed.'
+                            ' new row(s) as ' +
+                            kindMeta.kind +
+                            '?' +
+                            (meta.already_imported
+                                ? ' ' + meta.already_imported + ' already imported will be skipped.'
+                                : '') +
+                            ' Others may go to Pending imports. Undo from Recent imports if needed.'
                     )
                 )
                     return;
@@ -1380,6 +1397,7 @@
                 var txt = data.message || 'Done.';
                 txt += '\n\nImported: ' + (data.imported || 0);
                 if (data.pending_rows_saved) txt += '\nPending queue: ' + data.pending_rows_saved;
+                if (data.duplicates_skipped) txt += '\nAlready imported (skipped): ' + data.duplicates_skipped;
                 if (data.job_id) txt += '\nJob #' + data.job_id;
                 if (data.error_count) txt += '\nRow errors: ' + data.error_count;
                 $('#bulk-import-result').removeClass('d-none').text(txt);
@@ -1498,12 +1516,15 @@
                 if (multi && prev.review_rows && prev.review_rows.length && window.bulkImportClientReview) {
                     window._bulkImportReviewMeta = { kind: kind, filename: f.name || 'import' };
                     var needsReview = (prev.summary && prev.summary.review_needs_client) > 0;
+                    var hasDup = (prev.summary && prev.summary.review_already_imported) > 0;
                     window.bulkImportClientReview.open(prev.review_rows, {
-                        filter: needsReview ? 'needs' : 'all',
+                        filter: needsReview ? 'needs' : hasDup ? 'imported' : 'all',
                         message:
                             'Client ID review: ' +
                             prev.review_rows.length +
-                            ' rows. Fix missing clients below, then click Import reviewed rows (not the plain Import button).',
+                            ' rows' +
+                            (hasDup ? ' (' + prev.summary.review_already_imported + ' already imported).' : '.') +
+                            ' Fix missing clients, then Import reviewed rows.',
                     });
                     var el = document.getElementById('bulk-import-review-wrap');
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

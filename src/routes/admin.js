@@ -60,7 +60,14 @@ const {
     convertEbayRefundsForReview,
     reviewedRowsToCsvBuffer,
 } = require('../../scripts/convert-ebay-refunds-to-returnpal');
-const { resolveUserIdFromClientSpecifier, lookupUserBrief } = require('../utils/adminBulkImport');
+const {
+    resolveUserIdFromClientSpecifier,
+    lookupUserBrief,
+} = require('../utils/adminBulkImport');
+const {
+    findReturnAdjustmentDuplicate,
+    enrichReturnAdjustmentReviewDuplicates,
+} = require('../utils/returnAdjustmentDuplicate');
 
 const uploadsBaseDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, '../../uploads');
 const reimbursementUploadDir = path.join(uploadsBaseDir, 'reimbursement');
@@ -1158,6 +1165,35 @@ router.post('/users/:userId/bulk-import', bulkSpreadsheetUpload.single('file'), 
     }
 });
 
+// POST /api/admin/return-adjustments/check-duplicate — one review row vs existing DB
+router.post('/return-adjustments/check-duplicate', async (req, res) => {
+    try {
+        const spec = String(req.body.client_id || req.body.clientId || '').trim();
+        if (!spec) {
+            return res.json({ already_imported: false, resolve_error: 'No Client ID' });
+        }
+        const db = await getDb();
+        const resolved = resolveUserIdFromClientSpecifier(db, spec);
+        if (resolved.error) {
+            return res.json({ already_imported: false, resolve_error: resolved.error });
+        }
+        const dup = findReturnAdjustmentDuplicate(db, resolved.userId, {
+            order_number: req.body.order_number || req.body.orderNumber,
+            amount: req.body.amount,
+            refund_date: req.body.refund_date || req.body.refundDate,
+            reference: req.body.reference,
+        });
+        res.json({
+            already_imported: !!dup,
+            duplicate_adjustment_id: dup ? dup.id : null,
+            resolve_ok: true,
+        });
+    } catch (err) {
+        console.error('check-duplicate error:', err);
+        res.status(500).json({ error: err.message || 'Server error' });
+    }
+});
+
 // POST /api/admin/order-client-mappings — remember order → Client ID (even before client account exists)
 router.post('/order-client-mappings', async (req, res) => {
     try {
@@ -1325,7 +1361,9 @@ router.post(
                     legacy_client_id,
                 };
             });
-            const ready = reviewRows.filter((r) => r.resolve_ok).length;
+            enrichReturnAdjustmentReviewDuplicates(db, resolveUserIdFromClientSpecifier, reviewRows);
+            const ready = reviewRows.filter((r) => r.resolve_ok && !r.already_imported).length;
+            const already_imported = reviewRows.filter((r) => r.already_imported).length;
             res.json({
                 convert: converted.stats,
                 orders_map_orders: converted.orderClientMapSize,
@@ -1333,7 +1371,8 @@ router.post(
                 summary: {
                     total: reviewRows.length,
                     ready,
-                    needs_client: reviewRows.length - ready,
+                    needs_client: reviewRows.length - ready - already_imported,
+                    already_imported,
                 },
             });
         } catch (err) {
@@ -1357,46 +1396,48 @@ router.post('/ebay-refunds-import-reviewed', async (req, res) => {
         const csvBuffer = reviewedRowsToCsvBuffer(bodyRows);
         const db = await getDb();
         const filename = String(req.body.source_filename || 'ebay-refunds-reviewed.json').slice(0, 200);
-        const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key } =
-            await runBulkImportMulti(db, 'return_adjustment', csvBuffer, {
-                adminUserId: req.user.id,
-                originalFilename: filename,
-                queueUnmatched,
+            const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key, duplicates_skipped } =
+                await runBulkImportMulti(db, 'return_adjustment', csvBuffer, {
+                    adminUserId: req.user.id,
+                    originalFilename: filename,
+                    queueUnmatched,
+                });
+            let jobId = null;
+            if (inserted.length) {
+                jobId = createBulkImportJob(db, {
+                    adminUserId: req.user.id,
+                    kind: 'return_adjustment',
+                    isMulti: true,
+                    originalFilename: filename,
+                    targetUserId: null,
+                    rowCount: row_count,
+                    importedCount: imported,
+                    errorCount: errors.length,
+                });
+                addBulkImportEntries(db, jobId, inserted);
+            }
+            const order_mappings_saved = upsertOrderClientMappingsFromReview(db, bodyRows, 'admin_review');
+            logAdminAudit(db, req.user.id, 'ebay_refunds_import_reviewed', {
+                job_id: jobId,
+                imported,
+                error_count: errors.length,
+                row_count: bodyRows.length,
+                order_mappings_saved,
+                duplicates_skipped: duplicates_skipped || 0,
             });
-        let jobId = null;
-        if (inserted.length) {
-            jobId = createBulkImportJob(db, {
-                adminUserId: req.user.id,
-                kind: 'return_adjustment',
-                isMulti: true,
-                originalFilename: filename,
-                targetUserId: null,
-                rowCount: row_count,
-                importedCount: imported,
-                errorCount: errors.length,
+            res.json({
+                imported,
+                errors: errors.slice(0, 50),
+                error_count: errors.length,
+                by_user,
+                job_id: jobId,
+                pending_rows_saved: pending_rows_saved || 0,
+                pending_by_key: pending_by_key || {},
+                order_mappings_saved,
+                duplicates_skipped: duplicates_skipped || 0,
+                message:
+                    'Imported reviewed refunds. Client dashboards and payout months are updated from refund_date on each row.',
             });
-            addBulkImportEntries(db, jobId, inserted);
-        }
-        const order_mappings_saved = upsertOrderClientMappingsFromReview(db, bodyRows, 'admin_review');
-        logAdminAudit(db, req.user.id, 'ebay_refunds_import_reviewed', {
-            job_id: jobId,
-            imported,
-            error_count: errors.length,
-            row_count: bodyRows.length,
-            order_mappings_saved,
-        });
-        res.json({
-            imported,
-            errors: errors.slice(0, 50),
-            error_count: errors.length,
-            by_user,
-            job_id: jobId,
-            pending_rows_saved: pending_rows_saved || 0,
-            pending_by_key: pending_by_key || {},
-            order_mappings_saved,
-            message:
-                'Imported reviewed refunds. Client dashboards and payout months are updated from refund_date on each row.',
-        });
     } catch (err) {
         console.error('eBay refunds import reviewed error:', err);
         res.status(500).json({ error: err.message || 'Server error' });
@@ -1421,7 +1462,7 @@ router.post('/bulk-import-multi-reviewed', async (req, res) => {
         const csvBuffer = reviewedMultiRowsToCsvBuffer(kind, bodyRows);
         const db = await getDb();
         const filename = String(req.body.source_filename || 'bulk-import-reviewed.json').slice(0, 200);
-        const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key } =
+        const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key, duplicates_skipped } =
             await runBulkImportMulti(db, kind, csvBuffer, {
                 adminUserId: req.user.id,
                 originalFilename: filename,
@@ -1449,6 +1490,7 @@ router.post('/bulk-import-multi-reviewed', async (req, res) => {
             error_count: errors.length,
             row_count: bodyRows.length,
             order_mappings_saved,
+            duplicates_skipped: duplicates_skipped || 0,
         });
         res.json({
             imported,
@@ -1459,6 +1501,7 @@ router.post('/bulk-import-multi-reviewed', async (req, res) => {
             pending_rows_saved: pending_rows_saved || 0,
             pending_by_key: pending_by_key || {},
             order_mappings_saved,
+            duplicates_skipped: duplicates_skipped || 0,
             message:
                 'Import complete. Rows with a valid Client ID were applied; others may be in Pending imports if that option is on.',
         });
