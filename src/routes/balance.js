@@ -85,7 +85,9 @@ router.get('/summary', authMiddleware, async (req, res) => {
 
         const returns_this_month = returns_from_adjustments_mtd + refunds_from_sales_mtd;
 
-        const current_balance = Math.round((sales_this_month - fees_deducted - returns_this_month) * 100) / 100;
+        // sold_items.profit / earnings are already the client's share (fee taken before import);
+        // same rule as computedMonthlyStatements — do not subtract fees_deducted again.
+        const current_balance = Math.round((sales_this_month - returns_this_month) * 100) / 100;
         const available_for_payout = Math.round((current_balance - pending_returns_amount) * 100) / 100;
         const estimated_if_no_more_returns = current_balance;
         const estimated_after_pending_returns = available_for_payout;
@@ -106,7 +108,8 @@ router.get('/summary', authMiddleware, async (req, res) => {
                 returns_this_month: Math.round(returns_this_month * 100) / 100,
                 fees_deducted: Math.round(fees_deducted * 100) / 100
             },
-            fee_model_note: 'Fees follow your monthly free-processing rule (highest eligible sale that month has no fee).'
+            fee_model_note:
+                'Line earnings already include ReturnPal processing fees (except the one monthly free-processing sale). fees_deducted in breakdown is informational only.'
         });
     } catch (err) {
         console.error('Balance summary error:', err);

@@ -1,0 +1,11 @@
+{
+  "lots": [
+    {
+      "url": "https://example.com/auction/lot/123",
+      "currentBidGbp": 12.5
+    },
+    {
+      "url": "https://example.com/auction/lot/456"
+    }
+  ]
+}

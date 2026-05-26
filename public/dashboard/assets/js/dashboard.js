@@ -1742,7 +1742,6 @@ const Dashboard = {
                 this.renderAnnouncementsWidget($annWidget);
             }
 
-            this.renderPayoutForecast($('#dashboard-payout-forecast-body'));
         } catch (err) {
             console.error('Load overview error:', err);
             this.showError($('#dashboard-activity'), err.error || 'Unable to load summary.', () => this.loadOverview());
@@ -2507,6 +2506,7 @@ const Dashboard = {
                 const retCell = ret > 0
                     ? '<td class="text-danger">£' + ret.toFixed(2) + '</td>'
                     : '<td class="text-muted">—</td>';
+                const netClass = net < 0 ? 'text-danger' : 'text-success';
                 return (
                     '<tr>' +
                     '<td>' + this.soldDateDisplayValue(item) + '</td>' +
@@ -2514,7 +2514,7 @@ const Dashboard = {
                     '<td>' + esc(String(item.quantity)) + '</td>' +
                     '<td class="text-success">£' + gross.toFixed(2) + '</td>' +
                     retCell +
-                    '<td class="text-success fw-semibold">£' + net.toFixed(2) + '</td>' +
+                    '<td class="' + netClass + ' fw-semibold">£' + net.toFixed(2) + '</td>' +
                     '</tr>'
                 );
             };
