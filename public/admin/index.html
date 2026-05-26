@@ -169,6 +169,15 @@
                 <details class="mb-3 small border border-success rounded p-2 bg-success-subtle" open>
                     <summary class="fw-semibold mb-2">eBay refunds file → client dashboards &amp; payouts</summary>
                     <p class="mb-2 mt-2">Upload your <strong>eBay Refunds report</strong> plus your <strong>EVERY EBAY ORDER SHEET</strong>. Client IDs are filled automatically; review and edit any row before importing. Payouts use each row’s <strong>refund date</strong>.</p>
+                    <details class="small mb-2">
+                        <summary class="fw-semibold">Where do rows go?</summary>
+                        <ul class="mb-0 ps-3">
+                            <li><strong>Ready to import</strong> — Client ID matches a ReturnPal account → refund goes on their dashboard when you click <em>Import reviewed rows</em>.</li>
+                            <li><strong>Unknown client</strong> (blue message) — Order is remembered; refund goes to <a href="#bulk-import-pending-section" class="admin-jump-link">Pending import rows</a> until that Old Client ID exists, then you apply them.</li>
+                            <li><strong>Already imported</strong> — Same order/amount/date as before → skipped (filter <em>Already imported</em>).</li>
+                            <li>While <em>Show → Needs Client ID</em> is on, rows disappear from the list when you fix them — switch to <em>Ready to import</em> or <em>All rows</em> to see them.</li>
+                        </ul>
+                    </details>
                     <div class="row g-2 mb-2">
                         <div class="col-md-6">
                             <label class="form-label small mb-0">eBay Refunds CSV</label>
@@ -221,6 +230,7 @@
                             <input type="search" class="form-control form-control-sm" id="ebay-refunds-review-search" placeholder="Search order, title…" style="max-width:220px" />
                             <span class="small text-muted" id="ebay-refunds-review-visible-count"></span>
                         </div>
+                        <p class="small alert alert-info border-0 py-1 px-2 mb-0 d-none" id="ebay-refunds-review-filter-hint" role="status"></p>
                         <datalist id="ebay-refunds-client-datalist"></datalist>
                         <div style="max-height:min(55vh,520px);overflow:auto">
                             <table class="table table-sm table-hover mb-0">
@@ -328,8 +338,10 @@
                             <option value="imported">Already imported</option>
                         </select>
                         <input type="search" class="form-control form-control-sm" id="bulk-import-review-review-search" placeholder="Search order, title, SKU…" style="max-width:220px" />
-                        <span class="small text-muted" id="bulk-import-review-review-visible-count"></span>
-                        <button type="button" class="btn btn-sm btn-success ms-auto d-none" id="bulk-import-review-import-reviewed-btn">Import reviewed rows</button>
+                            <span class="small text-muted" id="bulk-import-review-review-visible-count"></span>
+                            <button type="button" class="btn btn-sm btn-success ms-auto d-none" id="bulk-import-review-import-reviewed-btn">Import reviewed rows</button>
+                        </div>
+                        <p class="small alert alert-info border-0 py-1 px-2 mb-0 d-none" id="bulk-import-review-review-filter-hint" role="status"></p>
                         <span class="small text-muted d-none" id="bulk-import-review-review-summary"></span>
                     </div>
                     <datalist id="bulk-import-review-client-datalist"></datalist>
@@ -483,7 +495,7 @@
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp12"></script>
     <script src="/assets/js/ebay-refund-review.js?v=rp2"></script>
-    <script src="/assets/js/import-client-review.js?v=rp4"></script>
+    <script src="/assets/js/import-client-review.js?v=rp5"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script>
     $(function() {
@@ -1419,9 +1431,13 @@
                     message:
                         'Loaded ' +
                         (data.summary && data.summary.total) +
-                        ' rows. Orders map matched ' +
-                        (data.orders_map_orders || '?') +
-                        ' order numbers. Edit Client ID where needed, then Import reviewed rows.',
+                        ' rows (' +
+                        (data.summary.ready || 0) +
+                        ' ready, ' +
+                        (data.summary.needs_client || 0) +
+                        ' need Client ID, ' +
+                        (data.summary.already_imported || 0) +
+                        ' already imported). Use Show → Ready to import after fixing IDs. Then Import reviewed rows.',
                 });
             } catch (e) {
                 alert((e && e.error) || e.message || 'Load failed');

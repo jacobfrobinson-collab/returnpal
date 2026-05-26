@@ -135,7 +135,7 @@
                 $m.html(
                     '<span class="text-info">Unknown — order → <strong>' +
                         escapeHtml(clientId) +
-                        '</strong> saved for future imports</span>'
+                        '</strong> saved. Will go to <strong>Pending imports</strong> on import until this client exists.</span>'
                 );
             } else {
                 $m.html('<span class="text-danger">Unknown client (add order # to save mapping)</span>');
@@ -143,11 +143,11 @@
             return;
         }
         $m.html(
-            '<span class="text-success">' +
+            '<span class="text-success">Ready — ' +
                 escapeHtml(u.full_name || u.email || 'Client') +
                 ' <span class="text-muted">(ID ' +
                 String(u.id).padStart(4, '0') +
-                ')</span></span>'
+                ')</span>. Shown under <strong>Ready to import</strong>.</span>'
         );
     };
 
@@ -164,6 +164,11 @@
             self.cfg.checkDuplicate(row).then(function (res) {
                 row.already_imported = !!(res && res.already_imported);
                 row.duplicate_adjustment_id = res && res.duplicate_adjustment_id ? res.duplicate_adjustment_id : null;
+                var filter = $(self.sel('review-filter')).val() || 'all';
+                if (filter === 'needs' && !row.already_imported) {
+                    self.updateFilterHint();
+                    return;
+                }
                 self.render();
             });
         }, 400);
@@ -184,6 +189,44 @@
             if (!onum || !cid) return;
             self.cfg.saveOrderMapping([{ order_number: onum, client_specifier: cid }]);
         }, 500);
+    };
+
+    ImportClientReview.prototype.updateFilterHint = function () {
+        var filter = $(this.sel('review-filter')).val() || 'all';
+        var $hint = $(this.sel('review-filter-hint'));
+        if (!$hint.length) return;
+        var ready = 0;
+        var needs = 0;
+        var already = 0;
+        this.getRows().forEach(function (r) {
+            if (r.already_imported) already++;
+            else if (resolveClientLocally(r.client_id)) ready++;
+            else needs++;
+        });
+        if (filter === 'needs' && ready > 0) {
+            $hint
+                .removeClass('d-none')
+                .html(
+                    ready +
+                        ' row(s) now match a client and are hidden here. Switch <strong>Show</strong> to <strong>Ready to import</strong> to review them before importing.'
+                );
+        } else if (filter === 'needs' && already > 0) {
+            $hint
+                .removeClass('d-none')
+                .html(
+                    already +
+                        ' row(s) already in ReturnPal — use <strong>Already imported</strong> or <strong>All rows</strong>.'
+                );
+        } else if (filter === 'ready') {
+            $hint
+                .removeClass('d-none')
+                .text(
+                    ready +
+                        ' row(s) will import to client dashboards when you click Import reviewed rows.'
+                );
+        } else {
+            $hint.addClass('d-none');
+        }
     };
 
     ImportClientReview.prototype.render = function () {
@@ -241,6 +284,7 @@
                     needs +
                     ' need attention'
             );
+        this.updateFilterHint();
     };
 
     ImportClientReview.prototype.open = function (rows, opts) {
