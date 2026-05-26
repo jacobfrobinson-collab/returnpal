@@ -168,9 +168,48 @@ async function applyPendingRowsToUser(db, opts) {
     };
 }
 
+/**
+ * When a user gets a legacy Client ID, apply any pending import rows queued for that key.
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {string} legacyClientId
+ * @param {(db: import('sql.js').Database, kind: string, userId: number, row: Record<string, unknown>) => unknown} applyImportRow
+ */
+async function tryAutoApplyPendingForLegacyClient(db, userId, legacyClientId, applyImportRow) {
+    const key = normalizePendingLegacyKey(legacyClientId);
+    if (!key || typeof applyImportRow !== 'function') {
+        return { imported: 0, kinds: [] };
+    }
+    const kinds = parseResults(
+        db.exec(
+            `SELECT DISTINCT kind FROM bulk_import_pending_rows
+             WHERE applied_at IS NULL AND legacy_key = ?`,
+            [key]
+        )
+    );
+    let imported = 0;
+    const touched = [];
+    for (const row of kinds) {
+        const kind = row.kind;
+        if (!kind) continue;
+        const res = await applyPendingRowsToUser(db, {
+            userId,
+            kind,
+            legacyKey: key,
+            applyImportRow,
+        });
+        if (res.ok && res.imported) {
+            imported += res.imported;
+            touched.push(kind);
+        }
+    }
+    return { imported, kinds: touched };
+}
+
 module.exports = {
     normalizePendingLegacyKey,
     insertPendingImportRows,
     listPendingImportGroups,
     applyPendingRowsToUser,
+    tryAutoApplyPendingForLegacyClient,
 };

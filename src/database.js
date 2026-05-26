@@ -396,6 +396,19 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_bulk_import_pending_key_kind ON bulk_import_pending_rows(legacy_key, kind, applied_at)');
 
     db.run(`
+        CREATE TABLE IF NOT EXISTS order_client_mappings (
+            order_number TEXT PRIMARY KEY,
+            client_specifier TEXT NOT NULL,
+            source TEXT DEFAULT 'admin_review',
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        )
+    `);
+    db.run(
+        'CREATE INDEX IF NOT EXISTS idx_order_client_mappings_specifier ON order_client_mappings(client_specifier)'
+    );
+
+    db.run(`
         CREATE TABLE IF NOT EXISTS admin_audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_user_id INTEGER NOT NULL,

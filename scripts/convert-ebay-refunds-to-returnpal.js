@@ -437,7 +437,7 @@ function parseRefundRowsFromTransactionSheet(aoa, opts = {}) {
             clientSource = 'column';
         } else if (orderNumber && orderClientMap[orderNumber]) {
             clientId = orderClientMap[orderNumber];
-            clientSource = 'orders_map';
+            clientSource = opts.savedOrderNumbers && opts.savedOrderNumbers[orderNumber] ? 'saved_order' : 'orders_map';
         } else {
             const fromLabel = extractClientHintFromCustomLabel(customLabel);
             if (fromLabel) {
@@ -532,19 +532,27 @@ function readBufferToAoa(buffer, originalName) {
  * All refund rows for admin review (before dedupe). Client ID may be auto-filled or empty.
  * @param {{ refundsBuffer: Buffer, ordersMapBuffer?: Buffer|null, ordersMapName?: string }} opts
  */
+function buildOrderClientMapFromOpts(opts) {
+    return mergeOrderClientMaps(
+        loadExtraOrderClientMapFromEnv(),
+        opts.ordersMapBuffer && opts.ordersMapBuffer.length
+            ? buildOrderClientMapFromOrdersAoa(readBufferToAoa(opts.ordersMapBuffer, opts.ordersMapName || ''))
+            : Object.create(null),
+        opts.extraOrderClientMap || Object.create(null)
+    );
+}
+
 function convertEbayRefundsForReview(opts) {
     const refundsBuffer = opts.refundsBuffer;
     if (!refundsBuffer || !refundsBuffer.length) {
         throw new Error('refunds file is empty');
     }
-    const orderClientMap = mergeOrderClientMaps(
-        opts.ordersMapBuffer && opts.ordersMapBuffer.length
-            ? buildOrderClientMapFromOrdersAoa(readBufferToAoa(opts.ordersMapBuffer, opts.ordersMapName || ''))
-            : Object.create(null),
-        loadExtraOrderClientMapFromEnv()
-    );
+    const orderClientMap = buildOrderClientMapFromOpts(opts);
+    const extra = opts.extraOrderClientMap || Object.create(null);
+    const savedOrderNumbers = Object.create(null);
+    for (const k of Object.keys(extra)) savedOrderNumbers[k] = true;
     const aoa = readBufferToAoa(refundsBuffer, 'refunds.csv');
-    const { rows: parsed, skipped } = parseRefundRowsFromTransactionSheet(aoa, { orderClientMap });
+    const { rows: parsed, skipped } = parseRefundRowsFromTransactionSheet(aoa, { orderClientMap, savedOrderNumbers });
     const withClient = parsed.filter((r) => r.clientId).length;
     return {
         rows: parsed,
@@ -580,14 +588,12 @@ function convertEbayRefundsBuffers(opts) {
     if (!refundsBuffer || !refundsBuffer.length) {
         throw new Error('refunds file is empty');
     }
-    const orderClientMap = mergeOrderClientMaps(
-        opts.ordersMapBuffer && opts.ordersMapBuffer.length
-            ? buildOrderClientMapFromOrdersAoa(readBufferToAoa(opts.ordersMapBuffer, opts.ordersMapName || ''))
-            : Object.create(null),
-        loadExtraOrderClientMapFromEnv()
-    );
+    const orderClientMap = buildOrderClientMapFromOpts(opts);
+    const extra = opts.extraOrderClientMap || Object.create(null);
+    const savedOrderNumbers = Object.create(null);
+    for (const k of Object.keys(extra)) savedOrderNumbers[k] = true;
     const aoa = readBufferToAoa(refundsBuffer, 'refunds.csv');
-    const { rows: parsed, skipped } = parseRefundRowsFromTransactionSheet(aoa, { orderClientMap });
+    const { rows: parsed, skipped } = parseRefundRowsFromTransactionSheet(aoa, { orderClientMap, savedOrderNumbers });
     const { out, unmatched, duplicates } = applyDedupeAndSplit(parsed, {
         state: { keys: {} },
         recordState: false,

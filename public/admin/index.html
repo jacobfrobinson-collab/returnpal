@@ -481,7 +481,7 @@
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp12"></script>
     <script src="/assets/js/ebay-refund-review.js?v=rp2"></script>
-    <script src="/assets/js/import-client-review.js?v=rp2"></script>
+    <script src="/assets/js/import-client-review.js?v=rp3"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script>
     $(function() {
@@ -1263,6 +1263,9 @@
                 window._ebayRefundsReviewRows = rows;
             },
             showMessage: showEbayRefundsResult,
+            saveOrderMapping: function(mappings) {
+                return API.adminSaveOrderClientMappings(mappings).catch(function() {});
+            },
             renderDataCells: function(r, esc) {
                 var amt = Number(r.amount != null ? r.amount : 0);
                 return (
@@ -1334,6 +1337,9 @@
             },
             showMessage: function(txt) {
                 $('#bulk-import-result').removeClass('d-none').text(txt);
+            },
+            saveOrderMapping: function(mappings) {
+                return API.adminSaveOrderClientMappings(mappings).catch(function() {});
             },
             renderDataCells: function(r, esc) {
                 var bits = esc(r.summary || '');

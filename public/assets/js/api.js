@@ -1030,6 +1030,13 @@ const API = {
     },
 
     /** Admin: validate spreadsheet without writing (Client ID → email preview). */
+    async adminSaveOrderClientMappings(mappings) {
+        return this.request('/admin/order-client-mappings', {
+            method: 'POST',
+            body: { mappings: mappings || [] },
+        });
+    },
+
     async adminBulkImportMultiReviewed(kind, rows, opts) {
         return this.request('/admin/bulk-import-multi-reviewed', {
             method: 'POST',

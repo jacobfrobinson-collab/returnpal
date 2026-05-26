@@ -34,7 +34,15 @@
         if (src === 'column') return 'Column';
         if (src === 'bulk') return 'Bulk rule';
         if (src === 'sku_detect') return 'SKU detect';
+        if (src === 'saved_order') return 'Saved order';
         return '—';
+    }
+
+    function getOrderNumberFromRow(r) {
+        if (!r) return '';
+        if (r.order_number) return String(r.order_number).trim();
+        if (r.row_data && r.row_data.order_number) return String(r.row_data.order_number).trim();
+        return '';
     }
 
     function skuApi() {
@@ -44,6 +52,7 @@
     function ImportClientReview(cfg) {
         this.cfg = cfg;
         this.prefix = cfg.prefix;
+        this._saveTimers = Object.create(null);
     }
 
     ImportClientReview.prototype.sel = function (id) {
@@ -100,7 +109,7 @@
         return n;
     };
 
-    ImportClientReview.prototype.updateRowResolve = function ($tr, clientId) {
+    ImportClientReview.prototype.updateRowResolve = function ($tr, clientId, row) {
         var u = resolveClientLocally(clientId);
         var $m = $tr.find('.' + this.prefix + '-review-match');
         $tr.toggleClass('table-warning', !u);
@@ -109,7 +118,16 @@
             return;
         }
         if (!u) {
-            $m.html('<span class="text-danger">Unknown client</span>');
+            var onum = getOrderNumberFromRow(row);
+            if (onum) {
+                $m.html(
+                    '<span class="text-info">Unknown — order → <strong>' +
+                        escapeHtml(clientId) +
+                        '</strong> saved for future imports</span>'
+                );
+            } else {
+                $m.html('<span class="text-danger">Unknown client (add order # to save mapping)</span>');
+            }
             return;
         }
         $m.html(
@@ -119,6 +137,23 @@
                 String(u.id).padStart(4, '0') +
                 ')</span></span>'
         );
+    };
+
+    ImportClientReview.prototype.scheduleSaveOrderMapping = function (line) {
+        var self = this;
+        if (!this.cfg.saveOrderMapping) return;
+        if (this._saveTimers[line]) clearTimeout(this._saveTimers[line]);
+        this._saveTimers[line] = setTimeout(function () {
+            var row = null;
+            self.getRows().forEach(function (r) {
+                if (r.line === line) row = r;
+            });
+            if (!row) return;
+            var onum = getOrderNumberFromRow(row);
+            var cid = String(row.client_id || '').trim();
+            if (!onum || !cid) return;
+            self.cfg.saveOrderMapping([{ order_number: onum, client_specifier: cid }]);
+        }, 500);
     };
 
     ImportClientReview.prototype.render = function () {
@@ -151,7 +186,7 @@
                     self.prefix +
                     '-review-match"></td>'
             );
-            self.updateRowResolve($tr, r.client_id || '');
+            self.updateRowResolve($tr, r.client_id || '', r);
             $tb.append($tr);
         });
         $(this.sel('review-visible-count')).text(visible + ' row' + (visible === 1 ? '' : 's') + ' shown');
@@ -188,10 +223,15 @@
             var $tr = $(this).closest('tr');
             var line = parseInt($tr.attr('data-line'), 10);
             var val = $(this).val();
+            var row = null;
             self.getRows().forEach(function (r) {
-                if (r.line === line) r.client_id = val;
+                if (r.line === line) {
+                    r.client_id = val;
+                    row = r;
+                }
             });
-            self.updateRowResolve($tr, val);
+            self.updateRowResolve($tr, val, row);
+            self.scheduleSaveOrderMapping(line);
         });
 
         $(this.sel('review-filter') + ', ' + this.sel('review-search')).on('input change', function () {

@@ -4,6 +4,7 @@
 const XLSX = require('xlsx');
 const { saveDb, pushActivity } = require('../database');
 const { findLinkedSoldItemId } = require('./returnAdjustmentSoldLink');
+const { loadOrderClientMap, canonicalOrderNumber } = require('./orderClientMappings');
 
 /** Large multi-client marketplace sheets (e.g. eBay exports) — keep bounded for sql.js memory. */
 const MAX_ROWS = 15000;
@@ -218,13 +219,22 @@ function rowToCsvLine(cells) {
  * @param {Array<Record<string, unknown>>} parsedRows
  */
 function buildMultiImportReviewRows(db, kind, parsedRows) {
+    const orderMap = loadOrderClientMap(db);
     const reviewRows = [];
     for (let i = 0; i < parsedRows.length; i++) {
         const line = i + 2;
         const row = parsedRows[i];
-        const spec = extractClientSpecifier(row);
-        const clientId = spec != null && spec !== '' ? String(spec).trim() : '';
         const dataRow = rowWithoutClientSpecifier(row);
+        let spec = extractClientSpecifier(row);
+        let clientId = spec != null && spec !== '' ? String(spec).trim() : '';
+        let client_source = clientId ? 'column' : 'none';
+        if (!clientId) {
+            const onum = canonicalOrderNumber(dataRow.order_number);
+            if (onum && orderMap[onum]) {
+                clientId = orderMap[onum];
+                client_source = 'saved_order';
+            }
+        }
         let resolve_ok = false;
         let resolve_error = clientId ? '' : 'No Client ID — pick one below';
         let resolved_label = '';
@@ -247,7 +257,7 @@ function buildMultiImportReviewRows(db, kind, parsedRows) {
         reviewRows.push({
             line,
             client_id: clientId,
-            client_source: clientId ? 'column' : 'none',
+            client_source,
             summary: summarizeRow(kind, dataRow),
             row_data: dataRow,
             order_number: str(dataRow.order_number),
