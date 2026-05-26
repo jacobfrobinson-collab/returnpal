@@ -9,6 +9,13 @@ const { generateToken, authMiddleware } = require('../middleware/auth');
 const { registerLimiter, loginLimiter } = require('../middleware/authRateLimit');
 const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 const { validateSignupRequest, getTurnstileSiteKey, isTurnstileRequired } = require('../utils/signupProtection');
+const {
+    isSignupApprovalRequired,
+    defaultAccountStatusForSignup,
+    getUserAccountStatus,
+    PENDING_MESSAGE,
+    REJECTED_MESSAGE,
+} = require('../utils/accountApproval');
 
 const router = express.Router();
 
@@ -78,6 +85,7 @@ router.get('/register-config', (req, res) => {
         turnstile_site_key: siteKey,
         turnstile_required: isTurnstileRequired(),
         min_form_seconds: parseInt(process.env.SIGNUP_MIN_FORM_SECONDS || '3', 10),
+        require_admin_approval: isSignupApprovalRequired(),
     });
 });
 
@@ -122,10 +130,11 @@ router.post(
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
+        const accountStatus = defaultAccountStatusForSignup();
 
         db.run(
-            'INSERT INTO users (email, password, full_name, company_name, referred_by) VALUES (?, ?, ?, ?, ?)',
-            [email, hashedPassword, full_name, company_name || '', referredById]
+            'INSERT INTO users (email, password, full_name, company_name, referred_by, account_status) VALUES (?, ?, ?, ?, ?, ?)',
+            [email, hashedPassword, full_name, company_name || '', referredById, accountStatus]
         );
         saveDb();
 
@@ -172,13 +181,36 @@ router.post(
             );
         }
 
+        if (accountStatus === 'pending') {
+            return res.status(201).json({
+                message:
+                    'Your registration has been received and is waiting for ReturnPal approval. You can log in after an administrator approves your account.',
+                approval_required: true,
+                approval_pending: true,
+                user: {
+                    id: userId,
+                    email,
+                    full_name,
+                    company_name: company_name || '',
+                    account_status: 'pending',
+                },
+            });
+        }
+
         const user = { id: userId, email };
         const token = generateToken(user);
 
         res.status(201).json({
             message: 'Account created successfully',
             token,
-            user: { id: userId, email, full_name, company_name: company_name || '', avatar_url: '' }
+            user: {
+                id: userId,
+                email,
+                full_name,
+                company_name: company_name || '',
+                avatar_url: '',
+                account_status: 'approved',
+            },
         });
     } catch (err) {
         console.error('Register error:', err);
@@ -202,7 +234,10 @@ router.post('/login', loginLimiter, [
         const { email, password } = req.body;
 
         const result = db.exec(
-            'SELECT id, email, password, full_name, company_name, avatar_url, is_admin, COALESCE(legacy_client_id, \'\') AS legacy_client_id FROM users WHERE email = ?',
+            `SELECT id, email, password, full_name, company_name, avatar_url, is_admin,
+                    COALESCE(legacy_client_id, '') AS legacy_client_id,
+                    COALESCE(account_status, 'approved') AS account_status
+             FROM users WHERE email = ?`,
             [email]
         );
 
@@ -221,6 +256,14 @@ router.post('/login', loginLimiter, [
         }
 
         const isAdmin = coerceIsAdmin(user.is_admin);
+        const accountStatus = user.account_status || 'approved';
+        if (!isAdmin && accountStatus === 'pending') {
+            return res.status(403).json({ error: PENDING_MESSAGE, approval_pending: true });
+        }
+        if (!isAdmin && accountStatus === 'rejected') {
+            return res.status(403).json({ error: REJECTED_MESSAGE, approval_rejected: true });
+        }
+
         const token = generateToken({ id: user.id, email: user.email, is_admin: isAdmin });
 
         const uid = parseInt(user.id, 10);
@@ -239,7 +282,8 @@ router.post('/login', loginLimiter, [
                 is_admin: isAdmin,
                 is_hub_account: linkedClientsCount > 0,
                 linked_clients_count: linkedClientsCount,
-            }
+                account_status: accountStatus,
+            },
         });
     } catch (err) {
         console.error('Login error:', err);
@@ -252,7 +296,9 @@ router.get('/me', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
         const result = db.exec(
-            'SELECT id, email, full_name, company_name, phone, vat_registered, discord_webhook, avatar_url, is_admin, legacy_client_id, created_at FROM users WHERE id = ?',
+            `SELECT id, email, full_name, company_name, phone, vat_registered, discord_webhook, avatar_url, is_admin,
+                    legacy_client_id, created_at, COALESCE(account_status, 'approved') AS account_status
+             FROM users WHERE id = ?`,
             [req.user.id]
         );
 

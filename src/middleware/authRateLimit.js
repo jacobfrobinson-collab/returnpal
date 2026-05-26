@@ -1,9 +1,11 @@
 const rateLimit = require('express-rate-limit');
 
 const registerLimiter = rateLimit({
-    windowMs: parseInt(process.env.REGISTER_RATE_LIMIT_WINDOW_MS || String(60 * 60 * 1000), 10),
-    max: parseInt(process.env.REGISTER_RATE_LIMIT_MAX || '5', 10),
-    message: { error: 'Too many registration attempts from this connection. Please try again later.' },
+    windowMs: parseInt(process.env.REGISTER_RATE_LIMIT_WINDOW_MS || String(24 * 60 * 60 * 1000), 10),
+    max: parseInt(process.env.REGISTER_RATE_LIMIT_MAX || '1', 10),
+    message: {
+        error: 'Only one registration per day is allowed from this connection. Contact ReturnPal to request an account.',
+    },
     standardHeaders: true,
     legacyHeaders: false,
     skip: () => process.env.REGISTER_RATE_LIMIT_ENABLED === '0',

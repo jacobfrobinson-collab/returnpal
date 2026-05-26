@@ -96,6 +96,16 @@ async function getDb() {
         // Column already exists
     }
     try {
+        db.run("ALTER TABLE users ADD COLUMN account_status TEXT DEFAULT 'approved'");
+    } catch (e) {
+        // Column already exists
+    }
+    try {
+        db.run("UPDATE users SET account_status = 'approved' WHERE account_status IS NULL OR account_status = ''");
+    } catch (e) {
+        // ignore
+    }
+    try {
         db.run('CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by)');
     } catch (e) {
         // ignore

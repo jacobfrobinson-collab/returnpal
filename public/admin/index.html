@@ -33,6 +33,35 @@
     </header>
 
     <div class="container-fluid">
+        <div class="section-card card border-warning shadow-sm" id="pending-registrations-section">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h2 class="h6 mb-0">Pending registrations</h2>
+                    <p class="small text-muted mb-0">Self-service signups waiting for approval (<code>SIGNUP_REQUIRE_ADMIN_APPROVAL=1</code> on server).</p>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="pending-registrations-refresh">Refresh</button>
+            </div>
+            <div class="card-body" id="pending-registrations-body">
+                <p class="small text-muted mb-0">Loading…</p>
+            </div>
+        </div>
+
+        <div class="section-card card border-success shadow-sm" id="admin-create-user-section">
+            <div class="card-header bg-white py-2">
+                <h2 class="h6 mb-0">Create client account (admin)</h2>
+                <p class="small text-muted mb-0">No registration rate limit — account is approved immediately.</p>
+            </div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3"><label class="form-label small mb-0">Full name</label><input type="text" class="form-control form-control-sm" id="admin-create-full-name" /></div>
+                    <div class="col-md-3"><label class="form-label small mb-0">Email</label><input type="email" class="form-control form-control-sm" id="admin-create-email" /></div>
+                    <div class="col-md-2"><label class="form-label small mb-0">Password</label><input type="password" class="form-control form-control-sm" id="admin-create-password" minlength="6" /></div>
+                    <div class="col-md-2"><label class="form-label small mb-0">Company</label><input type="text" class="form-control form-control-sm" id="admin-create-company" /></div>
+                    <div class="col-md-2"><button type="button" class="btn btn-sm btn-success w-100" id="admin-create-user-btn">Create account</button></div>
+                </div>
+            </div>
+        </div>
+
         <div id="bulk-import-spreadsheet" class="section-card card border-primary shadow-sm">
             <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
@@ -417,10 +446,78 @@
         }
         window._adminUsersList = [];
 
+        function loadPendingRegistrations() {
+            var $body = $('#pending-registrations-body');
+            API.request('/admin/registrations/pending')
+                .then(function(data) {
+                    var list = data.pending || [];
+                    if (!list.length) {
+                        $body.html('<p class="small text-muted mb-0">No pending registrations.</p>');
+                        $('#pending-registrations-section').addClass('d-none');
+                        return;
+                    }
+                    $('#pending-registrations-section').removeClass('d-none');
+                    var html = '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Submitted</th><th></th></tr></thead><tbody>';
+                    list.forEach(function(u) {
+                        html += '<tr><td>' + String(u.id).padStart(4, '0') + '</td><td>' + escapeHtml(u.full_name || '') + '</td><td>' + escapeHtml(u.email || '') + '</td><td class="small">' + escapeHtml(fmtDate(u.created_at)) + '</td><td class="text-nowrap">' +
+                            '<button type="button" class="btn btn-sm btn-success me-1 approve-reg-btn" data-id="' + u.id + '">Approve</button>' +
+                            '<button type="button" class="btn btn-sm btn-outline-danger reject-reg-btn" data-id="' + u.id + '">Reject & delete</button></td></tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    $body.html(html);
+                })
+                .catch(function(e) {
+                    $body.html('<p class="text-danger small mb-0">' + escapeHtml(e.error || 'Failed to load') + '</p>');
+                });
+        }
+
+        $(document).on('click', '.approve-reg-btn', function() {
+            var id = $(this).data('id');
+            var $btn = $(this).prop('disabled', true);
+            API.request('/admin/users/' + id + '/approve-registration', { method: 'POST' })
+                .then(function() { loadPendingRegistrations(); loadUsers(); })
+                .catch(function(e) { alert(e.error || 'Approve failed'); $btn.prop('disabled', false); });
+        });
+
+        $(document).on('click', '.reject-reg-btn', function() {
+            var id = $(this).data('id');
+            if (!confirm('Reject and delete this registration?')) return;
+            API.request('/admin/users/' + id + '/reject-registration?delete=1', { method: 'POST' })
+                .then(function() { loadPendingRegistrations(); loadUsers(); })
+                .catch(function(e) { alert(e.error || 'Reject failed'); });
+        });
+
+        $('#pending-registrations-refresh').on('click', loadPendingRegistrations);
+
+        $('#admin-create-user-btn').on('click', function() {
+            var body = {
+                full_name: $('#admin-create-full-name').val().trim(),
+                email: $('#admin-create-email').val().trim(),
+                password: $('#admin-create-password').val(),
+                company_name: $('#admin-create-company').val().trim(),
+            };
+            if (!body.full_name || !body.email || !body.password) {
+                alert('Name, email, and password are required.');
+                return;
+            }
+            var $btn = $(this).prop('disabled', true).text('Creating…');
+            API.request('/admin/users', { method: 'POST', body: body })
+                .then(function(data) {
+                    alert((data.message || 'Created') + ' (ID ' + String(data.user.id).padStart(4, '0') + ')');
+                    $('#admin-create-full-name, #admin-create-email, #admin-create-password, #admin-create-company').val('');
+                    loadUsers();
+                })
+                .catch(function(e) { alert(e.error || 'Create failed'); })
+                .finally(function() { $btn.prop('disabled', false).text('Create account'); });
+        });
+
         function hubBadgeCell(u) {
             var hubCount = parseInt(u.linked_clients_count, 10) || 0;
             var viewerCount = parseInt(u.delegate_hub_count, 10) || 0;
             var parts = [];
+            if ((u.account_status || 'approved') === 'pending') {
+                parts.push('<span class="badge bg-warning text-dark">Pending approval</span>');
+            }
             if (hubCount > 0) {
                 parts.push('<span class="badge bg-info text-dark" title="Can view other clients">Hub · ' + hubCount + ' client' + (hubCount === 1 ? '' : 's') + '</span>');
             }
@@ -610,6 +707,7 @@
         function loadUsers() {
             showLoading();
             renderHubAccountsList();
+            loadPendingRegistrations();
             API.request('/admin/users')
                 .then(function(data) {
                     showTable(data.users || []);

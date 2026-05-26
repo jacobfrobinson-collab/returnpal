@@ -69,6 +69,7 @@ router.get('/users', async (req, res) => {
             db.exec(
                 `SELECT id, email, full_name, company_name, created_at, COALESCE(is_admin, 0) AS is_admin,
                         COALESCE(legacy_client_id, '') AS legacy_client_id,
+                        COALESCE(account_status, 'approved') AS account_status,
                         (SELECT COUNT(*) FROM client_delegate_access cda WHERE cda.hub_user_id = users.id) AS linked_clients_count,
                         (SELECT COUNT(*) FROM client_delegate_access cda2 WHERE cda2.client_user_id = users.id) AS delegate_hub_count
                  FROM users ORDER BY created_at DESC`
@@ -107,6 +108,133 @@ router.get('/hub-accounts', async (req, res) => {
         res.json({ hubs: out });
     } catch (err) {
         console.error('Admin hub accounts error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/registrations/pending — self-service signups awaiting approval
+router.get('/registrations/pending', async (req, res) => {
+    try {
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec(
+                `SELECT id, email, full_name, company_name, created_at, COALESCE(account_status, 'approved') AS account_status
+                 FROM users
+                 WHERE COALESCE(is_admin, 0) = 0 AND COALESCE(account_status, 'approved') = 'pending'
+                 ORDER BY created_at ASC`
+            )
+        );
+        res.json({ pending: rows, count: rows.length });
+    } catch (err) {
+        console.error('Admin pending registrations error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/users — create a client account (always approved; no public rate limit)
+router.post('/users', async (req, res) => {
+    try {
+        const bcrypt = require('bcryptjs');
+        const email = String(req.body.email || '')
+            .trim()
+            .toLowerCase();
+        const password = String(req.body.password || '');
+        const full_name = String(req.body.full_name || '').trim();
+        const company_name = String(req.body.company_name || '').trim();
+        if (!email || !password || password.length < 6) {
+            return res.status(400).json({ error: 'Email and password (min 6 characters) are required' });
+        }
+        if (!full_name) return res.status(400).json({ error: 'Full name is required' });
+
+        const db = await getDb();
+        const existing = db.exec('SELECT id FROM users WHERE email = ?', [email]);
+        if (existing.length > 0 && existing[0].values.length > 0) {
+            return res.status(409).json({ error: 'Email already registered' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 12);
+        const legacy = String(req.body.legacy_client_id || '').trim();
+        db.run(
+            `INSERT INTO users (email, password, full_name, company_name, legacy_client_id, account_status, is_admin)
+             VALUES (?, ?, ?, ?, ?, 'approved', 0)`,
+            [email, hashedPassword, full_name, company_name, legacy]
+        );
+        saveDb();
+        const userId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        logAdminAudit(db, req.user.id, 'create_user', { target_user_id: userId, email });
+        res.status(201).json({
+            message: 'Client account created',
+            user: {
+                id: userId,
+                email,
+                full_name,
+                company_name,
+                account_status: 'approved',
+            },
+        });
+    } catch (err) {
+        console.error('Admin create user error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/users/:id/approve-registration
+router.post('/users/:id/approve-registration', async (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'Invalid user id' });
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec('SELECT id, email, account_status FROM users WHERE id = ?', [targetId])
+        );
+        if (!rows.length) return res.status(404).json({ error: 'User not found' });
+        db.run(
+            "UPDATE users SET account_status = 'approved', updated_at = datetime('now') WHERE id = ?",
+            [targetId]
+        );
+        saveDb();
+        pushActivity(
+            targetId,
+            'system',
+            'Your ReturnPal account has been approved. You can now log in.',
+            '/login.html'
+        );
+        logAdminAudit(db, req.user.id, 'approve_registration', { target_user_id: targetId, email: rows[0].email });
+        res.json({ message: 'Registration approved', user_id: targetId });
+    } catch (err) {
+        console.error('Admin approve registration error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/users/:id/reject-registration — marks rejected (or delete with ?delete=1)
+router.post('/users/:id/reject-registration', async (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'Invalid user id' });
+        const db = await getDb();
+        const rows = parseResults(db.exec('SELECT id, email FROM users WHERE id = ?', [targetId]));
+        if (!rows.length) return res.status(404).json({ error: 'User not found' });
+
+        if (req.query.delete === '1' || req.body.delete === true) {
+            db.run('DELETE FROM users WHERE id = ?', [targetId]);
+            saveDb();
+            logAdminAudit(db, req.user.id, 'reject_registration_delete', {
+                target_user_id: targetId,
+                email: rows[0].email,
+            });
+            return res.json({ message: 'Registration rejected and account removed', user_id: targetId });
+        }
+
+        db.run(
+            "UPDATE users SET account_status = 'rejected', updated_at = datetime('now') WHERE id = ?",
+            [targetId]
+        );
+        saveDb();
+        logAdminAudit(db, req.user.id, 'reject_registration', { target_user_id: targetId, email: rows[0].email });
+        res.json({ message: 'Registration rejected', user_id: targetId });
+    } catch (err) {
+        console.error('Admin reject registration error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

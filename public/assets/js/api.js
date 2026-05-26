@@ -236,7 +236,7 @@ const API = {
             method: 'POST',
             body
         });
-        if (data && data.token) {
+        if (data && data.token && !data.approval_required) {
             this.setToken(data.token);
             this.setUser(data.user);
         }

@@ -1,4 +1,12 @@
 const jwt = require('jsonwebtoken');
+const { getDb } = require('../database');
+const {
+    getUserAccountStatus,
+    accountStatusBlocksAccess,
+    PENDING_MESSAGE,
+    REJECTED_MESSAGE,
+} = require('../utils/accountApproval');
+const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-me';
 
@@ -16,7 +24,7 @@ function generateToken(user, expiresIn) {
 const DELEGATE_READONLY_MESSAGE =
     'Read-only access. Prep centre views cannot add, edit, or delete client data. Contact ReturnPal admin.';
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -33,6 +41,17 @@ function authMiddleware(req, res, next) {
             const method = req.method.toUpperCase();
             if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
                 return res.status(403).json({ error: DELEGATE_READONLY_MESSAGE, read_only: true });
+            }
+        }
+        const isAdmin = coerceIsAdmin(decoded.is_admin);
+        if (!isAdmin) {
+            const db = await getDb();
+            const status = getUserAccountStatus(db, decoded.id);
+            if (status === 'pending') {
+                return res.status(403).json({ error: PENDING_MESSAGE, approval_pending: true });
+            }
+            if (status === 'rejected') {
+                return res.status(403).json({ error: REJECTED_MESSAGE, approval_rejected: true });
             }
         }
         next();
