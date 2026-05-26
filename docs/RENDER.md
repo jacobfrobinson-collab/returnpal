@@ -30,16 +30,18 @@ DB_PATH=/opt/render/project/src/data/returnpal.db
 
 ## 3. Environment variables (Production)
 
-Dashboard → **Environment** → add each variable (or paste from [`production.env.example`](../production.env.example)).
+Dashboard → **Environment**.
+
+**Important:** Render allows **one row per key**. If you already have `NODE_ENV` or `FRONTEND_URL`, click the existing row to **edit** the value — do not use **Add Environment Variable** again for the same name. Pasting all of `production.env.example` at once will show *Duplicate key … is not allowed* for any key that already exists.
 
 ### Required
 
-| Key | Value |
-|-----|--------|
-| `NODE_ENV` | `production` |
-| `JWT_SECRET` | *(long random string — use Generate or your own)* |
-| `FRONTEND_URL` | `https://www.returnpal.co.uk` |
-| `DB_PATH` | `/opt/render/project/src/data/returnpal.db` *(with disk mounted)* |
+| Key | Value | If it already exists |
+|-----|--------|----------------------|
+| `NODE_ENV` | `production` | Edit existing row |
+| `JWT_SECRET` | long random string | Edit or add if missing |
+| `FRONTEND_URL` | `https://www.returnpal.co.uk` | Edit existing row |
+| `DB_PATH` | `/opt/render/project/src/data/returnpal.db` | Edit or add *(with disk mounted)* |
 
 ### Signup protection (recommended)
 
