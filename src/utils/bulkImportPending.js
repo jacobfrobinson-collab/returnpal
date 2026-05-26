@@ -58,19 +58,26 @@ function insertPendingImportRows(db, meta, rows) {
  * Pending rows grouped by legacy_key + kind (not yet applied).
  */
 function listPendingImportGroups(db, filter = {}) {
-    const limit = Math.min(100, Math.max(1, parseInt(filter.limit, 10) || 40));
-    const rows = parseResults(
-        db.exec(
-            `SELECT legacy_key, kind, COUNT(*) AS row_count, MIN(created_at) AS first_at,
+    const sql = `SELECT legacy_key, kind, COUNT(*) AS row_count, MIN(created_at) AS first_at,
                     MAX(original_filename) AS sample_filename
              FROM bulk_import_pending_rows
              WHERE applied_at IS NULL
              GROUP BY legacy_key, kind
-             ORDER BY first_at DESC
-             LIMIT ?`,
-            [limit]
-        )
-    );
+             ORDER BY LOWER(legacy_key) ASC, kind ASC`;
+    const rawLimit = filter && filter.limit;
+    const useLimit =
+        rawLimit != null &&
+        rawLimit !== '' &&
+        String(rawLimit).toLowerCase() !== 'all' &&
+        String(rawLimit) !== '0';
+    const rows = useLimit
+        ? parseResults(
+              db.exec(
+                  sql + ' LIMIT ?',
+                  [Math.min(10000, Math.max(1, parseInt(rawLimit, 10) || 1))]
+              )
+          )
+        : parseResults(db.exec(sql));
     return rows;
 }
 

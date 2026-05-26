@@ -35,6 +35,7 @@
         .admin-section-toggle { cursor: pointer; user-select: none; }
         .admin-section-toggle .collapse-chevron { transition: transform 0.15s ease; }
         .admin-section-toggle[aria-expanded="false"] .collapse-chevron { transform: rotate(-90deg); }
+        #bulk-import-pending-body.collapse.show { overflow: visible; }
     </style>
 </head>
 <body>
@@ -225,15 +226,36 @@
                     <span class="collapse-chevron text-muted small mt-1" aria-hidden="true">▼</span>
                     <div>
                         <h2 class="h6 mb-0">Pending import rows</h2>
-                        <p class="small text-muted mb-0">Queued rows from bulk uploads — expand when needed.</p>
+                        <p class="small text-muted mb-0">Queued from multi-client uploads when Client ID was empty or did not match. Set Old Client ID on the client, pick them below, then Apply for that key.</p>
                     </div>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-pending-refresh" onclick="event.stopPropagation()">Refresh</button>
             </div>
             <div class="card-body p-0 collapse" id="bulk-import-pending-body">
+                <div class="p-3 border-bottom bg-light">
+                    <p class="small text-muted mb-2 mb-md-1">Apply uses the client selected here for each row’s <strong>Apply</strong> button (dropdown lists every account).</p>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1" for="bulk-import-pending-client-search">Find client</label>
+                            <input type="search" class="form-control form-control-sm" id="bulk-import-pending-client-search" placeholder="Search ID, name, email, Old Client ID…" autocomplete="off" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1" for="bulk-import-pending-client">Client to apply to</label>
+                            <select class="form-select form-select-sm" id="bulk-import-pending-client">
+                                <option value="">— Select client —</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="small text-muted mb-0 mt-1" id="bulk-import-pending-client-count"></p>
+                </div>
+                <div class="px-3 py-2 border-bottom">
+                    <label class="form-label small mb-1" for="bulk-import-pending-keys-search">Filter pending Client ID keys</label>
+                    <input type="search" class="form-control form-control-sm" id="bulk-import-pending-keys-search" placeholder="e.g. ppf, rc, ai…" autocomplete="off" />
+                    <p class="small text-muted mb-0 mt-1" id="bulk-import-pending-groups-count"></p>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-sm table-hover mb-0">
-                        <thead class="table-light">
+                        <thead class="table-light sticky-top">
                             <tr>
                                 <th>Client ID key</th>
                                 <th>Kind</th>
@@ -245,12 +267,6 @@
                         </thead>
                         <tbody id="bulk-import-pending-tbody"></tbody>
                     </table>
-                </div>
-                <div class="p-2 border-top bg-light d-flex flex-wrap align-items-center gap-2 small">
-                    <span class="text-muted">Apply uses the client selected here for the row’s <strong>Apply</strong> button:</span>
-                    <select class="form-select form-select-sm" style="max-width:min(100%,320px)" id="bulk-import-pending-client">
-                        <option value="">— Select client —</option>
-                    </select>
                 </div>
             </div>
         </div>
@@ -376,9 +392,104 @@
         function fmtDate(s) {
             return s ? RP_DATE.formatOrdinalEnGb(s) : '-';
         }
+        function pendingImportClientLabel(u) {
+            var id = u.id;
+            var label = String(id).padStart(4, '0') + ' — ' + (u.full_name || u.email || 'Client');
+            if (u.legacy_client_id) label += ' · Old ' + u.legacy_client_id;
+            return label;
+        }
+        function pendingImportClientSearchHay(u) {
+            return [
+                u.id,
+                u.full_name,
+                u.email,
+                u.company_name,
+                u.legacy_client_id
+            ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+        }
+        window._pendingImportClientOptions = [];
+        window._pendingImportGroups = [];
+        function rebuildPendingImportClientSelect() {
+            var $sel = $('#bulk-import-pending-client');
+            if (!$sel.length) return;
+            var q = ($('#bulk-import-pending-client-search').val() || '').trim().toLowerCase();
+            var prev = $sel.val();
+            $sel.find('option:not(:first)').remove();
+            var visible = 0;
+            (window._pendingImportClientOptions || []).forEach(function(o) {
+                if (q && o.hay.indexOf(q) < 0) return;
+                visible++;
+                $sel.append($('<option></option>').attr('value', String(o.id)).text(o.label));
+            });
+            if (prev && $sel.find('option[value="' + prev + '"]').length) $sel.val(prev);
+            var total = (window._pendingImportClientOptions || []).length;
+            var $c = $('#bulk-import-pending-client-count');
+            if (!total) $c.text('');
+            else if (q && visible !== total) $c.text(visible + ' of ' + total + ' clients match — open dropdown to pick');
+            else $c.text(total + ' client' + (total === 1 ? '' : 's') + ' in dropdown');
+        }
+        function renderPendingImportClientPicker(users) {
+            window._pendingImportClientOptions = (users || [])
+                .filter(function(u) { return u.id != null; })
+                .map(function(u) {
+                    return { id: u.id, label: pendingImportClientLabel(u), hay: pendingImportClientSearchHay(u) };
+                });
+            rebuildPendingImportClientSelect();
+        }
+        function refreshPendingImportClientPicker() {
+            renderPendingImportClientPicker(window._adminUsersList || []);
+        }
+        function renderPendingImportGroupsTable() {
+            var groups = window._pendingImportGroups || [];
+            var q = ($('#bulk-import-pending-keys-search').val() || '').trim().toLowerCase();
+            var filtered = groups.filter(function(g) {
+                if (!q) return true;
+                var key = g.legacy_key != null ? String(g.legacy_key).toLowerCase() : '';
+                return key.indexOf(q) >= 0;
+            });
+            var $tb = $('#bulk-import-pending-tbody').empty();
+            var $count = $('#bulk-import-pending-groups-count');
+            if (!groups.length) {
+                $tb.append('<tr><td colspan="6" class="text-muted px-2 py-3">No pending rows.</td></tr>');
+                $count.text('');
+                return;
+            }
+            if (!filtered.length) {
+                $tb.append('<tr><td colspan="6" class="text-muted px-2 py-3">No keys match this filter.</td></tr>');
+            } else {
+                filtered.forEach(function(g) {
+                    var keyLabel =
+                        g.legacy_key === '' || g.legacy_key == null
+                            ? '<span class="text-muted">(missing Client ID)</span>'
+                            : '<code>' + escapeHtml(String(g.legacy_key)) + '</code>';
+                    var $apply = $('<button type="button" class="btn btn-sm btn-primary btn-apply-pending-import">Apply</button>');
+                    $apply.attr('data-kind', g.kind || '');
+                    $apply.attr('data-legacy-key', g.legacy_key != null ? String(g.legacy_key) : '');
+                    var $tr = $('<tr></tr>');
+                    $tr.append(
+                        $('<td></td>').html(keyLabel),
+                        $('<td class="small"></td>').text(g.kind || ''),
+                        $('<td></td>').text(g.row_count != null ? g.row_count : 0),
+                        $('<td class="small"></td>').text(fmtDate(g.first_at)),
+                        $('<td class="small text-truncate"></td>')
+                            .attr('title', g.sample_filename || '')
+                            .text((g.sample_filename || '').slice(0, 36)),
+                        $('<td></td>').append($apply)
+                    );
+                    $tb.append($tr);
+                });
+            }
+            if (q) {
+                $count.text(filtered.length + ' of ' + groups.length + ' pending keys match “' + q + '”');
+            } else {
+                $count.text(groups.length + ' pending client ID key' + (groups.length === 1 ? '' : 's') + ' — scroll for all');
+            }
+        }
         function populateBulkImportClientSelect(users) {
             var $sel = $('#bulk-import-target-client');
-            var $pend = $('#bulk-import-pending-client');
             if (!$sel.length) return;
             var prev = $sel.val();
             $sel.find('option:not(:first)').remove();
@@ -389,17 +500,7 @@
                 $sel.append($('<option></option>').attr('value', String(id)).text(label));
             });
             if (prev && $sel.find('option[value="' + prev + '"]').length) $sel.val(prev);
-            if ($pend.length) {
-                var prevP = $pend.val();
-                $pend.find('option:not(:first)').remove();
-                (users || []).forEach(function(u) {
-                    var id = u.id;
-                    if (id == null) return;
-                    var label = String(id).padStart(4, '0') + ' — ' + (u.full_name || u.email || 'Client');
-                    $pend.append($('<option></option>').attr('value', String(id)).text(label));
-                });
-                if (prevP && $pend.find('option[value="' + prevP + '"]').length) $pend.val(prevP);
-            }
+            renderPendingImportClientPicker(users);
             var sp = new URLSearchParams(window.location.search || '');
             var marketplace = sp.get('all_client_sales') === '1' || sp.get('marketplace_orders') === '1';
             var bc = sp.get('bulk_client');
@@ -459,38 +560,15 @@
                 });
         }
         function loadPendingImports() {
-            API.adminListBulkImportPending({ limit: 40 })
+            API.adminListBulkImportPending({ limit: 'all' })
                 .then(function(data) {
-                    var groups = data.groups || [];
-                    var $tb = $('#bulk-import-pending-tbody').empty();
-                    if (!groups.length) {
-                        $tb.append('<tr><td colspan="6" class="text-muted px-2 py-3">No pending rows.</td></tr>');
-                        return;
-                    }
-                    groups.forEach(function(g) {
-                        var keyLabel =
-                            g.legacy_key === '' || g.legacy_key == null
-                                ? '<span class="text-muted">(missing Client ID)</span>'
-                                : '<code>' + escapeHtml(String(g.legacy_key)) + '</code>';
-                        var $apply = $('<button type="button" class="btn btn-sm btn-primary btn-apply-pending-import">Apply</button>');
-                        $apply.attr('data-kind', g.kind || '');
-                        $apply.attr('data-legacy-key', g.legacy_key != null ? String(g.legacy_key) : '');
-                        var $tr = $('<tr></tr>');
-                        $tr.append(
-                            $('<td></td>').html(keyLabel),
-                            $('<td class="small"></td>').text(g.kind || ''),
-                            $('<td></td>').text(g.row_count != null ? g.row_count : 0),
-                            $('<td class="small"></td>').text(fmtDate(g.first_at)),
-                            $('<td class="small text-truncate"></td>')
-                                .attr('title', g.sample_filename || '')
-                                .text((g.sample_filename || '').slice(0, 36)),
-                            $('<td></td>').append($apply)
-                        );
-                        $tb.append($tr);
-                    });
+                    window._pendingImportGroups = data.groups || [];
+                    renderPendingImportGroupsTable();
                 })
                 .catch(function() {
+                    window._pendingImportGroups = [];
                     $('#bulk-import-pending-tbody').html('<tr><td colspan="6" class="text-danger px-2">Failed to load pending</td></tr>');
+                    $('#bulk-import-pending-groups-count').text('');
                 });
         }
         function renderBulkImportErrorsHtml(errors) {
@@ -1105,10 +1183,20 @@
         });
         $('#bulk-import-pending-refresh').on('click', function() {
             loadPendingImports();
+            refreshPendingImportClientPicker();
+        });
+        $('#bulk-import-pending-body').on('shown.bs.collapse', function() {
+            refreshPendingImportClientPicker();
+        });
+        $('#bulk-import-pending-client-search').on('input', function() {
+            rebuildPendingImportClientSelect();
+        });
+        $('#bulk-import-pending-keys-search').on('input', function() {
+            renderPendingImportGroupsTable();
         });
         $(document).on('click', '.btn-apply-pending-import', async function() {
             var uid = parseInt($('#bulk-import-pending-client').val(), 10);
-            if (!Number.isFinite(uid)) return alert('Select a client in the dropdown below first.');
+            if (!Number.isFinite(uid)) return alert('Select a client in the dropdown at the top of Pending imports first.');
             var $btn = $(this);
             var kind = $btn.attr('data-kind');
             var legacyKey = $btn.attr('data-legacy-key');

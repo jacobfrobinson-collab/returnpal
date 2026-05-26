@@ -969,7 +969,11 @@ router.get('/bulk-import-jobs', async (req, res) => {
 router.get('/bulk-import-pending', async (req, res) => {
     try {
         const db = await getDb();
-        const groups = listPendingImportGroups(db, { limit: req.query.limit });
+        const filter =
+            req.query.limit != null && String(req.query.limit).trim() !== ''
+                ? { limit: req.query.limit }
+                : {};
+        const groups = listPendingImportGroups(db, filter);
         res.json({ groups });
     } catch (err) {
         console.error('List pending bulk imports error:', err);

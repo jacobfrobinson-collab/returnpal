@@ -1025,7 +1025,11 @@ const API = {
     /** Pending multi-import rows (missing or unknown Client ID), for applying after a client exists. */
     async adminListBulkImportPending(opts) {
         var sp = new URLSearchParams();
-        if (opts && opts.limit != null && opts.limit !== '') sp.set('limit', String(opts.limit));
+        if (opts && opts.limit != null && opts.limit !== '') {
+            sp.set('limit', String(opts.limit));
+        } else if (!opts || opts.limit === undefined) {
+            sp.set('limit', 'all');
+        }
         var q = sp.toString() ? '?' + sp.toString() : '';
         return this.request('/admin/bulk-import-pending' + q);
     },
