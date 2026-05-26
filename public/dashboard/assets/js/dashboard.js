@@ -2649,7 +2649,10 @@ const Dashboard = {
                 $tbody.append(
                     '<tr>' +
                     '<td>' +
-                    esc(r.refund_date_display || this.formatDate(r.refund_date || r.created_at)) +
+                    esc(
+                        r.refund_date_display ||
+                            (r.refund_date ? this.formatDate(r.refund_date) : '—')
+                    ) +
                     '</td>' +
                     '<td>' + esc(r.product) + '</td>' +
                     '<td>' + esc(r.reference || '') + '</td>' +

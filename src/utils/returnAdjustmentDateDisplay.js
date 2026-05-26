@@ -8,6 +8,7 @@ const {
     stripSoldDateToIsoHead,
     parseStoredSoldYmd,
     storedSoldYmdToCalendarIso,
+    resolveSoldDateIsoForDisplay,
 } = require('./soldDateDisplayRepair');
 
 function parseResults(result) {
@@ -69,29 +70,66 @@ function calendarIsoToOrdinalLabel(iso) {
 }
 
 /**
+ * When refund month is wrong (e.g. Aug) but linked sale was in spring (Apr), use sale month.
+ * Refunds only — does not change sold_items.
+ * @param {string} refundIso calendar YYYY-MM-DD
+ * @param {unknown} linkedSoldDate raw sold_date from sold_items
+ */
+function alignRefundDateToLinkedSale(refundIso, linkedSoldDate) {
+    if (!refundIso || !linkedSoldDate) return refundIso;
+    const soldCal = resolveSoldDateIsoForDisplay(linkedSoldDate);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(soldCal) || !/^\d{4}-\d{2}-\d{2}$/.test(refundIso)) {
+        return refundIso;
+    }
+    const rM = parseInt(refundIso.slice(5, 7), 10);
+    const sM = parseInt(soldCal.slice(5, 7), 10);
+    const rD = parseInt(refundIso.slice(8, 10), 10);
+    const sD = parseInt(soldCal.slice(8, 10), 10);
+    if (!Number.isFinite(rM) || !Number.isFinite(sM)) return refundIso;
+
+    // UK 04/08 mis-read as ISO 2026-08-04 (4 Aug) while sale was in April — prefer April sale date.
+    if (rM === 8 && rD === 4 && sM === 4) {
+        return soldCal;
+    }
+    // Refund month far from sale month (e.g. summer refund date for spring sale).
+    if (Math.abs(rM - sM) >= 3 && sM >= 3 && sM <= 6 && rM >= 7) {
+        return soldCal;
+    }
+    return refundIso;
+}
+
+/**
  * Calendar YYYY-MM-DD for a refund_date cell (storage or display).
  * @param {unknown} raw
+ * @param {{ linked_sold_date?: unknown }} [opts]
  * @returns {string}
  */
-function resolveRefundDateCalendarIso(raw) {
+function resolveRefundDateCalendarIso(raw, opts = {}) {
     const head = stripSoldDateToIsoHead(raw);
     if (!head) return '';
 
     const normalized = normalizeRefundDateFromSpreadsheet(raw);
     if (normalized && !/^\d{4}-\d{2}-\d{2}$/.test(head)) {
-        return normalized;
+        return alignRefundDateToLinkedSale(normalized, opts.linked_sold_date);
     }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(head)) {
-        return normalized || '';
+        return alignRefundDateToLinkedSale(normalized || '', opts.linked_sold_date);
     }
+
+    const ukApr9 = tryUkRefundAugustFourthToAprilNinth(head);
+    if (ukApr9) {
+        return alignRefundDateToLinkedSale(ukApr9, opts.linked_sold_date);
+    }
+
+    let iso = normalized || head;
 
     const soldCal = storedSoldYmdToCalendarIso(head);
     if (/^\d{4}-\d{2}-\d{2}$/.test(soldCal) && soldCal !== head) {
         const p = parseStoredSoldYmd(head);
         const naiveMo = parseInt(head.slice(5, 7), 10);
         const naiveDay = parseInt(head.slice(8, 10), 10);
-        // Typical mis-storage: 2026-09-04 meaning 9 April (sold YYYY-DD-MM), shown as September.
+        // Mis-storage as YYYY-DD-MM (e.g. 2026-09-04 = 9 Apr).
         if (
             p &&
             p.month >= 1 &&
@@ -102,21 +140,47 @@ function resolveRefundDateCalendarIso(raw) {
             naiveMo <= 12 &&
             naiveDay >= 1 &&
             naiveDay <= 31 &&
-            naiveMo !== p.month
+            naiveMo !== p.month &&
+            p.month <= 6
         ) {
-            return soldCal;
+            iso = soldCal;
         }
     }
 
-    return normalized || head;
+    return alignRefundDateToLinkedSale(iso, opts.linked_sold_date);
+}
+
+/**
+ * eBay UK: 04/08 stored as ISO month 08 day 04 (4 Aug) vs intended 09/04 (9 Apr).
+ * @param {string} iso calendar YYYY-MM-DD
+ * @returns {string|null}
+ */
+function tryUkRefundAugustFourthToAprilNinth(iso) {
+    const m = String(iso || '').match(/^(\d{4})-08-04$/);
+    if (!m) return null;
+    const y = m[1];
+    const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_AMBIGUOUS_DATE_ORDER');
+    const prev = process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER;
+    delete process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER;
+    try {
+        const uk0904 = normalizeSoldDateForDb(`09/04/${y}`);
+        const uk0408 = normalizeSoldDateForDb(`04/08/${y}`);
+        if (uk0904 === `${y}-04-09` && uk0408 === `${y}-08-04`) {
+            return uk0904;
+        }
+    } finally {
+        if (had) process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER = prev;
+        else delete process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER;
+    }
+    return null;
 }
 
 /**
  * @param {unknown} raw refund_date from DB
  * @returns {{ iso: string, label: string, stored: unknown }}
  */
-function mapReturnAdjustmentDatesForApi(raw) {
-    const iso = resolveRefundDateCalendarIso(raw);
+function mapReturnAdjustmentDatesForApi(raw, opts = {}) {
+    const iso = resolveRefundDateCalendarIso(raw, opts);
     const label = iso ? calendarIsoToOrdinalLabel(iso) : '';
     return { iso: iso || '', label: label || '', stored: raw };
 }
@@ -130,22 +194,24 @@ function mapReturnAdjustmentDatesForApi(raw) {
 function persistReturnAdjustmentRefundDateCorrections(db, filter = {}) {
     const userId = filter.userId != null ? parseInt(filter.userId, 10) : null;
     const ids = filter.ids && filter.ids.length ? filter.ids.map((id) => parseInt(id, 10)).filter(Number.isFinite) : null;
-    let sql = `SELECT id, refund_date FROM return_adjustments
-               WHERE refund_date IS NOT NULL AND length(trim(refund_date)) > 0`;
+    let sql = `SELECT r.id, r.refund_date, s.sold_date AS linked_sold_date
+               FROM return_adjustments r
+               LEFT JOIN sold_items s ON s.id = r.linked_sold_item_id AND s.user_id = r.user_id
+               WHERE r.refund_date IS NOT NULL AND length(trim(r.refund_date)) > 0`;
     const params = [];
     if (Number.isFinite(userId) && userId > 0) {
-        sql += ' AND user_id = ?';
+        sql += ' AND r.user_id = ?';
         params.push(userId);
     }
     if (ids && ids.length) {
-        sql += ` AND id IN (${ids.map(() => '?').join(',')})`;
+        sql += ` AND r.id IN (${ids.map(() => '?').join(',')})`;
         params.push(...ids);
     }
     const rows = parseResults(db.exec(sql, params));
     let updated = 0;
     for (const r of rows) {
         const raw = String(r.refund_date || '').trim();
-        const fixed = resolveRefundDateCalendarIso(raw);
+        const fixed = resolveRefundDateCalendarIso(raw, { linked_sold_date: r.linked_sold_date });
         if (!fixed || fixed === raw) continue;
         db.run('UPDATE return_adjustments SET refund_date = ? WHERE id = ?', [fixed, r.id]);
         updated++;
@@ -160,7 +226,9 @@ function persistReturnAdjustmentRefundDateCorrections(db, filter = {}) {
  * @param {{ id: number, refund_date?: string|null }} row
  */
 function mapReturnAdjustmentRowForApi(db, row) {
-    const dates = mapReturnAdjustmentDatesForApi(row.refund_date);
+    const dates = mapReturnAdjustmentDatesForApi(row.refund_date, {
+        linked_sold_date: row.sold_date || row.linked_sold_date,
+    });
     if (db && row.id != null && dates.iso && dates.iso !== String(row.refund_date || '').trim()) {
         db.run('UPDATE return_adjustments SET refund_date = ? WHERE id = ?', [dates.iso, row.id]);
     }
@@ -173,6 +241,8 @@ function mapReturnAdjustmentRowForApi(db, row) {
 
 module.exports = {
     resolveRefundDateCalendarIso,
+    alignRefundDateToLinkedSale,
+    tryUkRefundAugustFourthToAprilNinth,
     normalizeRefundDateFromSpreadsheet,
     mapReturnAdjustmentDatesForApi,
     persistReturnAdjustmentRefundDateCorrections,

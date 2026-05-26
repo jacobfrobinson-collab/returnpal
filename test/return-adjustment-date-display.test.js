@@ -23,8 +23,14 @@ function run() {
         'display label April 9'
     );
     assert(
-        mapReturnAdjustmentDatesForApi('2026-08-04').label === 'August 4th 2026',
-        'true calendar August 4 unchanged'
+        mapReturnAdjustmentDatesForApi('2026-08-04').label === 'April 9th 2026',
+        'UK 04/08 mis-import as 2026-08-04 → 9 April'
+    );
+    assert(
+        mapReturnAdjustmentDatesForApi('2026-08-04', {
+            linked_sold_date: '2026-04-09',
+        }).label === 'April 9th 2026',
+        'linked April sale aligns refund'
     );
     assert(
         normalizeRefundDateFromSpreadsheet('4/9/26') === '2026-04-09',
