@@ -62,6 +62,7 @@ Open **http://localhost:3000** in your browser.
 | [`.env.example`](.env.example) | Local dev — copy to `.env` |
 | [`production.env.example`](production.env.example) | **Production** — copy into your host secrets |
 | [`docs/PRODUCTION_ENV.md`](docs/PRODUCTION_ENV.md) | Full deployment + signup approval guide |
+| [`docs/RENDER.md`](docs/RENDER.md) | **Render.com** — env vars, disk, admin approval |
 
 | Variable | Default | Description |
 |----------|---------|-------------|

@@ -18,5 +18,6 @@ Document signup and secrets in repo templates only — never commit real `.env` 
 
 - [`production.env.example`](production.env.example) — includes `SIGNUP_REQUIRE_ADMIN_APPROVAL=1`
 - [`docs/PRODUCTION_ENV.md`](docs/PRODUCTION_ENV.md) — operator guide
+- [`docs/RENDER.md`](docs/RENDER.md) — Render.com dashboard steps
 
 Set live values on the hosting provider, then restart the Node process.

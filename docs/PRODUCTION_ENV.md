@@ -4,6 +4,8 @@ Use this when deploying ReturnPal (VPS, Railway, Render, Fly.io, etc.). **Never 
 
 Copy from [`production.env.example`](../production.env.example) in the repo root.
 
+**Running on Render?** Step-by-step dashboard instructions: [**docs/RENDER.md**](RENDER.md).
+
 ## Required
 
 | Variable | Example | Notes |
