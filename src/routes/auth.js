@@ -6,7 +6,9 @@ const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { generateToken, authMiddleware } = require('../middleware/auth');
+const { registerLimiter, loginLimiter } = require('../middleware/authRateLimit');
 const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
+const { validateSignupRequest, getTurnstileSiteKey, isTurnstileRequired } = require('../utils/signupProtection');
 
 const router = express.Router();
 
@@ -69,16 +71,36 @@ function parseReferralCode(input) {
     return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+// GET /api/auth/register-config — public signup UI settings (Turnstile site key, etc.)
+router.get('/register-config', (req, res) => {
+    const siteKey = getTurnstileSiteKey();
+    res.json({
+        turnstile_site_key: siteKey,
+        turnstile_required: isTurnstileRequired(),
+        min_form_seconds: parseInt(process.env.SIGNUP_MIN_FORM_SECONDS || '3', 10),
+    });
+});
+
 // POST /api/auth/register
-router.post('/register', [
-    body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-    body('full_name').trim().notEmpty().withMessage('Full name is required'),
-], async (req, res) => {
+router.post(
+    '/register',
+    registerLimiter,
+    [
+        body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+        body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+        body('full_name').trim().notEmpty().withMessage('Full name is required'),
+    ],
+    async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({ errors: errors.array() });
+        }
+
+        const remoteIp = req.ip || req.headers['x-forwarded-for'] || '';
+        const signupCheck = await validateSignupRequest(req.body, remoteIp);
+        if (!signupCheck.ok) {
+            return res.status(signupCheck.status || 400).json({ error: signupCheck.error });
         }
 
         const db = await getDb();
@@ -162,10 +184,11 @@ router.post('/register', [
         console.error('Register error:', err);
         res.status(500).json({ error: 'Server error' });
     }
-});
+}
+);
 
 // POST /api/auth/login
-router.post('/login', [
+router.post('/login', loginLimiter, [
     body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
     body('password').notEmpty().withMessage('Password is required'),
 ], async (req, res) => {

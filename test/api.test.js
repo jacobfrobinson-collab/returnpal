@@ -49,7 +49,8 @@ async function runTests() {
             email: testEmail,
             password: testPassword,
             full_name: 'Test User',
-            company_name: 'Test Co'
+            company_name: 'Test Co',
+            form_started_at: Date.now() - 10000,
         });
         assert(reg.status === 201, 'Register should return 201');
         assert(reg.data.token, 'Register should return token');

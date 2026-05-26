@@ -46,7 +46,8 @@ async function registerUser() {
             email,
             password,
             full_name: 'E2E User',
-            company_name: 'E2E Co'
+            company_name: 'E2E Co',
+            form_started_at: Date.now() - 10000,
         })
     });
     const data = await res.json().catch(() => ({}));

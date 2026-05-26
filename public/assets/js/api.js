@@ -220,10 +220,17 @@ const API = {
         return data;
     },
 
-    async register(email, password, full_name, company_name, referral_code) {
+    async getRegisterConfig() {
+        return this.request('/auth/register-config', { skipAuthRedirect: true });
+    },
+
+    async register(email, password, full_name, company_name, referral_code, signupExtras) {
         const body = { email, password, full_name, company_name };
         if (referral_code != null && String(referral_code).trim() !== '') {
             body.referral_code = String(referral_code).trim();
+        }
+        if (signupExtras && typeof signupExtras === 'object') {
+            Object.assign(body, signupExtras);
         }
         const data = await this.request('/auth/register', {
             method: 'POST',

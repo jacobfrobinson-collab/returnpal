@@ -75,7 +75,12 @@
                         </form>
 
                         <!-- Register Form (hidden by default) -->
-                        <form id="register-form" class="d-none">
+                        <form id="register-form" class="d-none" autocomplete="on">
+                            <div class="rp-honeypot" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none">
+                                <label for="reg-website">Website</label>
+                                <input type="text" id="reg-website" name="website" tabindex="-1" autocomplete="off" />
+                            </div>
+                            <input type="hidden" id="reg-form-started" name="form_started_at" value="" />
                             <div class="form-group">
                                 <div class="form-icon">
                                     <i class="far fa-user-tie"></i>
@@ -100,6 +105,7 @@
                                     <input type="password" class="form-control" id="reg-password" placeholder="Password (min 6 chars)" required minlength="6" />
                                 </div>
                             </div>
+                            <div id="turnstile-register-wrap" class="mb-3 d-none d-flex justify-content-center"></div>
                             <div class="auth-btn">
                                 <button type="submit" class="theme-btn" id="register-btn"><span class="far fa-user-plus"></span> Create Account</button>
                             </div>
@@ -148,10 +154,58 @@
             $('#register-form').removeClass('d-none');
             $('#auth-toggle-text').html('Already have an account? <a href="#" id="show-login">Login.</a>');
             $('.auth-header p').text('Create your ReturnPal account');
+            showRegisterPanel();
         }
 
         const $error = $('#auth-error');
         const $success = $('#auth-success');
+        var registerConfig = { turnstile_site_key: null, turnstile_required: false, min_form_seconds: 3 };
+        var turnstileWidgetId = null;
+
+        function stampRegisterFormStarted() {
+            $('#reg-form-started').val(String(Date.now()));
+        }
+
+        function loadTurnstileScript() {
+            return new Promise(function(resolve, reject) {
+                if (window.turnstile) return resolve();
+                var s = document.createElement('script');
+                s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+                s.async = true;
+                s.defer = true;
+                s.onload = function() { resolve(); };
+                s.onerror = function() { reject(new Error('Could not load security check')); };
+                document.head.appendChild(s);
+            });
+        }
+
+        function renderTurnstileIfNeeded() {
+            var $wrap = $('#turnstile-register-wrap');
+            if (!registerConfig.turnstile_site_key) {
+                $wrap.addClass('d-none').empty();
+                return Promise.resolve();
+            }
+            return loadTurnstileScript().then(function() {
+                $wrap.removeClass('d-none').empty();
+                if (turnstileWidgetId != null && window.turnstile) {
+                    try { window.turnstile.remove(turnstileWidgetId); } catch (e) {}
+                    turnstileWidgetId = null;
+                }
+                turnstileWidgetId = window.turnstile.render($wrap[0], {
+                    sitekey: registerConfig.turnstile_site_key,
+                    theme: 'light',
+                });
+            });
+        }
+
+        API.getRegisterConfig().then(function(cfg) {
+            registerConfig = cfg || registerConfig;
+        }).catch(function() {});
+
+        function showRegisterPanel() {
+            stampRegisterFormStarted();
+            renderTurnstileIfNeeded().catch(function() {});
+        }
 
         function showError(msg) {
             $error.text(msg).removeClass('d-none');
@@ -174,6 +228,7 @@
             $('#register-form').removeClass('d-none');
             $('#auth-toggle-text').html('Already have an account? <a href="#" id="show-login">Login.</a>');
             $('.auth-header p').text('Create your ReturnPal account');
+            showRegisterPanel();
         });
 
         $(document).on('click', '#show-login', function(e) {
@@ -221,7 +276,20 @@
                 const company_name = $('#reg-company').val().trim();
                 const email = $('#reg-email').val().trim();
                 const password = $('#reg-password').val();
-                await API.register(email, password, full_name, company_name, getReferralCodeForRegister());
+                var extras = {
+                    website: $('#reg-website').val(),
+                    form_started_at: $('#reg-form-started').val(),
+                };
+                if (registerConfig.turnstile_site_key && window.turnstile && turnstileWidgetId != null) {
+                    var tok = window.turnstile.getResponse(turnstileWidgetId);
+                    if (!tok && registerConfig.turnstile_required) {
+                        showError('Please complete the security check.');
+                        btn.prop('disabled', false).html('<span class="far fa-user-plus"></span> Create Account');
+                        return;
+                    }
+                    if (tok) extras.turnstile_token = tok;
+                }
+                await API.register(email, password, full_name, company_name, getReferralCodeForRegister(), extras);
                 try { sessionStorage.removeItem('returnpal_pending_ref'); } catch (e) {}
                 try {
                     const me = await API.getProfile({ skipAuthRedirect: true });
