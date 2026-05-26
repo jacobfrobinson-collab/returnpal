@@ -2648,7 +2648,7 @@ const Dashboard = {
                 const st = esc(String(r.status || ''));
                 $tbody.append(
                     '<tr>' +
-                    '<td>' + this.formatDate(r.created_at) + '</td>' +
+                    '<td>' + this.formatDate(r.refund_date || r.created_at) + '</td>' +
                     '<td>' + esc(r.product) + '</td>' +
                     '<td>' + esc(r.reference || '') + '</td>' +
                     '<td class="text-danger">£' + Number(r.amount != null ? r.amount : 0).toFixed(2) + '</td>' +

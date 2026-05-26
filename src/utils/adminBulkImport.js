@@ -3,6 +3,7 @@
  */
 const XLSX = require('xlsx');
 const { saveDb, pushActivity } = require('../database');
+const { findLinkedSoldItemId } = require('./returnAdjustmentSoldLink');
 
 /** Large multi-client marketplace sheets (e.g. eBay exports) — keep bounded for sql.js memory. */
 const MAX_ROWS = 15000;
@@ -76,6 +77,9 @@ function aliasKey(k) {
         orderid: 'order_number',
         date_sold: 'sold_date',
         datesold: 'sold_date',
+        transaction_creation_date: 'refund_date',
+        transaction_date: 'refund_date',
+        refunddate: 'refund_date',
         saledate: 'sold_date',
         sale_date: 'sold_date',
     };
@@ -621,40 +625,47 @@ function importReturnAdjustmentRow(db, userId, row) {
     const reference = str(row.reference);
     const notes = str(row.notes);
     const onum = str(row.order_number).slice(0, 200);
+    const refundDate = normalizeSoldDateForDb(row.refund_date) || '';
     const status = str(row.status).toLowerCase() === 'pending' ? 'pending' : 'applied';
+
+    if (onum) {
+        const dupParams = [userId, onum, amount];
+        let dupSql =
+            `SELECT id FROM return_adjustments WHERE user_id = ? AND status = 'applied'
+             AND order_number = ? AND ABS(amount - ?) < 0.02`;
+        if (refundDate) {
+            dupSql += " AND COALESCE(refund_date, '') = ?";
+            dupParams.push(refundDate);
+        }
+        dupSql += ' LIMIT 1';
+        const dup = parseResults(db.exec(dupSql, dupParams));
+        if (dup.length) {
+            return {
+                id: dup[0].id,
+                table: 'return_adjustments',
+                rollbackJson: '',
+                activity: null,
+                duplicate: true,
+            };
+        }
+    }
+
     let linkedSoldItemId = null;
     if (row.linked_sold_item_id != null && row.linked_sold_item_id !== '') {
         const parsed = parseInt(row.linked_sold_item_id, 10);
         if (Number.isFinite(parsed)) linkedSoldItemId = parsed;
     }
-    if (!linkedSoldItemId && onum) {
-        const matchByOn = parseResults(
-            db.exec(
-                `SELECT id FROM sold_items
-                 WHERE user_id = ? AND order_number = ?
-                 ORDER BY sold_date DESC, id DESC
-                 LIMIT 1`,
-                [userId, onum]
-            )
-        );
-        if (matchByOn.length) linkedSoldItemId = matchByOn[0].id;
-    }
-    if (!linkedSoldItemId && reference) {
-        const match = parseResults(
-            db.exec(
-                `SELECT id FROM sold_items
-                 WHERE user_id = ? AND reference = ?
-                 ORDER BY sold_date DESC, id DESC
-                 LIMIT 1`,
-                [userId, reference]
-            )
-        );
-        if (match.length) linkedSoldItemId = match[0].id;
+    if (!linkedSoldItemId) {
+        linkedSoldItemId = findLinkedSoldItemId(db, userId, {
+            orderNumber: onum,
+            product,
+            reference,
+        });
     }
     db.run(
-        `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes, order_number)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, product, reference, amount, linkedSoldItemId, status, notes, onum]
+        `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes, order_number, refund_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, product, reference, amount, linkedSoldItemId, status, notes, onum, refundDate]
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     if (status === 'applied') {
@@ -974,6 +985,7 @@ async function runBulkImport(db, kind, userId, buffer, options = {}) {
         const line = i + 2;
         try {
             const result = importer(db, userId, rows[i]);
+            if (result && result.duplicate) continue;
             if (result && result.activity) activities.push(result.activity);
             imported++;
             if (result && result.table) {
@@ -1092,6 +1104,7 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
         const dataRow = rowWithoutClientSpecifier(rows[i]);
         try {
             const result = importer(db, userId, dataRow);
+            if (result && result.duplicate) continue;
             if (result && result.activity) activities.push(result.activity);
             imported++;
             const k = String(userId);
@@ -1165,12 +1178,12 @@ function templateSheetAoA(kind, options = {}) {
             ['TRACK-001', 'ORD-1001', 'Damaged unit', 'Damaged Inventory', ''],
         ],
         return_adjustment: [
-            ['order_number', 'product', 'amount', 'reference', 'linked_sold_item_id', 'notes', 'status'],
-            ['ORD-1001', 'Returned cable', 12.5, 'REF-1', '', '', 'applied'],
+            ['order_number', 'product', 'amount', 'refund_date', 'reference', 'linked_sold_item_id', 'notes', 'status'],
+            ['ORD-1001', 'Returned cable', 12.5, '2026-04-10', 'REF-1', '', '', 'applied'],
         ],
         refunds: [
-            ['order_number', 'product', 'amount', 'reference', 'linked_sold_item_id', 'notes', 'status'],
-            ['ORD-1001', 'Returned cable', 12.5, 'REF-1', '', '', 'applied'],
+            ['order_number', 'product', 'amount', 'refund_date', 'reference', 'linked_sold_item_id', 'notes', 'status'],
+            ['ORD-1001', 'Returned cable', 12.5, '2026-04-10', 'REF-1', '', '', 'applied'],
         ],
     };
     const base = T[kind] || null;
@@ -1199,6 +1212,7 @@ module.exports = {
     previewBulkImport,
     buildTemplateBuffer,
     resolveUserIdFromClientSpecifier,
+    lookupUserBrief,
     extractClientSpecifier,
     rowWithoutClientSpecifier,
     applyImportRowForKind,

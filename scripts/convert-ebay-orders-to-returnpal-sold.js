@@ -1,7 +1,7 @@
 /**
  * One-off / reusable: map EVERY EBAY ORDER SHEET layout → ReturnPal multi-client sold import.
  *
- * ReturnPal template row: A=Client ID, B=sold_date, C=item_name, D=quantity, E=earnings.
+ * ReturnPal template row: Client ID, sold_date, order_number, item_name, quantity, earnings.
  * eBay order sheet row: A=sold date (any format accepted by bulk import → column B as YYYY-MM-DD), B=order id, C=title,
  *   D=sku line, E=qty, F=?, G=earnings, H=client id (maps to template column A).
  *
@@ -33,7 +33,7 @@ function sanitizeCell(v) {
 function rowToCsvLine(cells) {
     return cells
         .map((c, i) => {
-            if (i === 1 && /^\d{4}-\d{2}-\d{2}$/.test(String(c == null ? '' : c).trim())) {
+            if ((i === 1 || i === 2) && /^\d{4}-\d{2}-\d{2}$/.test(String(c == null ? '' : c).trim())) {
                 return '"' + String(c).trim() + '"';
             }
             const s = String(c == null ? '' : c);
@@ -59,7 +59,7 @@ function main() {
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
 
-    const header = ['Client ID', 'sold_date', 'item_name', 'quantity', 'earnings'];
+    const header = ['Client ID', 'sold_date', 'order_number', 'item_name', 'quantity', 'earnings'];
     const out = [header];
     let skipped = 0;
     const skipReasons = { empty: 0, noClient: 0, noDate: 0, noProduct: 0, badQty: 0 };
@@ -75,6 +75,7 @@ function main() {
             .replace(/^\uFEFF/, '')
             .trim();
         const soldDate = normalizeSoldDateForDb(row[0]);
+        const orderNumber = String(row[1] == null ? '' : row[1]).trim();
         const product = String(row[2] == null ? '' : row[2]).trim();
         const qtyRaw = row[4];
         const qty = Math.max(1, parseInt(String(qtyRaw).trim(), 10) || 0);
@@ -101,7 +102,14 @@ function main() {
             continue;
         }
 
-        out.push([sanitizeCell(clientId), soldDate, sanitizeCell(product), qty, earnings]);
+        out.push([
+            sanitizeCell(clientId),
+            soldDate,
+            sanitizeCell(orderNumber),
+            sanitizeCell(product),
+            qty,
+            earnings,
+        ]);
     }
 
     const outWb = XLSX.utils.book_new();

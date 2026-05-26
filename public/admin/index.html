@@ -166,6 +166,82 @@
                     <p class="mb-2 text-muted">Columns: <code>Client ID</code>, <code>sold_date</code>, <code>item_name</code>, <code>quantity</code>, <code>earnings</code>. Optional: <code>order_number</code>.</p>
                     <button type="button" class="btn btn-sm btn-primary" id="btn-marketplace-sales-setup">Use marketplace sales upload</button>
                 </details>
+                <details class="mb-3 small border border-success rounded p-2 bg-success-subtle" open>
+                    <summary class="fw-semibold mb-2">eBay refunds file → client dashboards &amp; payouts</summary>
+                    <p class="mb-2 mt-2">Upload your <strong>eBay Refunds report</strong> plus your <strong>EVERY EBAY ORDER SHEET</strong>. Client IDs are filled automatically; review and edit any row before importing. Payouts use each row’s <strong>refund date</strong>.</p>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small mb-0">eBay Refunds CSV</label>
+                            <input type="file" class="form-control form-control-sm" id="ebay-refunds-file" accept=".csv,.xlsx,.xls" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-0">Orders sheet (Client ID map)</label>
+                            <input type="file" class="form-control form-control-sm" id="ebay-refunds-orders-map" accept=".csv,.xlsx,.xls" />
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="ebay-refunds-load-review-btn">Load for review</button>
+                        <button type="button" class="btn btn-sm btn-success d-none" id="ebay-refunds-import-reviewed-btn">Import reviewed rows</button>
+                        <span class="small text-muted d-none" id="ebay-refunds-review-summary"></span>
+                    </div>
+                    <div id="ebay-refunds-review-wrap" class="d-none border rounded bg-white mb-2">
+                        <div class="p-2 border-bottom bg-light">
+                            <div class="small fw-semibold mb-1">Bulk change Client ID</div>
+                            <div class="d-flex flex-wrap gap-2 align-items-end">
+                                <div>
+                                    <label class="form-label small mb-0" for="ebay-refunds-bulk-contains">If SKU / title contains</label>
+                                    <input type="text" class="form-control form-control-sm" id="ebay-refunds-bulk-contains" placeholder="e.g. PPF081 or PPF-081" style="min-width:160px" />
+                                </div>
+                                <div>
+                                    <label class="form-label small mb-0" for="ebay-refunds-bulk-set-client">Set Client ID to</label>
+                                    <input type="text" class="form-control form-control-sm" id="ebay-refunds-bulk-set-client" list="ebay-refunds-client-datalist" placeholder="PPF081" style="min-width:120px" />
+                                </div>
+                                <div>
+                                    <label class="form-label small mb-0" for="ebay-refunds-bulk-scope">Apply to</label>
+                                    <select class="form-select form-select-sm" id="ebay-refunds-bulk-scope" style="width:auto">
+                                        <option value="visible">Shown rows</option>
+                                        <option value="all">All rows</option>
+                                        <option value="needs">Needs Client ID only</option>
+                                    </select>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="ebay-refunds-bulk-apply-btn">Apply rule</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="ebay-refunds-fill-sku-btn">Fill from SKU</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="ebay-refunds-normalize-ppf-btn">Normalize PPF IDs</button>
+                            </div>
+                            <p class="small text-muted mb-0 mt-1">Contains match is case-insensitive. PPF variants (PPF081, PPF-081, PPF 81) normalize to <code>PPF081</code>. Fill from SKU scans custom label and item title.</p>
+                        </div>
+                        <div class="p-2 border-bottom d-flex flex-wrap gap-2 align-items-center">
+                            <label class="small mb-0">Show</label>
+                            <select class="form-select form-select-sm" id="ebay-refunds-review-filter" style="width:auto">
+                                <option value="all">All rows</option>
+                                <option value="needs">Needs Client ID / fix</option>
+                                <option value="ready">Ready to import</option>
+                            </select>
+                            <input type="search" class="form-control form-control-sm" id="ebay-refunds-review-search" placeholder="Search order, title…" style="max-width:220px" />
+                            <span class="small text-muted" id="ebay-refunds-review-visible-count"></span>
+                        </div>
+                        <datalist id="ebay-refunds-client-datalist"></datalist>
+                        <div style="max-height:min(55vh,520px);overflow:auto">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Date</th>
+                                        <th>Order</th>
+                                        <th>Item</th>
+                                        <th class="small">SKU</th>
+                                        <th>Amt</th>
+                                        <th>Auto</th>
+                                        <th style="min-width:120px">Client ID</th>
+                                        <th>Matches</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ebay-refunds-review-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <pre class="small bg-white border rounded p-2 mb-0 d-none user-select-all" id="ebay-refunds-result" style="white-space:pre-wrap;max-height:160px;overflow:auto"></pre>
+                </details>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="bulk-import-multi" />
                     <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the list below); rows are applied to that client’s dashboard.</label>
@@ -349,6 +425,7 @@
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp12"></script>
+    <script src="/assets/js/ebay-refund-review.js?v=rp1"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script>
     $(function() {
@@ -937,6 +1014,7 @@
             $('#admin-table-wrap').removeClass('d-none');
             populateBulkImportClientSelect(users);
             populateHubAccessHubSelect(users);
+            if (typeof rebuildEbayRefundsClientDatalist === 'function') rebuildEbayRefundsClientDatalist();
             var hubSel = $('#hub-access-hub-select').val();
             if (hubSel) loadHubAccessEditorForHub(hubSel);
             else renderHubAccessClientChecks(users, null, []);
@@ -1084,6 +1162,339 @@
         }
 
         $('#btn-marketplace-sales-setup').on('click', prepareMarketplaceSalesUpload);
+
+        function ebayRefundFiles() {
+            return {
+                refunds: document.getElementById('ebay-refunds-file') && document.getElementById('ebay-refunds-file').files[0],
+                orders: document.getElementById('ebay-refunds-orders-map') && document.getElementById('ebay-refunds-orders-map').files[0],
+            };
+        }
+        function showEbayRefundsResult(txt) {
+            var $el = $('#ebay-refunds-result');
+            $el.removeClass('d-none').text(txt);
+        }
+        window._ebayRefundsReviewRows = [];
+
+        function rebuildEbayRefundsClientDatalist() {
+            var $dl = $('#ebay-refunds-client-datalist').empty();
+            (window._adminUsersList || []).forEach(function(u) {
+                if (u.is_admin === true || u.is_admin === 1 || u.is_admin === '1') return;
+                var leg = (u.legacy_client_id && String(u.legacy_client_id).trim()) || '';
+                var label = String(u.id).padStart(4, '0') + ' — ' + (u.full_name || u.email || '');
+                $dl.append($('<option></option>').attr('value', leg || String(u.id)).text(label));
+                if (leg) $dl.append($('<option></option>').attr('value', String(u.id)).text(label));
+            });
+        }
+
+        function resolveClientLocally(spec) {
+            var s = String(spec || '')
+                .trim()
+                .toLowerCase();
+            if (!s) return null;
+            var users = window._adminUsersList || [];
+            for (var i = 0; i < users.length; i++) {
+                var u = users[i];
+                if (u.is_admin === true || u.is_admin === 1 || u.is_admin === '1') continue;
+                if (String(u.id) === s || String(u.id).padStart(4, '0') === s) return u;
+                if (u.legacy_client_id && String(u.legacy_client_id).trim().toLowerCase() === s) return u;
+            }
+            return null;
+        }
+
+        function clientSourceLabel(src) {
+            if (src === 'orders_map') return 'Orders sheet';
+            if (src === 'custom_label') return 'SKU label';
+            if (src === 'column') return 'Column';
+            if (src === 'bulk') return 'Bulk rule';
+            if (src === 'sku_detect') return 'SKU detect';
+            return '—';
+        }
+
+        function ebayRefundSkuApi() {
+            return window.EbayRefundReview || null;
+        }
+
+        function ebayRefundRowHaystack(r) {
+            var api = ebayRefundSkuApi();
+            if (api && api.rowSkuHaystack) return api.rowSkuHaystack(r);
+            return [r.custom_label, r.product, r.notes, r.client_id].filter(Boolean).join(' ');
+        }
+
+        function ebayRefundMatchesBulkScope(r, scope, filter, searchQ) {
+            if (scope === 'all') return true;
+            if (scope === 'needs') return !resolveClientLocally(r.client_id);
+            return rowMatchesReviewFilter(r, filter, searchQ);
+        }
+
+        function ebayRefundBulkChangedCount(updater, scope) {
+            var filter = $('#ebay-refunds-review-filter').val() || 'all';
+            var searchQ = ($('#ebay-refunds-review-search').val() || '').trim().toLowerCase();
+            var n = 0;
+            (window._ebayRefundsReviewRows || []).forEach(function(r) {
+                if (!ebayRefundMatchesBulkScope(r, scope, filter, searchQ)) return;
+                var prev = r.client_id;
+                updater(r);
+                if (String(r.client_id || '') !== String(prev || '')) n++;
+            });
+            return n;
+        }
+
+        function rowMatchesReviewFilter(r, filter, searchQ) {
+            if (searchQ) {
+                var hay = (
+                    (r.order_number || '') +
+                    ' ' +
+                    (r.product || '') +
+                    ' ' +
+                    (r.client_id || '')
+                ).toLowerCase();
+                if (hay.indexOf(searchQ) < 0) return false;
+            }
+            if (filter === 'needs') return !resolveClientLocally(r.client_id);
+            if (filter === 'ready') return !!resolveClientLocally(r.client_id);
+            return true;
+        }
+
+        function updateEbayReviewRowResolve($tr, clientId) {
+            var u = resolveClientLocally(clientId);
+            var $m = $tr.find('.ebay-review-match');
+            $tr.toggleClass('table-warning', !u);
+            if (!clientId) {
+                $m.html('<span class="text-warning">Pick Client ID</span>');
+                return;
+            }
+            if (!u) {
+                $m.html('<span class="text-danger">Unknown client</span>');
+                return;
+            }
+            $m.html(
+                '<span class="text-success">' +
+                    escapeHtml(u.full_name || u.email || 'Client') +
+                    ' <span class="text-muted">(ID ' +
+                    String(u.id).padStart(4, '0') +
+                    ')</span></span>'
+            );
+        }
+
+        function renderEbayRefundsReviewTable() {
+            var filter = $('#ebay-refunds-review-filter').val() || 'all';
+            var searchQ = ($('#ebay-refunds-review-search').val() || '').trim().toLowerCase();
+            var $tb = $('#ebay-refunds-review-tbody').empty();
+            var visible = 0;
+            (window._ebayRefundsReviewRows || []).forEach(function(r) {
+                if (!rowMatchesReviewFilter(r, filter, searchQ)) return;
+                visible++;
+                var amt = Number(r.amount != null ? r.amount : 0);
+                var $tr = $('<tr class="ebay-refund-review-row"></tr>').attr('data-line', r.line);
+                $tr.append(
+                    '<td class="text-muted">' +
+                        r.line +
+                        '</td>' +
+                        '<td class="text-nowrap small">' +
+                        escapeHtml(r.refund_date || '') +
+                        '</td>' +
+                        '<td class="small"><code>' +
+                        escapeHtml(r.order_number || '') +
+                        '</code></td>' +
+                        '<td class="small text-truncate" style="max-width:200px" title="' +
+                        escapeHtml(r.product || '') +
+                        '">' +
+                        escapeHtml(r.product || '') +
+                        '</td>' +
+                        '<td class="small text-truncate text-muted" style="max-width:140px" title="' +
+                        escapeHtml(r.custom_label || '') +
+                        '">' +
+                        escapeHtml(r.custom_label || '—') +
+                        '</td>' +
+                        '<td class="text-danger text-nowrap">£' +
+                        amt.toFixed(2) +
+                        '</td>' +
+                        '<td class="small text-muted">' +
+                        escapeHtml(clientSourceLabel(r.client_source)) +
+                        '</td>' +
+                        '<td><input type="text" class="form-control form-control-sm ebay-review-client-id" list="ebay-refunds-client-datalist" value="' +
+                        escapeHtml(r.client_id || '') +
+                        '" /></td>' +
+                        '<td class="small ebay-review-match"></td>'
+                );
+                updateEbayReviewRowResolve($tr, r.client_id || '');
+                $tb.append($tr);
+            });
+            $('#ebay-refunds-review-visible-count').text(visible + ' row' + (visible === 1 ? '' : 's') + ' shown');
+            var ready = 0;
+            (window._ebayRefundsReviewRows || []).forEach(function(r) {
+                if (resolveClientLocally(r.client_id)) ready++;
+            });
+            $('#ebay-refunds-review-summary')
+                .removeClass('d-none')
+                .text(
+                    (window._ebayRefundsReviewRows || []).length +
+                        ' rows · ' +
+                        ready +
+                        ' ready · ' +
+                        ((window._ebayRefundsReviewRows || []).length - ready) +
+                        ' need attention'
+                );
+        }
+
+        $(document).on('input', '.ebay-review-client-id', function() {
+            var $tr = $(this).closest('tr');
+            var line = parseInt($tr.attr('data-line'), 10);
+            var val = $(this).val();
+            (window._ebayRefundsReviewRows || []).forEach(function(r) {
+                if (r.line === line) r.client_id = val;
+            });
+            updateEbayReviewRowResolve($tr, val);
+        });
+
+        $('#ebay-refunds-review-filter, #ebay-refunds-review-search').on('input change', function() {
+            renderEbayRefundsReviewTable();
+        });
+
+        $('#ebay-refunds-bulk-contains').on('input', function() {
+            var api = ebayRefundSkuApi();
+            if (!api) return;
+            var contains = $(this).val();
+            var $set = $('#ebay-refunds-bulk-set-client');
+            if ($set.data('userEdited')) return;
+            var detected = api.extractLegacyClientIdFromText(contains);
+            if (detected) $set.val(detected);
+        });
+        $('#ebay-refunds-bulk-set-client').on('input', function() {
+            $(this).data('userEdited', true);
+        });
+
+        $('#ebay-refunds-bulk-apply-btn').on('click', function() {
+            var api = ebayRefundSkuApi();
+            if (!api) return alert('SKU helpers failed to load — refresh the page.');
+            var contains = ($('#ebay-refunds-bulk-contains').val() || '').trim();
+            var setRaw = ($('#ebay-refunds-bulk-set-client').val() || '').trim();
+            if (!contains) return alert('Enter text to match in SKU / title (e.g. PPF081 or PPF-081).');
+            if (!setRaw) return alert('Enter the Client ID to apply (e.g. PPF081).');
+            var setVal = api.bulkSetClientIdValue(setRaw);
+            var scope = $('#ebay-refunds-bulk-scope').val() || 'visible';
+            var changed = ebayRefundBulkChangedCount(function(r) {
+                if (!api.textMatchesBulkContains(ebayRefundRowHaystack(r), contains)) return;
+                r.client_id = setVal;
+                r.client_source = 'bulk';
+            }, scope);
+            renderEbayRefundsReviewTable();
+            showEbayRefundsResult('Bulk rule: set Client ID to ' + setVal + ' on ' + changed + ' row(s).');
+        });
+
+        $('#ebay-refunds-fill-sku-btn').on('click', function() {
+            var api = ebayRefundSkuApi();
+            if (!api) return alert('SKU helpers failed to load — refresh the page.');
+            var scope = $('#ebay-refunds-bulk-scope').val() || 'needs';
+            var changed = ebayRefundBulkChangedCount(function(r) {
+                var detected = api.extractLegacyClientIdFromText(ebayRefundRowHaystack(r));
+                if (!detected) return;
+                r.client_id = detected;
+                r.client_source = 'sku_detect';
+            }, scope);
+            renderEbayRefundsReviewTable();
+            showEbayRefundsResult('Fill from SKU: updated Client ID on ' + changed + ' row(s).');
+        });
+
+        $('#ebay-refunds-normalize-ppf-btn').on('click', function() {
+            var api = ebayRefundSkuApi();
+            if (!api) return alert('SKU helpers failed to load — refresh the page.');
+            var scope = $('#ebay-refunds-bulk-scope').val() || 'all';
+            var changed = ebayRefundBulkChangedCount(function(r) {
+                var cur = String(r.client_id || '').trim();
+                if (!cur) return;
+                var norm = api.normalizeClientIdSpecifier(cur);
+                if (norm && norm !== cur) {
+                    r.client_id = norm;
+                    if (r.client_source === 'none') r.client_source = 'bulk';
+                }
+            }, scope);
+            renderEbayRefundsReviewTable();
+            showEbayRefundsResult('Normalize PPF IDs: updated ' + changed + ' row(s).');
+        });
+
+        $('#ebay-refunds-load-review-btn').on('click', async function() {
+            var f = ebayRefundFiles();
+            if (!f.refunds) return alert('Choose the eBay Refunds CSV first.');
+            var $btn = $(this).prop('disabled', true).text('Loading…');
+            try {
+                rebuildEbayRefundsClientDatalist();
+                var data = await API.adminEbayRefundsPreview(f.refunds, f.orders);
+                window._ebayRefundsReviewRows = (data.rows || []).map(function(r) {
+                    return Object.assign({}, r);
+                });
+                $('#ebay-refunds-bulk-set-client').val('').removeData('userEdited');
+                $('#ebay-refunds-bulk-contains').val('');
+                $('#ebay-refunds-review-wrap').removeClass('d-none');
+                $('#ebay-refunds-import-reviewed-btn').removeClass('d-none');
+                $('#ebay-refunds-review-filter').val(
+                    (data.summary && data.summary.needs_client) > 0 ? 'needs' : 'all'
+                );
+                renderEbayRefundsReviewTable();
+                showEbayRefundsResult(
+                    'Loaded ' +
+                        (data.summary && data.summary.total) +
+                        ' rows. Orders map matched ' +
+                        (data.orders_map_orders || '?') +
+                        ' order numbers. Edit Client ID where needed, then Import reviewed rows.'
+                );
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Load failed');
+            } finally {
+                $btn.prop('disabled', false).text('Load for review');
+            }
+        });
+
+        $('#ebay-refunds-import-reviewed-btn').on('click', async function() {
+            if (!window._ebayRefundsReviewRows || !window._ebayRefundsReviewRows.length) {
+                return alert('Load for review first.');
+            }
+            var ready = 0;
+            window._ebayRefundsReviewRows.forEach(function(r) {
+                if (resolveClientLocally(r.client_id)) ready++;
+            });
+            if (
+                !confirm(
+                    'Import ' +
+                        window._ebayRefundsReviewRows.length +
+                        ' refund rows (' +
+                        ready +
+                        ' with valid Client ID)? Rows without a valid client go to Pending imports. Undo from Recent imports if needed.'
+                )
+            )
+                return;
+            var $btn = $(this).prop('disabled', true).text('Importing…');
+            try {
+                var payload = window._ebayRefundsReviewRows.map(function(r) {
+                    return {
+                        clientId: String(r.client_id || '').trim(),
+                        order_number: r.order_number,
+                        product: r.product,
+                        amount: r.amount,
+                        refund_date: r.refund_date,
+                        reference: r.reference,
+                        notes: r.notes,
+                        status: r.status || 'applied',
+                    };
+                });
+                var f = ebayRefundFiles();
+                var data = await API.adminEbayRefundsImportReviewed(payload, {
+                    source_filename: (f.refunds && f.refunds.name) || 'ebay-refunds-reviewed',
+                });
+                var txt = data.message || 'Done.';
+                txt += '\n\nImported: ' + (data.imported || 0);
+                if (data.pending_rows_saved) txt += '\nPending queue: ' + data.pending_rows_saved;
+                if (data.job_id) txt += '\nJob #' + data.job_id;
+                if (data.error_count) txt += '\nRow errors: ' + data.error_count;
+                showEbayRefundsResult(txt);
+                loadBulkImportJobs();
+                loadUsers();
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Import failed');
+            } finally {
+                $btn.prop('disabled', false).text('Import reviewed rows');
+            }
+        });
 
         $('#bulk-import-multi').on('change', syncBulkImportMultiUi);
         syncBulkImportMultiUi();

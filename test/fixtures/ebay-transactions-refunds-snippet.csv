@@ -1,0 +1,4 @@
+Transaction creation date,Type,Order number,Item title,Net amount,Transaction ID
+2026-04-10,Refund,12-34567-89012,Widget Cable Pack,-15.50,TXN-REF-001
+2026-04-11,Order,12-34567-89013,Sold Item A,25.00,TXN-SALE-002
+2026-04-12,Return,12-34567-89014,Headphones Set,-8.25,TXN-REF-003

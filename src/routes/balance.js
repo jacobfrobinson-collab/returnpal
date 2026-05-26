@@ -4,6 +4,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { feesDeductedForCalendarMonth } = require('../utils/monthlyFreeProcessing');
 const { getInvoiceCapTz } = require('../utils/computedMonthlyStatements');
 const { calendarYearMonthFromDbDate } = require('../utils/soldDateCalendar');
+const { effectiveDateForReturnAdjustment } = require('../utils/returnAdjustmentDates');
 
 const router = express.Router();
 
@@ -59,14 +60,14 @@ router.get('/summary', authMiddleware, async (req, res) => {
 
         const appliedAdj = parseResults(
             db.exec(
-                `SELECT amount, created_at FROM return_adjustments 
+                `SELECT amount, created_at, refund_date FROM return_adjustments 
                  WHERE user_id = ? AND status = 'applied'`,
                 [userId]
             )
         );
         let returns_from_adjustments_mtd = 0;
         for (const r of appliedAdj) {
-            if (calendarYearMonthFromDbDate(r.created_at) === ym) {
+            if (calendarYearMonthFromDbDate(effectiveDateForReturnAdjustment(r)) === ym) {
                 returns_from_adjustments_mtd += Number(r.amount) || 0;
             }
         }

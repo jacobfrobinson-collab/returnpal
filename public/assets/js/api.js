@@ -993,6 +993,42 @@ const API = {
         return this.request('/admin/bulk-import-multi', { method: 'POST', body: fd });
     },
 
+    /** Admin: eBay Refunds report + orders map → return_adjustments (updates client payouts). */
+    async adminEbayRefundsImport(refundsFile, ordersMapFile) {
+        if (!refundsFile || !(refundsFile instanceof Blob)) {
+            throw Object.assign(new Error('Choose the eBay Refunds CSV'), { error: 'Choose the eBay Refunds CSV' });
+        }
+        const fd = new FormData();
+        fd.append('refunds', refundsFile, refundsFile.name || 'refunds.csv');
+        if (ordersMapFile && ordersMapFile instanceof Blob) {
+            fd.append('orders_map', ordersMapFile, ordersMapFile.name || 'orders.csv');
+        }
+        return this.request('/admin/ebay-refunds-import', { method: 'POST', body: fd });
+    },
+
+    async adminEbayRefundsPreview(refundsFile, ordersMapFile) {
+        if (!refundsFile || !(refundsFile instanceof Blob)) {
+            throw Object.assign(new Error('Choose the eBay Refunds CSV'), { error: 'Choose the eBay Refunds CSV' });
+        }
+        const fd = new FormData();
+        fd.append('refunds', refundsFile, refundsFile.name || 'refunds.csv');
+        if (ordersMapFile && ordersMapFile instanceof Blob) {
+            fd.append('orders_map', ordersMapFile, ordersMapFile.name || 'orders.csv');
+        }
+        return this.request('/admin/ebay-refunds-preview', { method: 'POST', body: fd });
+    },
+
+    async adminEbayRefundsImportReviewed(rows, opts) {
+        return this.request('/admin/ebay-refunds-import-reviewed', {
+            method: 'POST',
+            body: {
+                rows: rows || [],
+                queue_unmatched: opts && opts.queue_unmatched === false ? false : true,
+                source_filename: (opts && opts.source_filename) || 'ebay-refunds-reviewed',
+            },
+        });
+    },
+
     /** Admin: validate spreadsheet without writing (Client ID → email preview). */
     async adminBulkImportPreview(kind, file, opts) {
         if (!file || !(file instanceof Blob)) {

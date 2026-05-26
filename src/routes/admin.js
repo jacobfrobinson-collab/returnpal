@@ -23,6 +23,7 @@ const { buildInvoiceMonthSourcesPayload } = require('../utils/invoiceMonthDebug'
 const { sortSoldItemsByDateDesc } = require('../utils/sortSoldItemsByDateDesc');
 const { normalizeSoldDateForDb } = require('../utils/adminBulkImport');
 const { mapSoldItemDatesForApi } = require('../utils/soldDateDisplayRepair');
+const { findLinkedSoldItemId } = require('../utils/returnAdjustmentSoldLink');
 
 const router = express.Router();
 
@@ -34,6 +35,22 @@ const bulkSpreadsheetUpload = multer({
         cb(null, /\.(xlsx|xls|csv)$/.test(name));
     }
 });
+
+const ebayRefundsUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 32 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const name = (file.originalname || '').toLowerCase();
+        cb(null, /\.(xlsx|xls|csv)$/.test(name));
+    }
+});
+
+const {
+    convertEbayRefundsBuffers,
+    convertEbayRefundsForReview,
+    reviewedRowsToCsvBuffer,
+} = require('../../scripts/convert-ebay-refunds-to-returnpal');
+const { resolveUserIdFromClientSpecifier, lookupUserBrief } = require('../utils/adminBulkImport');
 
 const uploadsBaseDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, '../../uploads');
 const reimbursementUploadDir = path.join(uploadsBaseDir, 'reimbursement');
@@ -711,6 +728,7 @@ router.post('/users/:id/return-adjustments', async (req, res) => {
         const product = (req.body.product || '').toString().trim();
         const reference = (req.body.reference || '').toString().trim();
         const onum = (req.body.order_number != null ? String(req.body.order_number) : '').trim().slice(0, 200);
+        const refundDate = normalizeSoldDateForDb(req.body.refund_date) || '';
         const amount = parseFloat(req.body.amount);
         let linked = req.body.linked_sold_item_id != null ? parseInt(req.body.linked_sold_item_id, 10) : null;
         const notes = (req.body.notes || '').toString().trim();
@@ -724,36 +742,19 @@ router.post('/users/:id/return-adjustments', async (req, res) => {
         if (!ucheck.length || !ucheck[0].values.length) {
             return res.status(404).json({ error: 'User not found' });
         }
-        if (!Number.isFinite(linked) && onum) {
-            const matchByOn = parseResults(
-                db.exec(
-                    `SELECT id FROM sold_items
-                     WHERE user_id = ? AND order_number = ?
-                     ORDER BY sold_date DESC, id DESC
-                     LIMIT 1`,
-                    [userId, onum]
-                )
-            );
-            if (matchByOn.length) linked = matchByOn[0].id;
-        }
-        if (!Number.isFinite(linked) && reference) {
-            const match = parseResults(
-                db.exec(
-                    `SELECT id FROM sold_items
-                     WHERE user_id = ? AND reference = ?
-                     ORDER BY sold_date DESC, id DESC
-                     LIMIT 1`,
-                    [userId, reference]
-                )
-            );
-            if (match.length) linked = match[0].id;
+        if (!Number.isFinite(linked)) {
+            linked = findLinkedSoldItemId(db, userId, {
+                orderNumber: onum,
+                product,
+                reference,
+            });
         }
         if (!Number.isFinite(linked)) linked = null;
 
         db.run(
-            `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes, order_number)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [userId, product, reference, amount, linked, status, notes, onum]
+            `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes, order_number, refund_date)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [userId, product, reference, amount, linked, status, notes, onum, refundDate]
         );
         saveDb();
         const rid = db.exec('SELECT last_insert_rowid() as id');
@@ -1124,6 +1125,212 @@ router.post('/users/:userId/bulk-import', bulkSpreadsheetUpload.single('file'), 
         res.json({ imported, errors, kind, user_id: userId, job_id: jobId, inserted_count: inserted.length });
     } catch (err) {
         console.error('Bulk import error:', err);
+        res.status(500).json({ error: err.message || 'Server error' });
+    }
+});
+
+// POST /api/admin/ebay-refunds-import — eBay Refunds report CSV + optional orders map → return_adjustments (updates client payouts)
+router.post(
+    '/ebay-refunds-import',
+    ebayRefundsUpload.fields([
+        { name: 'refunds', maxCount: 1 },
+        { name: 'orders_map', maxCount: 1 },
+    ]),
+    async (req, res) => {
+        try {
+            const refundsFile = req.files && req.files.refunds && req.files.refunds[0];
+            if (!refundsFile || !refundsFile.buffer) {
+                return res.status(400).json({ error: 'refunds file is required (.csv or .xlsx)' });
+            }
+            const ordersFile = req.files && req.files.orders_map && req.files.orders_map[0];
+            const converted = convertEbayRefundsBuffers({
+                refundsBuffer: refundsFile.buffer,
+                ordersMapBuffer: ordersFile ? ordersFile.buffer : null,
+                ordersMapName: ordersFile ? ordersFile.originalname : '',
+            });
+            const db = await getDb();
+            const filename = refundsFile.originalname || 'ebay-refunds.csv';
+            const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key } =
+                await runBulkImportMulti(db, 'return_adjustment', converted.csvBuffer, {
+                    adminUserId: req.user.id,
+                    originalFilename: filename,
+                    queueUnmatched: true,
+                });
+            let jobId = null;
+            if (inserted.length) {
+                jobId = createBulkImportJob(db, {
+                    adminUserId: req.user.id,
+                    kind: 'return_adjustment',
+                    isMulti: true,
+                    originalFilename: filename,
+                    targetUserId: null,
+                    rowCount: row_count,
+                    importedCount: imported,
+                    errorCount: errors.length,
+                });
+                addBulkImportEntries(db, jobId, inserted);
+            }
+            logAdminAudit(db, req.user.id, 'ebay_refunds_import', {
+                job_id: jobId,
+                imported,
+                error_count: errors.length,
+                convert: converted.stats,
+            });
+            res.json({
+                imported,
+                errors: errors.slice(0, 50),
+                error_count: errors.length,
+                by_user,
+                job_id: jobId,
+                convert: converted.stats,
+                pending_rows_saved: pending_rows_saved || 0,
+                pending_by_key: pending_by_key || {},
+                message:
+                    'Refunds applied to client balances and monthly payout statements (by refund date). ' +
+                    'Clients see them under Sold Items → Refunds / Returns.',
+            });
+        } catch (err) {
+            console.error('eBay refunds import error:', err);
+            res.status(500).json({ error: err.message || 'Server error' });
+        }
+    }
+);
+
+// POST /api/admin/ebay-refunds-preview — parse files → rows for manual Client ID review
+router.post(
+    '/ebay-refunds-preview',
+    ebayRefundsUpload.fields([
+        { name: 'refunds', maxCount: 1 },
+        { name: 'orders_map', maxCount: 1 },
+    ]),
+    async (req, res) => {
+        try {
+            const refundsFile = req.files && req.files.refunds && req.files.refunds[0];
+            if (!refundsFile || !refundsFile.buffer) {
+                return res.status(400).json({ error: 'refunds file is required' });
+            }
+            const ordersFile = req.files && req.files.orders_map && req.files.orders_map[0];
+            const converted = convertEbayRefundsForReview({
+                refundsBuffer: refundsFile.buffer,
+                ordersMapBuffer: ordersFile ? ordersFile.buffer : null,
+                ordersMapName: ordersFile ? ordersFile.originalname : '',
+            });
+            const db = await getDb();
+            const reviewRows = (converted.rows || []).map((r, idx) => {
+                const spec = String(r.clientId || '').trim();
+                let resolve_ok = false;
+                let resolve_error = spec ? '' : 'No Client ID — pick one below';
+                let resolved_user_id = null;
+                let resolved_label = '';
+                let resolved_email = '';
+                let legacy_client_id = '';
+                if (spec) {
+                    const res = resolveUserIdFromClientSpecifier(db, spec);
+                    if (res.error) {
+                        resolve_error = res.error;
+                    } else {
+                        resolve_ok = true;
+                        resolved_user_id = res.userId;
+                        const brief = lookupUserBrief(db, res.userId);
+                        if (brief) {
+                            resolved_label = brief.name || '';
+                            resolved_email = brief.email || '';
+                            legacy_client_id = brief.legacy_client_id || '';
+                        }
+                    }
+                }
+                return {
+                    line: idx + 1,
+                    client_id: spec,
+                    client_source: r.clientSource || 'none',
+                    order_number: r.orderNumber || '',
+                    product: r.product || '',
+                    custom_label: r.customLabel || '',
+                    amount: r.amount,
+                    refund_date: r.refundDate || '',
+                    reference: r.reference || '',
+                    notes: r.notes || '',
+                    status: r.status || 'applied',
+                    type: r.type || '',
+                    resolve_ok,
+                    resolve_error,
+                    resolved_user_id,
+                    resolved_label,
+                    resolved_email,
+                    legacy_client_id,
+                };
+            });
+            const ready = reviewRows.filter((r) => r.resolve_ok).length;
+            res.json({
+                convert: converted.stats,
+                orders_map_orders: converted.orderClientMapSize,
+                rows: reviewRows,
+                summary: {
+                    total: reviewRows.length,
+                    ready,
+                    needs_client: reviewRows.length - ready,
+                },
+            });
+        } catch (err) {
+            console.error('eBay refunds preview error:', err);
+            res.status(500).json({ error: err.message || 'Server error' });
+        }
+    }
+);
+
+// POST /api/admin/ebay-refunds-import-reviewed — import after admin edits Client IDs in review table
+router.post('/ebay-refunds-import-reviewed', async (req, res) => {
+    try {
+        const bodyRows = req.body && Array.isArray(req.body.rows) ? req.body.rows : null;
+        if (!bodyRows || !bodyRows.length) {
+            return res.status(400).json({ error: 'rows array is required' });
+        }
+        if (bodyRows.length > 15000) {
+            return res.status(400).json({ error: 'Too many rows (max 15000)' });
+        }
+        const queueUnmatched = !(req.body.queue_unmatched === false || req.body.queue_unmatched === '0');
+        const csvBuffer = reviewedRowsToCsvBuffer(bodyRows);
+        const db = await getDb();
+        const filename = String(req.body.source_filename || 'ebay-refunds-reviewed.json').slice(0, 200);
+        const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key } =
+            await runBulkImportMulti(db, 'return_adjustment', csvBuffer, {
+                adminUserId: req.user.id,
+                originalFilename: filename,
+                queueUnmatched,
+            });
+        let jobId = null;
+        if (inserted.length) {
+            jobId = createBulkImportJob(db, {
+                adminUserId: req.user.id,
+                kind: 'return_adjustment',
+                isMulti: true,
+                originalFilename: filename,
+                targetUserId: null,
+                rowCount: row_count,
+                importedCount: imported,
+                errorCount: errors.length,
+            });
+            addBulkImportEntries(db, jobId, inserted);
+        }
+        logAdminAudit(db, req.user.id, 'ebay_refunds_import_reviewed', {
+            job_id: jobId,
+            imported,
+            error_count: errors.length,
+            row_count: bodyRows.length,
+        });
+        res.json({
+            imported,
+            errors: errors.slice(0, 50),
+            error_count: errors.length,
+            by_user,
+            job_id: jobId,
+            pending_rows_saved: pending_rows_saved || 0,
+            pending_by_key: pending_by_key || {},
+            message:
+                'Imported reviewed refunds. Client dashboards and payout months are updated from refund_date on each row.',
+        });
+    } catch (err) {
+        console.error('eBay refunds import reviewed error:', err);
         res.status(500).json({ error: err.message || 'Server error' });
     }
 });

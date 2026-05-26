@@ -323,6 +323,7 @@ async function getDb() {
         "ALTER TABLE pending_items ADD COLUMN order_number TEXT DEFAULT ''",
         "ALTER TABLE reimbursement_claims ADD COLUMN order_number TEXT DEFAULT ''",
         "ALTER TABLE return_adjustments ADD COLUMN order_number TEXT DEFAULT ''",
+        "ALTER TABLE return_adjustments ADD COLUMN refund_date TEXT DEFAULT ''",
     ];
     for (const sql of orderNumberAlters) {
         try {

@@ -5,6 +5,7 @@
 
 const { feesDeductedForCalendarMonth } = require('./monthlyFreeProcessing');
 const { normalizeSoldDateForDb } = require('./adminBulkImport');
+const { effectiveDateForReturnAdjustment } = require('./returnAdjustmentDates');
 const { calendarYearMonthFromDbDate } = require('./soldDateCalendar');
 const {
     isClientVatRegistered,
@@ -183,8 +184,8 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
 
     const returnCandidates = parseResults(
         db.exec(
-            `SELECT r.id, r.product, r.reference, r.amount, r.status, r.notes, r.created_at, r.linked_sold_item_id,
-                    s.sold_date AS linked_sold_date
+            `SELECT r.id, r.product, r.reference, r.amount, r.status, r.notes, r.created_at, r.refund_date,
+                    r.linked_sold_item_id, s.sold_date AS linked_sold_date
              FROM return_adjustments r
              LEFT JOIN sold_items s ON s.id = r.linked_sold_item_id AND s.user_id = r.user_id
              WHERE r.user_id = ? AND r.status = 'applied'
@@ -194,11 +195,7 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
     );
     const returnRows = returnCandidates
         .filter((r) => {
-            if (r.linked_sold_item_id != null) {
-                const n = normalizeSoldDateForDb(r.linked_sold_date);
-                return !!(n && n >= monthStart && n <= monthEndStr);
-            }
-            const n = normalizeSoldDateForDb(r.created_at);
+            const n = effectiveDateForReturnAdjustment(r);
             return !!(n && n >= monthStart && n <= monthEndStr);
         })
         .map((r) => ({
@@ -263,7 +260,7 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
             label: (r.product || 'Item') + ' → Return / clawback' + (r.status === 'pending' ? ' (pending)' : ''),
             reference: r.reference || '',
             amount: -Math.abs(amt),
-            date: r.created_at,
+            date: effectiveDateForReturnAdjustment(r) || r.created_at,
             status: r.status
         });
     });
@@ -326,11 +323,17 @@ function listDistinctInvoiceMonths(db, userId) {
              WHERE r.user_id = ? AND r.status = 'applied' AND r.linked_sold_item_id IS NOT NULL
                AND s.sold_date IS NOT NULL AND length(trim(s.sold_date)) > 0
              UNION
+             SELECT DISTINCT trim(r.refund_date) AS d
+             FROM return_adjustments r
+             WHERE r.user_id = ? AND r.status = 'applied'
+               AND r.refund_date IS NOT NULL AND length(trim(r.refund_date)) > 0
+             UNION
              SELECT DISTINCT trim(r.created_at) AS d
              FROM return_adjustments r
              WHERE r.user_id = ? AND r.status = 'applied' AND r.linked_sold_item_id IS NULL
+               AND (r.refund_date IS NULL OR length(trim(r.refund_date)) = 0)
                AND r.created_at IS NOT NULL AND length(trim(r.created_at)) > 0`,
-            [userId, userId, userId]
+            [userId, userId, userId, userId]
         )
     );
     const yms = new Set();

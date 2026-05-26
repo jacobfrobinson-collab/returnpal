@@ -43,12 +43,12 @@ router.get('/returns', authMiddleware, async (req, res) => {
         const db = await getDb();
         const rows = parseResults(
             db.exec(
-                `SELECT r.id, r.product, r.reference, r.amount, r.status, r.notes, r.created_at, r.order_number,
-                        r.linked_sold_item_id, s.product AS sold_product, s.sold_date
+                `SELECT r.id, r.product, r.reference, r.amount, r.status, r.notes, r.created_at, r.refund_date,
+                        r.order_number, r.linked_sold_item_id, s.product AS sold_product, s.sold_date
                  FROM return_adjustments r
                  LEFT JOIN sold_items s ON s.id = r.linked_sold_item_id
                  WHERE r.user_id = ?
-                 ORDER BY r.created_at DESC, r.id DESC`,
+                 ORDER BY COALESCE(NULLIF(r.refund_date, ''), r.created_at) DESC, r.id DESC`,
                 [req.user.id]
             )
         );

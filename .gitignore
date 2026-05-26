@@ -9,6 +9,7 @@ uploads/
 *-missing-order-links.csv
 .ebay-list-audit-downloads/
 .orders-sync-state.json
+scripts/.ebay-refunds-sync-state.json
 
 # Local env inside script subfolders
 scripts/auction-valuation/.env
