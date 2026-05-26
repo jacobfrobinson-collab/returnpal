@@ -18,7 +18,10 @@ const path = require('path');
 const crypto = require('crypto');
 const XLSX = require('xlsx');
 const { normalizeSoldDateForDb } = require('../src/utils/adminBulkImport');
-const { extractLegacyClientIdFromText } = require('../src/utils/ebayRefundSkuClient');
+const {
+    extractLegacyClientIdFromText,
+    canonicalizeClientIdCandidate,
+} = require('../src/utils/ebayRefundSkuClient');
 
 const DEFAULT_REFUND_HINTS = [
     'refund',
@@ -242,10 +245,7 @@ function findTransactionHeaderRowIndex(aoa) {
  */
 /** @param {string} label */
 function extractClientHintFromCustomLabel(label) {
-    const id = extractLegacyClientIdFromText(label);
-    if (!id) return '';
-    if (id === 'PPF') return 'ppf';
-    return id;
+    return extractLegacyClientIdFromText(label) || canonicalizeClientIdCandidate(label) || '';
 }
 
 function canonicalOrderNumber(raw) {

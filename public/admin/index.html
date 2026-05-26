@@ -208,7 +208,7 @@
                                 <button type="button" class="btn btn-sm btn-outline-primary" id="ebay-refunds-fill-sku-btn">Fill from SKU</button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="ebay-refunds-normalize-ppf-btn">Normalize PPF IDs</button>
                             </div>
-                            <p class="small text-muted mb-0 mt-1">Contains match is case-insensitive. PPF variants (PPF081, PPF-081, PPF 81) normalize to <code>PPF081</code>. Fill from SKU scans custom label and item title.</p>
+                            <p class="small text-muted mb-0 mt-1">Contains match is case-insensitive. Detects 2-letter clients (<code>AI</code>, <code>BD</code> — not <code>OS</code>/<code>EU</code>), <code>PPF001</code>/<code>PPF032</code>, and <code>FTF</code> with optional numbers. Fill from SKU scans custom label and title.</p>
                         </div>
                         <div class="p-2 border-bottom d-flex flex-wrap gap-2 align-items-center">
                             <label class="small mb-0">Show</label>
@@ -295,7 +295,7 @@
                 <div id="bulk-import-review-wrap" class="d-none border border-primary rounded bg-white mt-3">
                     <div class="p-2 border-bottom bg-light">
                         <div class="small fw-semibold mb-1">Client ID review — bulk import</div>
-                        <p class="small text-muted mb-2">Edit Client ID per row or use bulk rules (PPF081 / PPF-081 → <code>PPF081</code>). Then <strong>Import reviewed rows</strong> — do not use the plain Import button unless every row already has a valid Client ID in the file.</p>
+                        <p class="small text-muted mb-2">Edit Client ID per row or use bulk rules: 2-letter codes (<code>AI</code>, <code>BD</code>), <code>PPF032</code>/<code>PPF-32</code>, <code>FTF</code>. Then <strong>Import reviewed rows</strong> — not the plain Import button unless every row already has Client ID in the file.</p>
                         <div class="d-flex flex-wrap gap-2 align-items-end">
                             <div>
                                 <label class="form-label small mb-0" for="bulk-import-review-bulk-contains">If text contains</label>
@@ -480,8 +480,8 @@
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp12"></script>
-    <script src="/assets/js/ebay-refund-review.js?v=rp1"></script>
-    <script src="/assets/js/import-client-review.js?v=rp1"></script>
+    <script src="/assets/js/ebay-refund-review.js?v=rp2"></script>
+    <script src="/assets/js/import-client-review.js?v=rp2"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script>
     $(function() {
