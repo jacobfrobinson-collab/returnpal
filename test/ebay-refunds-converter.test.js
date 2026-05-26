@@ -17,6 +17,7 @@ const {
     isRefundTransactionRow,
     canonicalOrderNumber,
     dedupeKey,
+    normalizeEbayTxnDate,
 } = require('../scripts/convert-ebay-refunds-to-returnpal');
 
 function testCanonicalOrderNumber() {
@@ -79,6 +80,18 @@ function testDedupe() {
     assert(second.duplicates === 1, 'dup count');
 }
 
+function testEbayTxnDateMdy() {
+    const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_AMBIGUOUS_DATE_ORDER');
+    const prev = process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER;
+    try {
+        assert(normalizeEbayTxnDate('4/9/26') === '2026-04-09', 'US-style 4/9/26 → 9 April');
+        assert(normalizeEbayTxnDate('2026-04-09') === '2026-04-09', 'ISO unchanged');
+    } finally {
+        if (had) process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER = prev;
+        else delete process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER;
+    }
+}
+
 function testOutputHeader() {
     const aoa = rowsToImportAoa([
         {
@@ -103,6 +116,7 @@ function run() {
     testRefundRowDetection();
     testParseSnippet();
     testDedupe();
+    testEbayTxnDateMdy();
     testOutputHeader();
     console.log('ebay-refunds-converter.test.js: all passed');
 }

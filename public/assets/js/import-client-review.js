@@ -399,15 +399,22 @@
         if (!rows.length) return alert('Load rows for review first.');
         var ready = 0;
         var already = 0;
+        var needs = 0;
         rows.forEach(function (r) {
             if (r.already_imported) already++;
             else if (resolveClientLocally(r.client_id)) ready++;
+            else needs++;
         });
         if (!this.cfg.onImport) return alert('Import not configured.');
         var $btn = $(this.sel('import-reviewed-btn'));
         $btn.prop('disabled', true).text('Importing…');
         try {
-            await this.cfg.onImport(rows, { ready: ready, total: rows.length, already_imported: already });
+            await this.cfg.onImport(rows, {
+                ready: ready,
+                needs: needs,
+                total: rows.length,
+                already_imported: already,
+            });
         } catch (e) {
             alert((e && e.error) || e.message || 'Import failed');
         } finally {

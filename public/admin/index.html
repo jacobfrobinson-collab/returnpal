@@ -65,7 +65,7 @@
                     <li class="nav-item"><a class="nav-link admin-jump-link" href="#admin-create-user-section" data-admin-jump="create-user">Create client</a></li>
                     <li class="nav-item"><a class="nav-link admin-jump-link" href="#hub-access-section" data-admin-jump="hub-access">Hub access</a></li>
                     <li class="nav-item"><a class="nav-link admin-jump-link" href="#bulk-import-spreadsheet" data-admin-jump="bulk-import">Bulk import</a></li>
-                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#bulk-import-pending-section" data-admin-jump="pending-imports">Pending imports</a></li>
+                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#bulk-import-pending-section" data-admin-jump="pending-imports">Pending imports <span class="badge bg-info text-dark d-none" id="nav-pending-imports-badge">0</span></a></li>
                     <li class="nav-item"><a class="nav-link admin-jump-link" href="#bulk-import-jobs-section" data-admin-jump="recent-imports">Recent imports</a></li>
                 </ul>
                 <div class="d-flex gap-1">
@@ -371,7 +371,7 @@
                     <span class="collapse-chevron text-muted small mt-1" aria-hidden="true">▼</span>
                     <div>
                         <h2 class="h6 mb-0">Pending import rows</h2>
-                        <p class="small text-muted mb-0">Queued from multi-client uploads when Client ID was empty or did not match. Set Old Client ID on the client, pick them below, then Apply for that key.</p>
+                        <p class="small text-muted mb-0">Saved when you import refunds/sales with an unknown Old Client ID (e.g. <code>AD</code>, <code>AI</code>). Set that ID on the client account (or create them with it), then <strong>Apply</strong> here — or they auto-attach when you set Old Client ID on an existing user.</p>
                     </div>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-pending-refresh" onclick="event.stopPropagation()">Refresh</button>
@@ -707,16 +707,54 @@
                     $('#bulk-import-jobs-tbody').html('<tr><td colspan="8" class="text-danger px-2">Failed to load jobs</td></tr>');
                 });
         }
+        function pendingImportRowTotal(groups) {
+            return (groups || []).reduce(function(sum, g) {
+                return sum + (parseInt(g.row_count, 10) || 0);
+            }, 0);
+        }
+        function formatPendingByKey(pendingByKey) {
+            if (!pendingByKey || !Object.keys(pendingByKey).length) return '';
+            var parts = Object.keys(pendingByKey)
+                .sort(function(a, b) {
+                    return String(a).localeCompare(String(b), undefined, { sensitivity: 'base' });
+                })
+                .map(function(k) {
+                    var label = k === '' ? '(missing Client ID)' : k;
+                    return label + ': ' + pendingByKey[k];
+                });
+            return parts.join(', ');
+        }
+        function afterPendingImportSaved(data, opts) {
+            opts = opts || {};
+            var n = data && data.pending_rows_saved ? data.pending_rows_saved : 0;
+            if (!n) return '';
+            var extra = '\n\nSaved ' + n + ' row(s) to Pending import rows';
+            var breakdown = formatPendingByKey(data.pending_by_key);
+            if (breakdown) extra += ' (' + breakdown + ')';
+            extra += '.\nOpen that section below to apply when the client exists.';
+            loadPendingImports();
+            adminExpandSection('pending-imports');
+            if (opts.scroll) {
+                var el = document.getElementById('bulk-import-pending-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            return extra;
+        }
         function loadPendingImports() {
             API.adminListBulkImportPending({ limit: 'all' })
                 .then(function(data) {
                     window._pendingImportGroups = data.groups || [];
                     renderPendingImportGroupsTable();
+                    var total = pendingImportRowTotal(window._pendingImportGroups);
+                    var $badge = $('#nav-pending-imports-badge');
+                    if (total > 0) $badge.removeClass('d-none').text(total);
+                    else $badge.addClass('d-none').text('0');
                 })
                 .catch(function() {
                     window._pendingImportGroups = [];
                     $('#bulk-import-pending-tbody').html('<tr><td colspan="6" class="text-danger px-2">Failed to load pending</td></tr>');
                     $('#bulk-import-pending-groups-count').text('');
+                    $('#nav-pending-imports-badge').addClass('d-none').text('0');
                 });
         }
         function renderBulkImportErrorsHtml(errors) {
@@ -1307,15 +1345,21 @@
                 return [r.custom_label, r.product, r.notes, r.client_id].filter(Boolean).join(' ');
             },
             onImport: async function(rows, meta) {
+                var needs = meta.needs || 0;
                 if (
                     !confirm(
                         'Import ' +
                             meta.ready +
-                            ' new refund row(s)?' +
+                            ' refund row(s) onto client dashboards now?' +
                             (meta.already_imported
                                 ? ' ' + meta.already_imported + ' already imported will be skipped.'
                                 : '') +
-                            ' Rows without a valid client go to Pending imports. Undo from Recent imports if needed.'
+                            (needs
+                                ? '\n\n' +
+                                  needs +
+                                  ' row(s) with unknown Client ID will be saved to Pending import rows (not lost). You can attach them when that client signs up.'
+                                : '') +
+                            '\n\nUndo successful imports from Recent imports if needed.'
                     )
                 )
                     return;
@@ -1336,8 +1380,8 @@
                     source_filename: (f.refunds && f.refunds.name) || 'ebay-refunds-reviewed',
                 });
                 var txt = data.message || 'Done.';
-                txt += '\n\nImported: ' + (data.imported || 0);
-                if (data.pending_rows_saved) txt += '\nPending queue: ' + data.pending_rows_saved;
+                txt += '\n\nImported onto dashboards: ' + (data.imported || 0);
+                txt += afterPendingImportSaved(data, { scroll: true });
                 if (data.duplicates_skipped) txt += '\nAlready imported (skipped): ' + data.duplicates_skipped;
                 if (data.job_id) txt += '\nJob #' + data.job_id;
                 if (data.error_count) txt += '\nRow errors: ' + data.error_count;
@@ -1408,13 +1452,12 @@
                 });
                 var txt = data.message || 'Done.';
                 txt += '\n\nImported: ' + (data.imported || 0);
-                if (data.pending_rows_saved) txt += '\nPending queue: ' + data.pending_rows_saved;
+                txt += afterPendingImportSaved(data, { scroll: !!(data.pending_rows_saved) });
                 if (data.duplicates_skipped) txt += '\nAlready imported (skipped): ' + data.duplicates_skipped;
                 if (data.job_id) txt += '\nJob #' + data.job_id;
                 if (data.error_count) txt += '\nRow errors: ' + data.error_count;
                 $('#bulk-import-result').removeClass('d-none').text(txt);
                 loadBulkImportJobs();
-                loadPendingImports();
                 loadUsers();
             },
         });

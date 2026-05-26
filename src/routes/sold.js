@@ -52,7 +52,16 @@ router.get('/returns', authMiddleware, async (req, res) => {
                 [req.user.id]
             )
         );
-        const items = clientIsAdmin(req) ? rows : redactOrderNumberForClientRows(rows);
+        const { mapReturnAdjustmentRowForApi } = require('../utils/returnAdjustmentDateDisplay');
+        let items = clientIsAdmin(req) ? rows : redactOrderNumberForClientRows(rows);
+        let datesFixed = 0;
+        items = items.map((r) => {
+            const before = String(r.refund_date || '').trim();
+            const out = mapReturnAdjustmentRowForApi(db, r);
+            if (out.refund_date && out.refund_date !== before) datesFixed++;
+            return out;
+        });
+        if (datesFixed) saveDb();
         res.json({ items, total: items.length });
     } catch (err) {
         console.error('Get sold returns error:', err);

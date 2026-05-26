@@ -1,11 +1,12 @@
 const { normalizeSoldDateForDb } = require('./adminBulkImport');
+const { resolveRefundDateCalendarIso } = require('./returnAdjustmentDateDisplay');
 
 /**
  * Calendar date used for monthly statements / balance (refund month, not import day).
  * @param {{ refund_date?: string|null, created_at?: string|null, linked_sold_date?: string|null }} row
  */
 function effectiveDateForReturnAdjustment(row) {
-    const refund = normalizeSoldDateForDb(row.refund_date);
+    const refund = resolveRefundDateCalendarIso(row.refund_date);
     if (refund) return refund;
     const linked = normalizeSoldDateForDb(row.linked_sold_date);
     if (linked) return linked;

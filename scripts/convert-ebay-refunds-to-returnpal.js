@@ -18,6 +18,7 @@ const path = require('path');
 const crypto = require('crypto');
 const XLSX = require('xlsx');
 const { normalizeSoldDateForDb } = require('../src/utils/adminBulkImport');
+const { resolveRefundDateCalendarIso } = require('../src/utils/returnAdjustmentDateDisplay');
 const {
     extractLegacyClientIdFromText,
     canonicalizeClientIdCandidate,
@@ -164,17 +165,50 @@ function resolveColumnIndex(field, headerMap, headersRow, explicitMap) {
     return -1;
 }
 
+function pad2(n) {
+    return n < 10 ? '0' + n : String(n);
+}
+
+function formatLocalYmd(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+
+/** eBay exports often use US-style M/D/Y in Excel; ISO rows stay YYYY-MM-DD. */
+function normalizeEbayTxnDate(v) {
+    if (v == null || v === '') return '';
+    if (v instanceof Date && !isNaN(v.getTime())) return formatLocalYmd(v);
+    if (typeof v === 'number' && Number.isFinite(v) && v > 20000 && v < 120000) {
+        const epochMs = Date.UTC(1899, 11, 30) + Math.floor(v) * 86400000;
+        const d = new Date(epochMs);
+        if (!isNaN(d.getTime())) return formatLocalYmd(d);
+    }
+    const s = String(v).trim();
+    if (!s) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return normalizeSoldDateForDb(s) || '';
+    if (/^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(s)) {
+        const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_AMBIGUOUS_DATE_ORDER');
+        const prev = process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER;
+        process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER =
+            process.env.RETURNPAL_EBAY_REFUND_DATE_ORDER || 'MDY';
+        try {
+            return normalizeSoldDateForDb(s) || '';
+        } finally {
+            if (had) process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER = prev;
+            else delete process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER;
+        }
+    }
+    return normalizeSoldDateForDb(s) || '';
+}
+
 function cell(row, idx) {
     if (idx < 0 || idx >= row.length) return '';
     const v = row[idx];
     if (v == null) return '';
+    if (v instanceof Date && !isNaN(v.getTime())) return formatLocalYmd(v);
     if (typeof v === 'number' && Number.isFinite(v) && v > 20000 && v < 120000) {
         const epochMs = Date.UTC(1899, 11, 30) + Math.floor(v) * 86400000;
         const d = new Date(epochMs);
-        if (!isNaN(d.getTime())) {
-            const p = (n) => (n < 10 ? '0' + n : String(n));
-            return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
-        }
+        if (!isNaN(d.getTime())) return formatLocalYmd(d);
     }
     return String(v).trim();
 }
@@ -425,8 +459,8 @@ function parseRefundRowsFromTransactionSheet(aoa, opts = {}) {
         }
 
         const txnId = idxTxnId >= 0 ? cell(row, idxTxnId) : rowObj.transaction_id || '';
-        const txnDateRaw = idxDate >= 0 ? cell(row, idxDate) : rowObj.transaction_date || '';
-        const txnDate = normalizeSoldDateForDb(txnDateRaw) || txnDateRaw;
+        const txnDateRaw = idxDate >= 0 ? row[idxDate] : rowObj.transaction_date || '';
+        const txnDate = normalizeEbayTxnDate(txnDateRaw) || normalizeSoldDateForDb(cell(row, idxDate)) || '';
 
         const customLabel = idxCustomLabel >= 0 ? cell(row, idxCustomLabel) : '';
         let clientId = '';
@@ -573,7 +607,9 @@ function reviewedRowsToCsvBuffer(rows) {
         orderNumber: r.orderNumber != null ? r.orderNumber : r.order_number,
         product: r.product,
         amount: r.amount,
-        refundDate: r.refundDate != null ? r.refundDate : r.refund_date,
+        refundDate: resolveRefundDateCalendarIso(
+            r.refundDate != null ? r.refundDate : r.refund_date
+        ) || (r.refundDate != null ? r.refundDate : r.refund_date),
         reference: r.reference || '',
         notes: r.notes || '',
         status: r.status || 'applied',
@@ -728,4 +764,5 @@ module.exports = {
     convertEbayRefundsForReview,
     reviewedRowsToCsvBuffer,
     readBufferToAoa,
+    normalizeEbayTxnDate,
 };

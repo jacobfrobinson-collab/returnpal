@@ -195,7 +195,18 @@ router.post('/users', async (req, res) => {
         );
         saveDb();
         const userId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
-        logAdminAudit(db, req.user.id, 'create_user', { target_user_id: userId, email });
+        let pending_auto_applied = 0;
+        if (legacy) {
+            const auto = await tryAutoApplyPendingForLegacyClient(db, userId, legacy, (d, k, uid, fullRow) =>
+                applyImportRowForKind(d, k, uid, rowWithoutClientSpecifier(fullRow))
+            );
+            pending_auto_applied = auto.imported || 0;
+        }
+        logAdminAudit(db, req.user.id, 'create_user', {
+            target_user_id: userId,
+            email,
+            pending_auto_applied,
+        });
         res.status(201).json({
             message: 'Client account created',
             user: {
@@ -204,7 +215,9 @@ router.post('/users', async (req, res) => {
                 full_name,
                 company_name,
                 account_status: 'approved',
+                legacy_client_id: legacy,
             },
+            pending_auto_applied,
         });
     } catch (err) {
         console.error('Admin create user error:', err);
@@ -219,7 +232,11 @@ router.post('/users/:id/approve-registration', async (req, res) => {
         if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'Invalid user id' });
         const db = await getDb();
         const rows = parseResults(
-            db.exec('SELECT id, email, account_status FROM users WHERE id = ?', [targetId])
+            db.exec(
+                `SELECT id, email, account_status, COALESCE(legacy_client_id, '') AS legacy_client_id
+                 FROM users WHERE id = ?`,
+                [targetId]
+            )
         );
         if (!rows.length) return res.status(404).json({ error: 'User not found' });
         db.run(
@@ -227,14 +244,26 @@ router.post('/users/:id/approve-registration', async (req, res) => {
             [targetId]
         );
         saveDb();
+        let pending_auto_applied = 0;
+        const legacy = String(rows[0].legacy_client_id || '').trim();
+        if (legacy) {
+            const auto = await tryAutoApplyPendingForLegacyClient(db, targetId, legacy, (d, k, uid, fullRow) =>
+                applyImportRowForKind(d, k, uid, rowWithoutClientSpecifier(fullRow))
+            );
+            pending_auto_applied = auto.imported || 0;
+        }
         pushActivity(
             targetId,
             'system',
             'Your ReturnPal account has been approved. You can now log in.',
             '/login.html'
         );
-        logAdminAudit(db, req.user.id, 'approve_registration', { target_user_id: targetId, email: rows[0].email });
-        res.json({ message: 'Registration approved', user_id: targetId });
+        logAdminAudit(db, req.user.id, 'approve_registration', {
+            target_user_id: targetId,
+            email: rows[0].email,
+            pending_auto_applied,
+        });
+        res.json({ message: 'Registration approved', user_id: targetId, pending_auto_applied });
     } catch (err) {
         console.error('Admin approve registration error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -764,7 +793,8 @@ router.post('/users/:id/return-adjustments', async (req, res) => {
         const product = (req.body.product || '').toString().trim();
         const reference = (req.body.reference || '').toString().trim();
         const onum = (req.body.order_number != null ? String(req.body.order_number) : '').trim().slice(0, 200);
-        const refundDate = normalizeSoldDateForDb(req.body.refund_date) || '';
+        const { resolveRefundDateCalendarIso } = require('../utils/returnAdjustmentDateDisplay');
+        const refundDate = resolveRefundDateCalendarIso(req.body.refund_date) || '';
         const amount = parseFloat(req.body.amount);
         let linked = req.body.linked_sold_item_id != null ? parseInt(req.body.linked_sold_item_id, 10) : null;
         const notes = (req.body.notes || '').toString().trim();
@@ -1317,6 +1347,7 @@ router.post(
                 ordersMapName: ordersFile ? ordersFile.originalname : '',
                 extraOrderClientMap: savedOrderMap,
             });
+            const { resolveRefundDateCalendarIso } = require('../utils/returnAdjustmentDateDisplay');
             const reviewRows = (converted.rows || []).map((r, idx) => {
                 const spec = String(r.clientId || '').trim();
                 let resolve_ok = false;
@@ -1340,6 +1371,7 @@ router.post(
                         }
                     }
                 }
+                const refundDateCal = resolveRefundDateCalendarIso(r.refundDate || '') || r.refundDate || '';
                 return {
                     line: idx + 1,
                     client_id: spec,
@@ -1348,7 +1380,7 @@ router.post(
                     product: r.product || '',
                     custom_label: r.customLabel || '',
                     amount: r.amount,
-                    refund_date: r.refundDate || '',
+                    refund_date: refundDateCal,
                     reference: r.reference || '',
                     notes: r.notes || '',
                     status: r.status || 'applied',
@@ -1396,12 +1428,21 @@ router.post('/ebay-refunds-import-reviewed', async (req, res) => {
         const csvBuffer = reviewedRowsToCsvBuffer(bodyRows);
         const db = await getDb();
         const filename = String(req.body.source_filename || 'ebay-refunds-reviewed.json').slice(0, 200);
-            const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key, duplicates_skipped } =
-                await runBulkImportMulti(db, 'return_adjustment', csvBuffer, {
-                    adminUserId: req.user.id,
-                    originalFilename: filename,
-                    queueUnmatched,
-                });
+            const {
+                imported,
+                errors,
+                by_user,
+                inserted,
+                row_count,
+                pending_rows_saved,
+                pending_by_key,
+                duplicates_skipped,
+                refund_dates_corrected,
+            } = await runBulkImportMulti(db, 'return_adjustment', csvBuffer, {
+                adminUserId: req.user.id,
+                originalFilename: filename,
+                queueUnmatched,
+            });
             let jobId = null;
             if (inserted.length) {
                 jobId = createBulkImportJob(db, {
@@ -1424,6 +1465,7 @@ router.post('/ebay-refunds-import-reviewed', async (req, res) => {
                 row_count: bodyRows.length,
                 order_mappings_saved,
                 duplicates_skipped: duplicates_skipped || 0,
+                refund_dates_corrected: refund_dates_corrected || 0,
             });
             res.json({
                 imported,
@@ -1435,6 +1477,7 @@ router.post('/ebay-refunds-import-reviewed', async (req, res) => {
                 pending_by_key: pending_by_key || {},
                 order_mappings_saved,
                 duplicates_skipped: duplicates_skipped || 0,
+                refund_dates_corrected: refund_dates_corrected || 0,
                 message:
                     'Imported reviewed refunds. Client dashboards and payout months are updated from refund_date on each row.',
             });

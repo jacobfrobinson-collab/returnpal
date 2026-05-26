@@ -730,7 +730,8 @@ function importReturnAdjustmentRow(db, userId, row) {
     const reference = str(row.reference);
     const notes = str(row.notes);
     const onum = str(row.order_number).slice(0, 200);
-    const refundDate = normalizeSoldDateForDb(row.refund_date) || '';
+    const { resolveRefundDateCalendarIso } = require('./returnAdjustmentDateDisplay');
+    const refundDate = resolveRefundDateCalendarIso(row.refund_date) || '';
     const status = str(row.status).toLowerCase() === 'pending' ? 'pending' : 'applied';
 
     const dup = findReturnAdjustmentDuplicate(db, userId, {
@@ -1269,6 +1270,17 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
         }
     }
 
+    let refund_dates_corrected = 0;
+    if (kind === 'return_adjustment' || kind === 'refunds') {
+        const { persistReturnAdjustmentRefundDateCorrections } = require('./returnAdjustmentDateDisplay');
+        const adjIds = inserted
+            .filter((e) => e.entityTable === 'return_adjustments' && e.entityId != null)
+            .map((e) => e.entityId);
+        if (adjIds.length) {
+            refund_dates_corrected = persistReturnAdjustmentRefundDateCorrections(db, { ids: adjIds });
+        }
+    }
+
     return {
         imported,
         errors,
@@ -1278,6 +1290,7 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
         pending_rows_saved,
         pending_by_key,
         duplicates_skipped,
+        refund_dates_corrected,
     };
 }
 

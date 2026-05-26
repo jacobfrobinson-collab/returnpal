@@ -39,7 +39,8 @@ function findReturnAdjustmentDuplicate(db, userId, row) {
 
     const onum = str(row.order_number).slice(0, 200);
     const { normalizeSoldDateForDb } = require('./adminBulkImport');
-    const refundDate = normalizeSoldDateForDb(row.refund_date) || '';
+    const { resolveRefundDateCalendarIso } = require('./returnAdjustmentDateDisplay');
+    const refundDate = resolveRefundDateCalendarIso(row.refund_date) || '';
     const reference = str(row.reference).slice(0, 64);
 
     if (onum) {
@@ -77,9 +78,14 @@ function findReturnAdjustmentDuplicate(db, userId, row) {
  * @param {Array<Record<string, unknown>>} rows
  */
 function enrichReturnAdjustmentReviewDuplicates(db, resolveClient, rows) {
+    const { resolveRefundDateCalendarIso } = require('./returnAdjustmentDateDisplay');
     for (const row of rows || []) {
         row.already_imported = false;
         row.duplicate_adjustment_id = null;
+        if (row.refund_date != null && row.refund_date !== '') {
+            const fixed = resolveRefundDateCalendarIso(row.refund_date);
+            if (fixed) row.refund_date = fixed;
+        }
         const spec = str(row.client_id);
         if (!spec) continue;
         const res = resolveClient(db, spec);
