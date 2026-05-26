@@ -203,6 +203,93 @@ function lookupUserBrief(db, userId) {
     };
 }
 
+function rowToCsvLine(cells) {
+    return cells.map((c) => {
+        const s = c == null ? '' : String(c);
+        if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+        return s;
+    }).join(',');
+}
+
+/**
+ * Editable review rows for multi-client bulk import (Client ID + row payload).
+ * @param {import('sql.js').Database} db
+ * @param {string} kind
+ * @param {Array<Record<string, unknown>>} parsedRows
+ */
+function buildMultiImportReviewRows(db, kind, parsedRows) {
+    const reviewRows = [];
+    for (let i = 0; i < parsedRows.length; i++) {
+        const line = i + 2;
+        const row = parsedRows[i];
+        const spec = extractClientSpecifier(row);
+        const clientId = spec != null && spec !== '' ? String(spec).trim() : '';
+        const dataRow = rowWithoutClientSpecifier(row);
+        let resolve_ok = false;
+        let resolve_error = clientId ? '' : 'No Client ID — pick one below';
+        let resolved_label = '';
+        let resolved_email = '';
+        if (clientId) {
+            const res = resolveUserIdFromClientSpecifier(db, clientId);
+            if (res.error) {
+                resolve_error = res.error;
+            } else {
+                resolve_ok = true;
+                const brief = lookupUserBrief(db, res.userId);
+                if (brief) {
+                    resolved_label = brief.name || '';
+                    resolved_email = brief.email || '';
+                }
+            }
+        }
+        const custom_label =
+            str(row.custom_label) || str(row.sku) || str(row.seller_sku) || str(row.customlabel) || '';
+        reviewRows.push({
+            line,
+            client_id: clientId,
+            client_source: clientId ? 'column' : 'none',
+            summary: summarizeRow(kind, dataRow),
+            row_data: dataRow,
+            order_number: str(dataRow.order_number),
+            product: str(dataRow.product) || str(dataRow.item_name),
+            amount: dataRow.amount,
+            refund_date: dataRow.refund_date,
+            custom_label,
+            notes: str(dataRow.notes),
+            resolve_ok,
+            resolve_error,
+            resolved_label,
+            resolved_email,
+        });
+    }
+    return reviewRows;
+}
+
+/**
+ * @param {string} kind
+ * @param {Array<{ client_id?: string, clientId?: string, row_data: Record<string, unknown> }>} reviewedRows
+ */
+function reviewedMultiRowsToCsvBuffer(kind, reviewedRows) {
+    const template = templateSheetAoA(kind, { multi: true });
+    if (!template || !template.length) throw new Error('Unknown import type for multi review export');
+    const headers = template[0];
+    const aoa = [headers];
+    for (const r of reviewedRows || []) {
+        const dataRow = r.row_data && typeof r.row_data === 'object' ? r.row_data : {};
+        const clientId = String(r.clientId != null ? r.clientId : r.client_id || '').trim();
+        const line = [clientId];
+        for (let c = 1; c < headers.length; c++) {
+            const hk = normalizeHeaderKey(headers[c]);
+            let val = dataRow[hk];
+            if (val == null && aliasKey(hk) !== hk) val = dataRow[aliasKey(hk)];
+            line.push(val != null ? val : '');
+        }
+        aoa.push(line);
+    }
+    const csvBody = aoa.map((row) => rowToCsvLine(row)).join('\r\n');
+    return Buffer.from('\uFEFF' + csvBody, 'utf8');
+}
+
 function summarizeRow(kind, row) {
     switch (kind) {
         case 'sold': {
@@ -952,7 +1039,20 @@ function previewBulkImport(db, opts) {
             });
         }
     }
-    return { rows: out, summary: { total: rows.length, ok, bad, rows_with_warnings: rowsWithWarnings } };
+    const review_rows = multi ? buildMultiImportReviewRows(db, kind, rows) : [];
+    const review_ready = review_rows.filter((r) => r.resolve_ok).length;
+    return {
+        rows: out,
+        review_rows,
+        summary: {
+            total: rows.length,
+            ok,
+            bad,
+            rows_with_warnings: rowsWithWarnings,
+            review_ready,
+            review_needs_client: review_rows.length - review_ready,
+        },
+    };
 }
 
 /**
@@ -1210,6 +1310,8 @@ module.exports = {
     runBulkImport,
     runBulkImportMulti,
     previewBulkImport,
+    buildMultiImportReviewRows,
+    reviewedMultiRowsToCsvBuffer,
     buildTemplateBuffer,
     resolveUserIdFromClientSpecifier,
     lookupUserBrief,

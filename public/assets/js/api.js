@@ -1030,6 +1030,18 @@ const API = {
     },
 
     /** Admin: validate spreadsheet without writing (Client ID → email preview). */
+    async adminBulkImportMultiReviewed(kind, rows, opts) {
+        return this.request('/admin/bulk-import-multi-reviewed', {
+            method: 'POST',
+            body: {
+                kind: kind,
+                rows: rows || [],
+                queue_unmatched: opts && opts.queue_unmatched === false ? false : true,
+                source_filename: (opts && opts.source_filename) || 'bulk-import-reviewed',
+            },
+        });
+    },
+
     async adminBulkImportPreview(kind, file, opts) {
         if (!file || !(file instanceof Blob)) {
             throw Object.assign(new Error('Choose a spreadsheet file'), { error: 'Choose a spreadsheet file' });

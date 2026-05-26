@@ -244,7 +244,7 @@
                 </details>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="bulk-import-multi" />
-                    <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the list below); rows are applied to that client’s dashboard.</label>
+                    <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the list below). Use <strong>Preview</strong> to open the review table where you can bulk-fix Client IDs (PPF081, PPF-081, fill from SKU, etc.) before import.</label>
                 </div>
                 <div class="form-check mb-2 ms-3 d-none" id="bulk-import-queue-unmatched-wrap">
                     <input class="form-check-input" type="checkbox" id="bulk-import-queue-unmatched" checked />
@@ -284,10 +284,65 @@
                 </div>
                 <div id="bulk-import-preview-wrap" class="d-none mt-3">
                     <div class="small fw-semibold mb-1">Preview (not saved)</div>
+                    <p class="small text-muted mb-1">When <strong>Multi-client file</strong> is on, Preview also opens <strong>Client ID review</strong> below so you can fix missing clients before importing.</p>
                     <div class="table-responsive border rounded" style="max-height:260px;overflow:auto">
                         <table class="table table-sm table-striped mb-0">
                             <thead class="table-light" id="bulk-import-preview-thead"><tr><th>Line</th><th>OK</th><th>Client</th><th>Warnings / error</th><th>Row</th></tr></thead>
                             <tbody id="bulk-import-preview-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="bulk-import-review-wrap" class="d-none border border-primary rounded bg-white mt-3">
+                    <div class="p-2 border-bottom bg-light">
+                        <div class="small fw-semibold mb-1">Client ID review — bulk import</div>
+                        <p class="small text-muted mb-2">Edit Client ID per row or use bulk rules (PPF081 / PPF-081 → <code>PPF081</code>). Then <strong>Import reviewed rows</strong> — do not use the plain Import button unless every row already has a valid Client ID in the file.</p>
+                        <div class="d-flex flex-wrap gap-2 align-items-end">
+                            <div>
+                                <label class="form-label small mb-0" for="bulk-import-review-bulk-contains">If text contains</label>
+                                <input type="text" class="form-control form-control-sm" id="bulk-import-review-bulk-contains" placeholder="e.g. PPF081 or PPF-081" style="min-width:160px" />
+                            </div>
+                            <div>
+                                <label class="form-label small mb-0" for="bulk-import-review-bulk-set-client">Set Client ID to</label>
+                                <input type="text" class="form-control form-control-sm" id="bulk-import-review-bulk-set-client" list="bulk-import-review-client-datalist" placeholder="PPF081" style="min-width:120px" />
+                            </div>
+                            <div>
+                                <label class="form-label small mb-0" for="bulk-import-review-bulk-scope">Apply to</label>
+                                <select class="form-select form-select-sm" id="bulk-import-review-bulk-scope" style="width:auto">
+                                    <option value="visible">Shown rows</option>
+                                    <option value="all">All rows</option>
+                                    <option value="needs">Needs Client ID only</option>
+                                </select>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-review-bulk-apply-btn">Apply rule</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="bulk-import-review-fill-sku-btn">Fill from SKU</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-review-normalize-ppf-btn">Normalize PPF IDs</button>
+                        </div>
+                    </div>
+                    <div class="p-2 border-bottom d-flex flex-wrap gap-2 align-items-center">
+                        <label class="small mb-0">Show</label>
+                        <select class="form-select form-select-sm" id="bulk-import-review-review-filter" style="width:auto">
+                            <option value="all">All rows</option>
+                            <option value="needs">Needs Client ID / fix</option>
+                            <option value="ready">Ready to import</option>
+                        </select>
+                        <input type="search" class="form-control form-control-sm" id="bulk-import-review-review-search" placeholder="Search order, title, SKU…" style="max-width:220px" />
+                        <span class="small text-muted" id="bulk-import-review-review-visible-count"></span>
+                        <button type="button" class="btn btn-sm btn-success ms-auto d-none" id="bulk-import-review-import-reviewed-btn">Import reviewed rows</button>
+                        <span class="small text-muted d-none" id="bulk-import-review-review-summary"></span>
+                    </div>
+                    <datalist id="bulk-import-review-client-datalist"></datalist>
+                    <div style="max-height:min(55vh,520px);overflow:auto">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Row</th>
+                                    <th>Auto</th>
+                                    <th style="min-width:120px">Client ID</th>
+                                    <th>Matches</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bulk-import-review-review-tbody"></tbody>
                         </table>
                     </div>
                 </div>
@@ -426,6 +481,7 @@
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/api.js?v=rp12"></script>
     <script src="/assets/js/ebay-refund-review.js?v=rp1"></script>
+    <script src="/assets/js/import-client-review.js?v=rp1"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script>
     $(function() {
@@ -596,6 +652,7 @@
             $('#bulk-import-target-client').prop('disabled', !!multi);
             $('#bulk-import-single-client-wrap').toggleClass('opacity-50', !!multi);
             $('#bulk-import-queue-unmatched-wrap').toggleClass('d-none', !multi);
+            if (!multi) $('#bulk-import-review-wrap').addClass('d-none');
         }
         function loadBulkImportJobs() {
             var showRolled = document.getElementById('bulk-import-jobs-show-rolled') && document.getElementById('bulk-import-jobs-show-rolled').checked;
@@ -1014,7 +1071,8 @@
             $('#admin-table-wrap').removeClass('d-none');
             populateBulkImportClientSelect(users);
             populateHubAccessHubSelect(users);
-            if (typeof rebuildEbayRefundsClientDatalist === 'function') rebuildEbayRefundsClientDatalist();
+            if (window.ebayRefundsReview) window.ebayRefundsReview.rebuildDatalist();
+            if (window.bulkImportClientReview) window.bulkImportClientReview.rebuildDatalist();
             var hubSel = $('#hub-access-hub-select').val();
             if (hubSel) loadHubAccessEditorForHub(hubSel);
             else renderHubAccessClientChecks(users, null, []);
@@ -1174,298 +1232,72 @@
             $el.removeClass('d-none').text(txt);
         }
         window._ebayRefundsReviewRows = [];
+        window._bulkImportReviewRows = [];
+        window._bulkImportReviewMeta = { kind: '', filename: '' };
 
-        function rebuildEbayRefundsClientDatalist() {
-            var $dl = $('#ebay-refunds-client-datalist').empty();
-            (window._adminUsersList || []).forEach(function(u) {
-                if (u.is_admin === true || u.is_admin === 1 || u.is_admin === '1') return;
-                var leg = (u.legacy_client_id && String(u.legacy_client_id).trim()) || '';
-                var label = String(u.id).padStart(4, '0') + ' — ' + (u.full_name || u.email || '');
-                $dl.append($('<option></option>').attr('value', leg || String(u.id)).text(label));
-                if (leg) $dl.append($('<option></option>').attr('value', String(u.id)).text(label));
-            });
+        function bulkImportRowHaystack(r) {
+            var d = r.row_data || {};
+            return [
+                r.client_id,
+                r.summary,
+                r.custom_label,
+                r.product,
+                r.order_number,
+                r.notes,
+                d.sku,
+                d.item_name,
+                d.items_description,
+                d.item_description,
+                d.reference,
+            ]
+                .filter(Boolean)
+                .join(' ');
         }
 
-        function resolveClientLocally(spec) {
-            var s = String(spec || '')
-                .trim()
-                .toLowerCase();
-            if (!s) return null;
-            var users = window._adminUsersList || [];
-            for (var i = 0; i < users.length; i++) {
-                var u = users[i];
-                if (u.is_admin === true || u.is_admin === 1 || u.is_admin === '1') continue;
-                if (String(u.id) === s || String(u.id).padStart(4, '0') === s) return u;
-                if (u.legacy_client_id && String(u.legacy_client_id).trim().toLowerCase() === s) return u;
-            }
-            return null;
-        }
-
-        function clientSourceLabel(src) {
-            if (src === 'orders_map') return 'Orders sheet';
-            if (src === 'custom_label') return 'SKU label';
-            if (src === 'column') return 'Column';
-            if (src === 'bulk') return 'Bulk rule';
-            if (src === 'sku_detect') return 'SKU detect';
-            return '—';
-        }
-
-        function ebayRefundSkuApi() {
-            return window.EbayRefundReview || null;
-        }
-
-        function ebayRefundRowHaystack(r) {
-            var api = ebayRefundSkuApi();
-            if (api && api.rowSkuHaystack) return api.rowSkuHaystack(r);
-            return [r.custom_label, r.product, r.notes, r.client_id].filter(Boolean).join(' ');
-        }
-
-        function ebayRefundMatchesBulkScope(r, scope, filter, searchQ) {
-            if (scope === 'all') return true;
-            if (scope === 'needs') return !resolveClientLocally(r.client_id);
-            return rowMatchesReviewFilter(r, filter, searchQ);
-        }
-
-        function ebayRefundBulkChangedCount(updater, scope) {
-            var filter = $('#ebay-refunds-review-filter').val() || 'all';
-            var searchQ = ($('#ebay-refunds-review-search').val() || '').trim().toLowerCase();
-            var n = 0;
-            (window._ebayRefundsReviewRows || []).forEach(function(r) {
-                if (!ebayRefundMatchesBulkScope(r, scope, filter, searchQ)) return;
-                var prev = r.client_id;
-                updater(r);
-                if (String(r.client_id || '') !== String(prev || '')) n++;
-            });
-            return n;
-        }
-
-        function rowMatchesReviewFilter(r, filter, searchQ) {
-            if (searchQ) {
-                var hay = (
-                    (r.order_number || '') +
-                    ' ' +
-                    (r.product || '') +
-                    ' ' +
-                    (r.client_id || '')
-                ).toLowerCase();
-                if (hay.indexOf(searchQ) < 0) return false;
-            }
-            if (filter === 'needs') return !resolveClientLocally(r.client_id);
-            if (filter === 'ready') return !!resolveClientLocally(r.client_id);
-            return true;
-        }
-
-        function updateEbayReviewRowResolve($tr, clientId) {
-            var u = resolveClientLocally(clientId);
-            var $m = $tr.find('.ebay-review-match');
-            $tr.toggleClass('table-warning', !u);
-            if (!clientId) {
-                $m.html('<span class="text-warning">Pick Client ID</span>');
-                return;
-            }
-            if (!u) {
-                $m.html('<span class="text-danger">Unknown client</span>');
-                return;
-            }
-            $m.html(
-                '<span class="text-success">' +
-                    escapeHtml(u.full_name || u.email || 'Client') +
-                    ' <span class="text-muted">(ID ' +
-                    String(u.id).padStart(4, '0') +
-                    ')</span></span>'
-            );
-        }
-
-        function renderEbayRefundsReviewTable() {
-            var filter = $('#ebay-refunds-review-filter').val() || 'all';
-            var searchQ = ($('#ebay-refunds-review-search').val() || '').trim().toLowerCase();
-            var $tb = $('#ebay-refunds-review-tbody').empty();
-            var visible = 0;
-            (window._ebayRefundsReviewRows || []).forEach(function(r) {
-                if (!rowMatchesReviewFilter(r, filter, searchQ)) return;
-                visible++;
+        window.ebayRefundsReview = ImportClientReview.create({
+            prefix: 'ebay-refunds',
+            getRows: function() {
+                return window._ebayRefundsReviewRows;
+            },
+            setRows: function(rows) {
+                window._ebayRefundsReviewRows = rows;
+            },
+            showMessage: showEbayRefundsResult,
+            renderDataCells: function(r, esc) {
                 var amt = Number(r.amount != null ? r.amount : 0);
-                var $tr = $('<tr class="ebay-refund-review-row"></tr>').attr('data-line', r.line);
-                $tr.append(
-                    '<td class="text-muted">' +
-                        r.line +
-                        '</td>' +
-                        '<td class="text-nowrap small">' +
-                        escapeHtml(r.refund_date || '') +
-                        '</td>' +
-                        '<td class="small"><code>' +
-                        escapeHtml(r.order_number || '') +
-                        '</code></td>' +
-                        '<td class="small text-truncate" style="max-width:200px" title="' +
-                        escapeHtml(r.product || '') +
-                        '">' +
-                        escapeHtml(r.product || '') +
-                        '</td>' +
-                        '<td class="small text-truncate text-muted" style="max-width:140px" title="' +
-                        escapeHtml(r.custom_label || '') +
-                        '">' +
-                        escapeHtml(r.custom_label || '—') +
-                        '</td>' +
-                        '<td class="text-danger text-nowrap">£' +
-                        amt.toFixed(2) +
-                        '</td>' +
-                        '<td class="small text-muted">' +
-                        escapeHtml(clientSourceLabel(r.client_source)) +
-                        '</td>' +
-                        '<td><input type="text" class="form-control form-control-sm ebay-review-client-id" list="ebay-refunds-client-datalist" value="' +
-                        escapeHtml(r.client_id || '') +
-                        '" /></td>' +
-                        '<td class="small ebay-review-match"></td>'
+                return (
+                    '<td class="text-nowrap small">' +
+                    esc(r.refund_date || '') +
+                    '</td><td class="small"><code>' +
+                    esc(r.order_number || '') +
+                    '</code></td><td class="small text-truncate" style="max-width:200px" title="' +
+                    esc(r.product || '') +
+                    '">' +
+                    esc(r.product || '') +
+                    '</td><td class="small text-truncate text-muted" style="max-width:140px" title="' +
+                    esc(r.custom_label || '') +
+                    '">' +
+                    esc(r.custom_label || '—') +
+                    '</td><td class="text-danger text-nowrap">£' +
+                    amt.toFixed(2) +
+                    '</td>'
                 );
-                updateEbayReviewRowResolve($tr, r.client_id || '');
-                $tb.append($tr);
-            });
-            $('#ebay-refunds-review-visible-count').text(visible + ' row' + (visible === 1 ? '' : 's') + ' shown');
-            var ready = 0;
-            (window._ebayRefundsReviewRows || []).forEach(function(r) {
-                if (resolveClientLocally(r.client_id)) ready++;
-            });
-            $('#ebay-refunds-review-summary')
-                .removeClass('d-none')
-                .text(
-                    (window._ebayRefundsReviewRows || []).length +
-                        ' rows · ' +
-                        ready +
-                        ' ready · ' +
-                        ((window._ebayRefundsReviewRows || []).length - ready) +
-                        ' need attention'
-                );
-        }
-
-        $(document).on('input', '.ebay-review-client-id', function() {
-            var $tr = $(this).closest('tr');
-            var line = parseInt($tr.attr('data-line'), 10);
-            var val = $(this).val();
-            (window._ebayRefundsReviewRows || []).forEach(function(r) {
-                if (r.line === line) r.client_id = val;
-            });
-            updateEbayReviewRowResolve($tr, val);
-        });
-
-        $('#ebay-refunds-review-filter, #ebay-refunds-review-search').on('input change', function() {
-            renderEbayRefundsReviewTable();
-        });
-
-        $('#ebay-refunds-bulk-contains').on('input', function() {
-            var api = ebayRefundSkuApi();
-            if (!api) return;
-            var contains = $(this).val();
-            var $set = $('#ebay-refunds-bulk-set-client');
-            if ($set.data('userEdited')) return;
-            var detected = api.extractLegacyClientIdFromText(contains);
-            if (detected) $set.val(detected);
-        });
-        $('#ebay-refunds-bulk-set-client').on('input', function() {
-            $(this).data('userEdited', true);
-        });
-
-        $('#ebay-refunds-bulk-apply-btn').on('click', function() {
-            var api = ebayRefundSkuApi();
-            if (!api) return alert('SKU helpers failed to load — refresh the page.');
-            var contains = ($('#ebay-refunds-bulk-contains').val() || '').trim();
-            var setRaw = ($('#ebay-refunds-bulk-set-client').val() || '').trim();
-            if (!contains) return alert('Enter text to match in SKU / title (e.g. PPF081 or PPF-081).');
-            if (!setRaw) return alert('Enter the Client ID to apply (e.g. PPF081).');
-            var setVal = api.bulkSetClientIdValue(setRaw);
-            var scope = $('#ebay-refunds-bulk-scope').val() || 'visible';
-            var changed = ebayRefundBulkChangedCount(function(r) {
-                if (!api.textMatchesBulkContains(ebayRefundRowHaystack(r), contains)) return;
-                r.client_id = setVal;
-                r.client_source = 'bulk';
-            }, scope);
-            renderEbayRefundsReviewTable();
-            showEbayRefundsResult('Bulk rule: set Client ID to ' + setVal + ' on ' + changed + ' row(s).');
-        });
-
-        $('#ebay-refunds-fill-sku-btn').on('click', function() {
-            var api = ebayRefundSkuApi();
-            if (!api) return alert('SKU helpers failed to load — refresh the page.');
-            var scope = $('#ebay-refunds-bulk-scope').val() || 'needs';
-            var changed = ebayRefundBulkChangedCount(function(r) {
-                var detected = api.extractLegacyClientIdFromText(ebayRefundRowHaystack(r));
-                if (!detected) return;
-                r.client_id = detected;
-                r.client_source = 'sku_detect';
-            }, scope);
-            renderEbayRefundsReviewTable();
-            showEbayRefundsResult('Fill from SKU: updated Client ID on ' + changed + ' row(s).');
-        });
-
-        $('#ebay-refunds-normalize-ppf-btn').on('click', function() {
-            var api = ebayRefundSkuApi();
-            if (!api) return alert('SKU helpers failed to load — refresh the page.');
-            var scope = $('#ebay-refunds-bulk-scope').val() || 'all';
-            var changed = ebayRefundBulkChangedCount(function(r) {
-                var cur = String(r.client_id || '').trim();
-                if (!cur) return;
-                var norm = api.normalizeClientIdSpecifier(cur);
-                if (norm && norm !== cur) {
-                    r.client_id = norm;
-                    if (r.client_source === 'none') r.client_source = 'bulk';
-                }
-            }, scope);
-            renderEbayRefundsReviewTable();
-            showEbayRefundsResult('Normalize PPF IDs: updated ' + changed + ' row(s).');
-        });
-
-        $('#ebay-refunds-load-review-btn').on('click', async function() {
-            var f = ebayRefundFiles();
-            if (!f.refunds) return alert('Choose the eBay Refunds CSV first.');
-            var $btn = $(this).prop('disabled', true).text('Loading…');
-            try {
-                rebuildEbayRefundsClientDatalist();
-                var data = await API.adminEbayRefundsPreview(f.refunds, f.orders);
-                window._ebayRefundsReviewRows = (data.rows || []).map(function(r) {
-                    return Object.assign({}, r);
-                });
-                $('#ebay-refunds-bulk-set-client').val('').removeData('userEdited');
-                $('#ebay-refunds-bulk-contains').val('');
-                $('#ebay-refunds-review-wrap').removeClass('d-none');
-                $('#ebay-refunds-import-reviewed-btn').removeClass('d-none');
-                $('#ebay-refunds-review-filter').val(
-                    (data.summary && data.summary.needs_client) > 0 ? 'needs' : 'all'
-                );
-                renderEbayRefundsReviewTable();
-                showEbayRefundsResult(
-                    'Loaded ' +
-                        (data.summary && data.summary.total) +
-                        ' rows. Orders map matched ' +
-                        (data.orders_map_orders || '?') +
-                        ' order numbers. Edit Client ID where needed, then Import reviewed rows.'
-                );
-            } catch (e) {
-                alert((e && e.error) || e.message || 'Load failed');
-            } finally {
-                $btn.prop('disabled', false).text('Load for review');
-            }
-        });
-
-        $('#ebay-refunds-import-reviewed-btn').on('click', async function() {
-            if (!window._ebayRefundsReviewRows || !window._ebayRefundsReviewRows.length) {
-                return alert('Load for review first.');
-            }
-            var ready = 0;
-            window._ebayRefundsReviewRows.forEach(function(r) {
-                if (resolveClientLocally(r.client_id)) ready++;
-            });
-            if (
-                !confirm(
-                    'Import ' +
-                        window._ebayRefundsReviewRows.length +
-                        ' refund rows (' +
-                        ready +
-                        ' with valid Client ID)? Rows without a valid client go to Pending imports. Undo from Recent imports if needed.'
+            },
+            rowHaystack: function(r) {
+                return [r.custom_label, r.product, r.notes, r.client_id].filter(Boolean).join(' ');
+            },
+            onImport: async function(rows, meta) {
+                if (
+                    !confirm(
+                        'Import ' +
+                            meta.total +
+                            ' refund rows (' +
+                            meta.ready +
+                            ' with valid Client ID)? Rows without a valid client go to Pending imports. Undo from Recent imports if needed.'
+                    )
                 )
-            )
-                return;
-            var $btn = $(this).prop('disabled', true).text('Importing…');
-            try {
-                var payload = window._ebayRefundsReviewRows.map(function(r) {
+                    return;
+                var payload = rows.map(function(r) {
                     return {
                         clientId: String(r.client_id || '').trim(),
                         order_number: r.order_number,
@@ -1489,10 +1321,88 @@
                 showEbayRefundsResult(txt);
                 loadBulkImportJobs();
                 loadUsers();
+            },
+        });
+
+        window.bulkImportClientReview = ImportClientReview.create({
+            prefix: 'bulk-import-review',
+            getRows: function() {
+                return window._bulkImportReviewRows;
+            },
+            setRows: function(rows) {
+                window._bulkImportReviewRows = rows;
+            },
+            showMessage: function(txt) {
+                $('#bulk-import-result').removeClass('d-none').text(txt);
+            },
+            renderDataCells: function(r, esc) {
+                var bits = esc(r.summary || '');
+                if (r.order_number) bits += ' <code class="small">' + esc(r.order_number) + '</code>';
+                if (r.product) bits += ' <span class="text-muted">' + esc(r.product) + '</span>';
+                if (r.amount != null && r.amount !== '' && !isNaN(Number(r.amount))) {
+                    bits += ' <span class="text-danger">£' + Number(r.amount).toFixed(2) + '</span>';
+                }
+                if (r.custom_label) bits += ' <span class="text-muted" title="SKU">· ' + esc(r.custom_label) + '</span>';
+                return '<td class="small">' + bits + '</td>';
+            },
+            rowHaystack: bulkImportRowHaystack,
+            onImport: async function(rows, meta) {
+                var kindMeta = window._bulkImportReviewMeta || {};
+                if (!kindMeta.kind) return alert('Import type missing — run Preview again.');
+                if (
+                    !confirm(
+                        'Import ' +
+                            meta.total +
+                            ' rows as ' +
+                            kindMeta.kind +
+                            ' (' +
+                            meta.ready +
+                            ' with valid Client ID)? Others may go to Pending imports. Undo from Recent imports if needed.'
+                    )
+                )
+                    return;
+                var payload = rows.map(function(r) {
+                    return {
+                        clientId: String(r.client_id || '').trim(),
+                        row_data: r.row_data || {},
+                    };
+                });
+                var data = await API.adminBulkImportMultiReviewed(kindMeta.kind, payload, {
+                    queue_unmatched: document.getElementById('bulk-import-queue-unmatched').checked,
+                    source_filename: kindMeta.filename || 'bulk-import-reviewed',
+                });
+                var txt = data.message || 'Done.';
+                txt += '\n\nImported: ' + (data.imported || 0);
+                if (data.pending_rows_saved) txt += '\nPending queue: ' + data.pending_rows_saved;
+                if (data.job_id) txt += '\nJob #' + data.job_id;
+                if (data.error_count) txt += '\nRow errors: ' + data.error_count;
+                $('#bulk-import-result').removeClass('d-none').text(txt);
+                loadBulkImportJobs();
+                loadPendingImports();
+                loadUsers();
+            },
+        });
+
+        $('#ebay-refunds-load-review-btn').on('click', async function() {
+            var f = ebayRefundFiles();
+            if (!f.refunds) return alert('Choose the eBay Refunds CSV first.');
+            var $btn = $(this).prop('disabled', true).text('Loading…');
+            try {
+                var data = await API.adminEbayRefundsPreview(f.refunds, f.orders);
+                var needs = (data.summary && data.summary.needs_client) > 0;
+                window.ebayRefundsReview.open(data.rows || [], {
+                    filter: needs ? 'needs' : 'all',
+                    message:
+                        'Loaded ' +
+                        (data.summary && data.summary.total) +
+                        ' rows. Orders map matched ' +
+                        (data.orders_map_orders || '?') +
+                        ' order numbers. Edit Client ID where needed, then Import reviewed rows.',
+                });
             } catch (e) {
-                alert((e && e.error) || e.message || 'Import failed');
+                alert((e && e.error) || e.message || 'Load failed');
             } finally {
-                $btn.prop('disabled', false).text('Import reviewed rows');
+                $btn.prop('disabled', false).text('Load for review');
             }
         });
 
@@ -1579,6 +1489,19 @@
                             '</td></tr>'
                     );
                 });
+                if (multi && prev.review_rows && prev.review_rows.length && window.bulkImportClientReview) {
+                    window._bulkImportReviewMeta = { kind: kind, filename: f.name || 'import' };
+                    var needsReview = (prev.summary && prev.summary.review_needs_client) > 0;
+                    window.bulkImportClientReview.open(prev.review_rows, {
+                        filter: needsReview ? 'needs' : 'all',
+                        message:
+                            'Client ID review: ' +
+                            prev.review_rows.length +
+                            ' rows. Fix missing clients below, then click Import reviewed rows (not the plain Import button).',
+                    });
+                    var el = document.getElementById('bulk-import-review-wrap');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
             } catch (e) {
                 alert((e && e.error) || e.message || 'Preview failed');
             } finally {

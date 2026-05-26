@@ -12,6 +12,7 @@ const {
     runBulkImportMulti,
     buildTemplateBuffer,
     previewBulkImport,
+    reviewedMultiRowsToCsvBuffer,
     applyImportRowForKind,
     rowWithoutClientSpecifier,
     KINDS: BULK_IMPORT_KINDS,
@@ -1331,6 +1332,68 @@ router.post('/ebay-refunds-import-reviewed', async (req, res) => {
         });
     } catch (err) {
         console.error('eBay refunds import reviewed error:', err);
+        res.status(500).json({ error: err.message || 'Server error' });
+    }
+});
+
+// POST /api/admin/bulk-import-multi-reviewed — import after admin edits Client IDs in review table
+router.post('/bulk-import-multi-reviewed', async (req, res) => {
+    try {
+        const kind = String(req.body.kind || '').trim();
+        if (!BULK_IMPORT_KINDS.includes(kind)) {
+            return res.status(400).json({ error: 'Invalid kind', kinds: BULK_IMPORT_KINDS });
+        }
+        const bodyRows = req.body && Array.isArray(req.body.rows) ? req.body.rows : null;
+        if (!bodyRows || !bodyRows.length) {
+            return res.status(400).json({ error: 'rows array is required' });
+        }
+        if (bodyRows.length > 15000) {
+            return res.status(400).json({ error: 'Too many rows (max 15000)' });
+        }
+        const queueUnmatched = !(req.body.queue_unmatched === false || req.body.queue_unmatched === '0');
+        const csvBuffer = reviewedMultiRowsToCsvBuffer(kind, bodyRows);
+        const db = await getDb();
+        const filename = String(req.body.source_filename || 'bulk-import-reviewed.json').slice(0, 200);
+        const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key } =
+            await runBulkImportMulti(db, kind, csvBuffer, {
+                adminUserId: req.user.id,
+                originalFilename: filename,
+                queueUnmatched,
+            });
+        let jobId = null;
+        if (inserted.length) {
+            jobId = createBulkImportJob(db, {
+                adminUserId: req.user.id,
+                kind,
+                isMulti: true,
+                originalFilename: filename,
+                targetUserId: null,
+                rowCount: row_count,
+                importedCount: imported,
+                errorCount: errors.length,
+            });
+            addBulkImportEntries(db, jobId, inserted);
+        }
+        logAdminAudit(db, req.user.id, 'bulk_import_multi_reviewed', {
+            job_id: jobId,
+            kind,
+            imported,
+            error_count: errors.length,
+            row_count: bodyRows.length,
+        });
+        res.json({
+            imported,
+            errors: errors.slice(0, 50),
+            error_count: errors.length,
+            by_user,
+            job_id: jobId,
+            pending_rows_saved: pending_rows_saved || 0,
+            pending_by_key: pending_by_key || {},
+            message:
+                'Import complete. Rows with a valid Client ID were applied; others may be in Pending imports if that option is on.',
+        });
+    } catch (err) {
+        console.error('bulk-import-multi-reviewed error:', err);
         res.status(500).json({ error: err.message || 'Server error' });
     }
 });
