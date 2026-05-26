@@ -57,36 +57,50 @@
 
     <div class="container-fluid">
         <nav class="admin-jump-nav" aria-label="Jump to section">
-            <ul class="nav nav-pills flex-wrap gap-1 mb-0">
-                <li class="nav-item"><a class="nav-link" href="#pending-registrations-section">Pending <span class="badge bg-warning text-dark d-none" id="nav-pending-badge">0</span></a></li>
-                <li class="nav-item"><a class="nav-link" href="#all-clients-section">All clients</a></li>
-                <li class="nav-item"><a class="nav-link" href="#admin-create-user-section">Create client</a></li>
-                <li class="nav-item"><a class="nav-link" href="#hub-access-section">Hub access</a></li>
-                <li class="nav-item"><a class="nav-link" href="#bulk-import-spreadsheet">Bulk import</a></li>
-                <li class="nav-item"><a class="nav-link" href="#bulk-import-pending-section">Pending imports</a></li>
-                <li class="nav-item"><a class="nav-link" href="#bulk-import-jobs-section">Recent imports</a></li>
-            </ul>
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <ul class="nav nav-pills flex-wrap gap-1 mb-0">
+                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#pending-registrations-section" data-admin-jump="pending-registrations">Pending <span class="badge bg-warning text-dark d-none" id="nav-pending-badge">0</span></a></li>
+                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#all-clients-section" data-admin-jump="all-clients">All clients</a></li>
+                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#admin-create-user-section" data-admin-jump="create-user">Create client</a></li>
+                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#hub-access-section" data-admin-jump="hub-access">Hub access</a></li>
+                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#bulk-import-spreadsheet" data-admin-jump="bulk-import">Bulk import</a></li>
+                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#bulk-import-pending-section" data-admin-jump="pending-imports">Pending imports</a></li>
+                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#bulk-import-jobs-section" data-admin-jump="recent-imports">Recent imports</a></li>
+                </ul>
+                <div class="d-flex gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="admin-expand-all-sections">Expand all</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="admin-collapse-all-sections">Collapse all</button>
+                </div>
+            </div>
         </nav>
 
         <div class="section-card card border-warning shadow-sm" id="pending-registrations-section">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div>
-                    <h2 class="h6 mb-0">Pending registrations</h2>
-                    <p class="small text-muted mb-0">Self-service signups waiting for approval (<code>SIGNUP_REQUIRE_ADMIN_APPROVAL=1</code> on server).</p>
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 admin-section-toggle" data-admin-section="pending-registrations" role="button" tabindex="0" aria-expanded="true" aria-controls="pending-registrations-body">
+                <div class="d-flex align-items-start gap-2 flex-grow-1">
+                    <span class="collapse-chevron text-muted small mt-1" aria-hidden="true">▼</span>
+                    <div>
+                        <h2 class="h6 mb-0">Pending registrations</h2>
+                        <p class="small text-muted mb-0">Self-service signups waiting for approval.</p>
+                    </div>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="pending-registrations-refresh">Refresh</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="pending-registrations-refresh" onclick="event.stopPropagation()">Refresh</button>
             </div>
-            <div class="card-body" id="pending-registrations-body">
+            <div class="card-body collapse show" id="pending-registrations-body">
                 <p class="small text-muted mb-0">Loading…</p>
             </div>
         </div>
 
         <div class="card shadow-sm section-card" id="all-clients-section">
-            <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h2 class="h6 mb-0">All clients</h2>
-                <input type="search" class="form-control form-control-sm" id="admin-client-search" placeholder="Search name, email, ID…" style="max-width:280px" aria-label="Search clients" />
+            <div class="card-header bg-white py-3 admin-section-toggle" data-admin-section="all-clients" role="button" tabindex="0" aria-expanded="true" aria-controls="all-clients-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 w-100">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="collapse-chevron text-muted small" aria-hidden="true">▼</span>
+                        <h2 class="h6 mb-0">All clients</h2>
+                    </div>
+                    <input type="search" class="form-control form-control-sm" id="admin-client-search" placeholder="Search name, email, ID…" style="max-width:280px" aria-label="Search clients" onclick="event.stopPropagation()" />
+                </div>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-0 collapse show" id="all-clients-body">
                 <div id="admin-loading" class="p-5 text-center text-muted">
                     <span class="spinner-border spinner-border-sm me-2"></span>Loading clients…
                 </div>
@@ -499,26 +513,59 @@
         }
         window._adminUsersList = [];
 
-        function adminExpandSection(sectionKey) {
-            var map = {
-                'bulk-import': 'bulk-import-body',
-                'pending-imports': 'bulk-import-pending-body',
-                'recent-imports': 'bulk-import-jobs-body',
-                'hub-access': 'hub-access-body',
-                'create-user': 'admin-create-user-body'
-            };
-            var bodyId = map[sectionKey];
+        var ADMIN_SECTION_BODIES = {
+            'pending-registrations': 'pending-registrations-body',
+            'all-clients': 'all-clients-body',
+            'create-user': 'admin-create-user-body',
+            'bulk-import': 'bulk-import-body',
+            'pending-imports': 'bulk-import-pending-body',
+            'recent-imports': 'bulk-import-jobs-body',
+            'hub-access': 'hub-access-body'
+        };
+
+        var ADMIN_SECTION_HASH = {
+            'pending-registrations-section': 'pending-registrations',
+            'all-clients-section': 'all-clients',
+            'admin-create-user-section': 'create-user',
+            'hub-access-section': 'hub-access',
+            'bulk-import-spreadsheet': 'bulk-import',
+            'bulk-import-pending-section': 'pending-imports',
+            'bulk-import-jobs-section': 'recent-imports'
+        };
+
+        function adminExpandSection(sectionKey, save) {
+            var bodyId = ADMIN_SECTION_BODIES[sectionKey];
             if (!bodyId) return;
             var el = document.getElementById(bodyId);
             if (!el) return;
             var col = bootstrap.Collapse.getOrCreateInstance(el, { toggle: false });
             col.show();
-            localStorage.setItem('rp_admin_sec_' + sectionKey, '1');
+            if (save !== false) localStorage.setItem('rp_admin_sec_' + sectionKey, '1');
             $('.admin-section-toggle[data-admin-section="' + sectionKey + '"]').attr('aria-expanded', 'true');
+        }
+
+        function adminCollapseSection(sectionKey, save) {
+            var bodyId = ADMIN_SECTION_BODIES[sectionKey];
+            if (!bodyId) return;
+            var el = document.getElementById(bodyId);
+            if (!el) return;
+            var col = bootstrap.Collapse.getOrCreateInstance(el, { toggle: false });
+            col.hide();
+            if (save !== false) localStorage.setItem('rp_admin_sec_' + sectionKey, '0');
+            $('.admin-section-toggle[data-admin-section="' + sectionKey + '"]').attr('aria-expanded', 'false');
+        }
+
+        function adminSetAllSections(expanded) {
+            Object.keys(ADMIN_SECTION_BODIES).forEach(function(key) {
+                if (expanded) adminExpandSection(key);
+                else adminCollapseSection(key);
+            });
         }
 
         function initAdminSectionCollapse() {
             var defaults = {
+                'pending-registrations': true,
+                'all-clients': true,
                 'create-user': true,
                 'bulk-import': false,
                 'pending-imports': false,
@@ -555,28 +602,44 @@
             });
         }
 
+        function scrollToAdminSection(sectionId) {
+            setTimeout(function() {
+                var el = document.getElementById(sectionId);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 180);
+        }
+
         function applyAdminHashNavigation() {
             var hash = window.location.hash;
             if (!hash) return;
             var id = hash.replace(/^#/, '');
-            var sectionMap = {
-                'bulk-import-spreadsheet': 'bulk-import',
-                'bulk-import-pending-section': 'pending-imports',
-                'bulk-import-jobs-section': 'recent-imports',
-                'hub-access-section': 'hub-access',
-                'admin-create-user-section': 'create-user',
-                'all-clients-section': null,
-                'pending-registrations-section': null
-            };
-            if (sectionMap[id]) adminExpandSection(sectionMap[id]);
-            setTimeout(function() {
-                var el = document.getElementById(id);
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 220);
+            var key = ADMIN_SECTION_HASH[id];
+            if (key) adminExpandSection(key);
+            scrollToAdminSection(id);
         }
 
         initAdminSectionCollapse();
         applyAdminHashNavigation();
+
+        $('.admin-jump-link').on('click', function(e) {
+            var key = $(this).data('admin-jump');
+            if (key) {
+                e.preventDefault();
+                adminExpandSection(key);
+                var targetId = (this.getAttribute('href') || '').replace(/^#/, '');
+                if (targetId) {
+                    if (history.replaceState) history.replaceState(null, '', '#' + targetId);
+                    scrollToAdminSection(targetId);
+                }
+            }
+        });
+
+        $('#admin-expand-all-sections').on('click', function() {
+            adminSetAllSections(true);
+        });
+        $('#admin-collapse-all-sections').on('click', function() {
+            adminSetAllSections(false);
+        });
 
         $('#admin-client-search').on('input', function() {
             var q = $(this).val().trim().toLowerCase();
