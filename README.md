@@ -55,7 +55,13 @@ Open **http://localhost:3000** in your browser.
 
 ---
 
-## Environment Variables (`.env`)
+## Environment Variables
+
+| File | Use |
+|------|-----|
+| [`.env.example`](.env.example) | Local dev — copy to `.env` |
+| [`production.env.example`](production.env.example) | **Production** — copy into your host secrets |
+| [`docs/PRODUCTION_ENV.md`](docs/PRODUCTION_ENV.md) | Full deployment + signup approval guide |
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -64,6 +70,20 @@ Open **http://localhost:3000** in your browser.
 | `JWT_EXPIRES_IN` | `7d` | Token expiry duration |
 | `DB_PATH` | `./data/returnpal.db` | SQLite database file path |
 | `FRONTEND_URL` | `*` | CORS allowed origin |
+| `SIGNUP_REQUIRE_ADMIN_APPROVAL` | `0` (dev) | Set **`1` in production** — new signups need admin approval |
+| `REGISTER_RATE_LIMIT_MAX` | `1` | Max self-service registrations per IP per window |
+| `REGISTER_RATE_LIMIT_WINDOW_MS` | `86400000` | Rate limit window (24h) |
+| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | — | Cloudflare Turnstile on register form |
+
+### Production signup (recommended)
+
+On your server set:
+
+```env
+SIGNUP_REQUIRE_ADMIN_APPROVAL=1
+```
+
+Then restart the API. Approve pending users under **Admin → Clients → Pending registrations**. Admins can still create unlimited accounts via **Create client account** (no rate limit).
 
 ## Scripts
 

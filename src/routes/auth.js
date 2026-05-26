@@ -86,6 +86,11 @@ router.get('/register-config', (req, res) => {
         turnstile_required: isTurnstileRequired(),
         min_form_seconds: parseInt(process.env.SIGNUP_MIN_FORM_SECONDS || '3', 10),
         require_admin_approval: isSignupApprovalRequired(),
+        register_rate_limit_max: parseInt(process.env.REGISTER_RATE_LIMIT_MAX || '1', 10),
+        register_rate_limit_window_hours: Math.round(
+            parseInt(process.env.REGISTER_RATE_LIMIT_WINDOW_MS || String(24 * 60 * 60 * 1000), 10) /
+                (60 * 60 * 1000)
+        ),
     });
 });
 

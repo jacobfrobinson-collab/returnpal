@@ -32,8 +32,14 @@ This document outlines what to add when you connect a real backend so the dashbo
 
 ## Admin (master dashboard)
 
-- **GET /api/admin/users** – (Bearer token, admin only) list all clients → `{ users: [{ id, email, full_name, company_name, created_at }] }`
+- **GET /api/admin/users** – (Bearer token, admin only) list all clients → `{ users: [{ id, email, full_name, company_name, created_at, account_status, ... }] }`
+- **POST /api/admin/users** – create a client (approved immediately; no public rate limit) → `{ user }`
+- **GET /api/admin/registrations/pending** – signups awaiting approval when `SIGNUP_REQUIRE_ADMIN_APPROVAL=1`
+- **POST /api/admin/users/:id/approve-registration** – approve pending signup
+- **POST /api/admin/users/:id/reject-registration?delete=1** – reject and delete pending signup
 - **POST /api/admin/impersonate/:id** – (Bearer token, admin only) get a short-lived token to view the dashboard as that client → `{ token, user }` (token expires in 1 hour)
+
+**Signup env:** see [`docs/PRODUCTION_ENV.md`](docs/PRODUCTION_ENV.md) and [`production.env.example`](production.env.example).
 
 **Creating an admin user:** set `is_admin = 1` for a user in the database, e.g. `UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';` or run the seed script (which makes the demo user `david@returnpal.com` an admin).
 

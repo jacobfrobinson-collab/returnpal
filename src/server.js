@@ -22,6 +22,12 @@ process.on('unhandledRejection', (err) => {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+if (process.env.NODE_ENV === 'production' && process.env.SIGNUP_REQUIRE_ADMIN_APPROVAL !== '1') {
+    console.warn(
+        '[ReturnPal] SIGNUP_REQUIRE_ADMIN_APPROVAL is not set to 1 — public signups are auto-approved. See production.env.example'
+    );
+}
+
 // ─── Middleware ───────────────────────────────────────────────
 app.use(cors({
     origin: process.env.FRONTEND_URL || '*',

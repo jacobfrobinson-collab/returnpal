@@ -11,3 +11,12 @@ After completing a substantive change set (features, fixes, tests), **commit and
 ## Tests
 
 Run `npm run test:unit` before pushing when you touch date, invoice, or sold-date logic. Use `npm test` when the API server is running for integration checks.
+
+## Production environment
+
+Document signup and secrets in repo templates only — never commit real `.env` files:
+
+- [`production.env.example`](production.env.example) — includes `SIGNUP_REQUIRE_ADMIN_APPROVAL=1`
+- [`docs/PRODUCTION_ENV.md`](docs/PRODUCTION_ENV.md) — operator guide
+
+Set live values on the hosting provider, then restart the Node process.
