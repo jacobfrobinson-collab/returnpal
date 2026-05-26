@@ -8,10 +8,33 @@
     <link rel="stylesheet" href="/assets/css/style.css" />
     <style>
         body { background: var(--bs-light, #f8f9fa); }
-        .admin-header { background: var(--bs-dark); color: #fff; }
+        .admin-header { background: var(--bs-dark); color: #fff; position: sticky; top: 0; z-index: 1040; margin-bottom: 0 !important; }
         .admin-header a { color: rgba(255,255,255,.9); text-decoration: none; }
         .admin-header a:hover { color: #fff; }
         .section-card { margin-bottom: 1.5rem; }
+        .admin-jump-nav {
+            position: sticky;
+            top: 52px;
+            z-index: 1030;
+            background: rgba(248, 249, 250, 0.97);
+            backdrop-filter: blur(6px);
+            border-bottom: 1px solid #dee2e6;
+            padding: 0.5rem 0;
+            margin: 0 -0.75rem 1rem;
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+        .admin-jump-nav .nav-link {
+            font-size: 0.8125rem;
+            padding: 0.25rem 0.6rem;
+            color: #495057;
+            border-radius: 0.25rem;
+        }
+        .admin-jump-nav .nav-link:hover { background: #e9ecef; color: #212529; }
+        .admin-jump-nav .nav-link.active { background: #212529; color: #fff; }
+        .admin-section-toggle { cursor: pointer; user-select: none; }
+        .admin-section-toggle .collapse-chevron { transition: transform 0.15s ease; }
+        .admin-section-toggle[aria-expanded="false"] .collapse-chevron { transform: rotate(-90deg); }
     </style>
 </head>
 <body>
@@ -33,6 +56,18 @@
     </header>
 
     <div class="container-fluid">
+        <nav class="admin-jump-nav" aria-label="Jump to section">
+            <ul class="nav nav-pills flex-wrap gap-1 mb-0">
+                <li class="nav-item"><a class="nav-link" href="#pending-registrations-section">Pending <span class="badge bg-warning text-dark d-none" id="nav-pending-badge">0</span></a></li>
+                <li class="nav-item"><a class="nav-link" href="#all-clients-section">All clients</a></li>
+                <li class="nav-item"><a class="nav-link" href="#admin-create-user-section">Create client</a></li>
+                <li class="nav-item"><a class="nav-link" href="#hub-access-section">Hub access</a></li>
+                <li class="nav-item"><a class="nav-link" href="#bulk-import-spreadsheet">Bulk import</a></li>
+                <li class="nav-item"><a class="nav-link" href="#bulk-import-pending-section">Pending imports</a></li>
+                <li class="nav-item"><a class="nav-link" href="#bulk-import-jobs-section">Recent imports</a></li>
+            </ul>
+        </nav>
+
         <div class="section-card card border-warning shadow-sm" id="pending-registrations-section">
             <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
@@ -46,12 +81,47 @@
             </div>
         </div>
 
-        <div class="section-card card border-success shadow-sm" id="admin-create-user-section">
-            <div class="card-header bg-white py-2">
-                <h2 class="h6 mb-0">Create client account (admin)</h2>
-                <p class="small text-muted mb-0">No registration rate limit — account is approved immediately.</p>
+        <div class="card shadow-sm section-card" id="all-clients-section">
+            <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h2 class="h6 mb-0">All clients</h2>
+                <input type="search" class="form-control form-control-sm" id="admin-client-search" placeholder="Search name, email, ID…" style="max-width:280px" aria-label="Search clients" />
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
+                <div id="admin-loading" class="p-5 text-center text-muted">
+                    <span class="spinner-border spinner-border-sm me-2"></span>Loading clients…
+                </div>
+                <div id="admin-error" class="p-5 text-center text-danger d-none"></div>
+                <div class="table-responsive d-none" id="admin-table-wrap">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Old Client ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Company</th>
+                                <th>Joined</th>
+                                <th>Hub</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-users-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card card border-success shadow-sm" id="admin-create-user-section">
+            <div class="card-header bg-white py-2 admin-section-toggle" data-admin-section="create-user" role="button" tabindex="0" aria-expanded="true" aria-controls="admin-create-user-body">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <h2 class="h6 mb-0">Create client account (admin)</h2>
+                        <p class="small text-muted mb-0">No registration rate limit — account is approved immediately.</p>
+                    </div>
+                    <span class="collapse-chevron text-muted small" aria-hidden="true">▼</span>
+                </div>
+            </div>
+            <div class="card-body collapse show" id="admin-create-user-body">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-3"><label class="form-label small mb-0">Full name</label><input type="text" class="form-control form-control-sm" id="admin-create-full-name" /></div>
                     <div class="col-md-3"><label class="form-label small mb-0">Email</label><input type="email" class="form-control form-control-sm" id="admin-create-email" /></div>
@@ -63,22 +133,24 @@
         </div>
 
         <div id="bulk-import-spreadsheet" class="section-card card border-primary shadow-sm">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div>
-                    <h2 class="h6 mb-0">Bulk spreadsheet import</h2>
-                    <p class="small text-muted mb-0">All multi-client and single-client file uploads run from here. Use <strong>Preview</strong> to verify Client ID → email before saving.</p>
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 admin-section-toggle" data-admin-section="bulk-import" role="button" tabindex="0" aria-expanded="false" aria-controls="bulk-import-body">
+                <div class="d-flex align-items-start gap-2 flex-grow-1">
+                    <span class="collapse-chevron text-muted small mt-1" aria-hidden="true">▼</span>
+                    <div>
+                        <h2 class="h6 mb-0">Bulk spreadsheet import</h2>
+                        <p class="small text-muted mb-0">Collapsed by default — expand when uploading. Use <strong>Preview</strong> before saving.</p>
+                    </div>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-primary" id="bulk-import-template-btn">Download template</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="bulk-import-template-btn" onclick="event.stopPropagation()">Download template</button>
             </div>
-            <div class="card-body">
-                <div class="alert alert-info py-2 px-3 small mb-3" role="region" aria-label="Marketplace orders upload">
-                    <div class="fw-semibold mb-1">Marketplace / eBay — all clients in one file</div>
-                    <p class="mb-2">Upload a <strong>.csv</strong> or <strong>.xlsx</strong> where each row is one sale. The <strong>Client ID</strong> column must match either the client’s <strong>dashboard ID</strong> (e.g. <code>14</code> or <code>0014</code>) or their <strong>Old Client ID</strong> from the table below (e.g. <code>AC</code>, <code>SM</code>). Matching rows are saved as <strong>sales</strong> on that client’s dashboard immediately (visible after refresh).</p>
-                    <p class="mb-2 text-muted">Rows with a <strong>missing</strong> Client ID or an ID that <strong>does not match anyone yet</strong> can be saved to <strong>Pending import rows</strong> below (when the option is on), so you can apply them after the client exists or after you set their Old Client ID.</p>
-                    <p class="mb-2 text-muted mb-0">Columns: <code>Client ID</code> (or <code>Old Client ID</code> / <code>legacy_client_id</code>), <code>sold_date</code> (YYYY-MM-DD), <code>item_name</code>, <code>quantity</code>, <code>earnings</code>. Optional: <code>order_number</code>.</p>
-                    <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-marketplace-sales-setup">Use marketplace sales upload</button>
-                    <span class="text-muted ms-2">Sets <strong>Record sales</strong> + <strong>Multi-client file</strong>, then scrolls here.</span>
-                </div>
+            <div class="card-body collapse" id="bulk-import-body">
+                <details class="mb-3 small">
+                    <summary class="fw-semibold mb-2">Marketplace / eBay — column help</summary>
+                    <p class="mb-2 mt-2">Upload a <strong>.csv</strong> or <strong>.xlsx</strong> where each row is one sale. The <strong>Client ID</strong> column must match the client’s dashboard ID (e.g. <code>0014</code>) or <strong>Old Client ID</strong> (e.g. <code>AC</code>).</p>
+                    <p class="mb-2 text-muted">Unknown Client IDs can go to <strong>Pending import rows</strong> when the queue option is on.</p>
+                    <p class="mb-2 text-muted">Columns: <code>Client ID</code>, <code>sold_date</code>, <code>item_name</code>, <code>quantity</code>, <code>earnings</code>. Optional: <code>order_number</code>.</p>
+                    <button type="button" class="btn btn-sm btn-primary" id="btn-marketplace-sales-setup">Use marketplace sales upload</button>
+                </details>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="bulk-import-multi" />
                     <label class="form-check-label small" for="bulk-import-multi">Multi-client file — each row includes <strong>Client ID</strong> (dashboard numeric ID, e.g. <code>0014</code>) or <strong>Old Client ID</strong> (legacy id from the list below); rows are applied to that client’s dashboard.</label>
@@ -134,14 +206,17 @@
         </div>
 
         <div class="section-card card shadow-sm" id="bulk-import-pending-section">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div>
-                    <h2 class="h6 mb-0">Pending import rows</h2>
-                    <p class="small text-muted mb-0">Queued from multi-client uploads when Client ID was empty or did not match a client. Set <strong>Old Client ID</strong> on the client to match the spreadsheet value, pick the client below, then <strong>Apply</strong> for that key.</p>
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 admin-section-toggle" data-admin-section="pending-imports" role="button" tabindex="0" aria-expanded="false" aria-controls="bulk-import-pending-body">
+                <div class="d-flex align-items-start gap-2">
+                    <span class="collapse-chevron text-muted small mt-1" aria-hidden="true">▼</span>
+                    <div>
+                        <h2 class="h6 mb-0">Pending import rows</h2>
+                        <p class="small text-muted mb-0">Queued rows from bulk uploads — expand when needed.</p>
+                    </div>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-pending-refresh">Refresh</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-pending-refresh" onclick="event.stopPropagation()">Refresh</button>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-0 collapse" id="bulk-import-pending-body">
                 <div class="table-responsive">
                     <table class="table table-sm table-hover mb-0">
                         <thead class="table-light">
@@ -166,9 +241,10 @@
             </div>
         </div>
 
-        <div class="section-card card shadow-sm">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="section-card card shadow-sm" id="bulk-import-jobs-section">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 admin-section-toggle" data-admin-section="recent-imports" role="button" tabindex="0" aria-expanded="false" aria-controls="bulk-import-jobs-body">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="collapse-chevron text-muted small" aria-hidden="true">▼</span>
                     <h2 class="h6 mb-0">Recent spreadsheet imports</h2>
                     <span class="badge bg-secondary" id="bulk-import-jobs-count">0</span>
                 </div>
@@ -177,10 +253,10 @@
                         <input class="form-check-input" type="checkbox" id="bulk-import-jobs-show-rolled" />
                         <label class="form-check-label" for="bulk-import-jobs-show-rolled">Show rolled-back</label>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-jobs-refresh">Refresh</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-import-jobs-refresh" onclick="event.stopPropagation()">Refresh</button>
                 </div>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-0 collapse" id="bulk-import-jobs-body">
                 <div class="table-responsive">
                     <table class="table table-sm table-hover mb-0">
                         <thead class="table-light">
@@ -203,11 +279,16 @@
         </div>
 
         <div class="section-card card border-secondary shadow-sm" id="hub-access-section">
-            <div class="card-header bg-white py-3">
-                <h2 class="h6 mb-1">Prep centre hub access</h2>
-                <p class="small text-muted mb-0">Give a <strong>normal client login</strong> (not admin) <strong>read-only</strong> access to linked clients via <strong>My clients</strong>. They can view dashboards but cannot add, edit, or delete anything — only you (admin) can change data.</p>
+            <div class="card-header bg-white py-3 admin-section-toggle" data-admin-section="hub-access" role="button" tabindex="0" aria-expanded="false" aria-controls="hub-access-body">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <h2 class="h6 mb-1">Prep centre hub access</h2>
+                        <p class="small text-muted mb-0">Read-only prep-centre access to linked clients — expand when configuring.</p>
+                    </div>
+                    <span class="collapse-chevron text-muted small" aria-hidden="true">▼</span>
+                </div>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="hub-access-body">
                 <div class="row g-3">
                     <div class="col-lg-4">
                         <label class="form-label small fw-semibold">Hub account (prep centre owner)</label>
@@ -233,34 +314,6 @@
             </div>
         </div>
 
-        <div class="card shadow-sm">
-            <div class="card-header bg-white py-3">
-                <h2 class="h6 mb-0">All clients</h2>
-            </div>
-            <div class="card-body p-0">
-                <div id="admin-loading" class="p-5 text-center text-muted">
-                    <span class="spinner-border spinner-border-sm me-2"></span>Loading clients…
-                </div>
-                <div id="admin-error" class="p-5 text-center text-danger d-none"></div>
-                <div class="table-responsive d-none" id="admin-table-wrap">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>ID</th>
-                                <th>Old Client ID</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Company</th>
-                                <th>Joined</th>
-                                <th>Hub</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-users-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
@@ -446,17 +499,107 @@
         }
         window._adminUsersList = [];
 
+        function adminExpandSection(sectionKey) {
+            var map = {
+                'bulk-import': 'bulk-import-body',
+                'pending-imports': 'bulk-import-pending-body',
+                'recent-imports': 'bulk-import-jobs-body',
+                'hub-access': 'hub-access-body',
+                'create-user': 'admin-create-user-body'
+            };
+            var bodyId = map[sectionKey];
+            if (!bodyId) return;
+            var el = document.getElementById(bodyId);
+            if (!el) return;
+            var col = bootstrap.Collapse.getOrCreateInstance(el, { toggle: false });
+            col.show();
+            localStorage.setItem('rp_admin_sec_' + sectionKey, '1');
+            $('.admin-section-toggle[data-admin-section="' + sectionKey + '"]').attr('aria-expanded', 'true');
+        }
+
+        function initAdminSectionCollapse() {
+            var defaults = {
+                'create-user': true,
+                'bulk-import': false,
+                'pending-imports': false,
+                'recent-imports': false,
+                'hub-access': false
+            };
+            $('.admin-section-toggle').each(function() {
+                var $t = $(this);
+                var key = $t.data('admin-section');
+                var bodyId = $t.attr('aria-controls');
+                var $body = $('#' + bodyId);
+                if (!$body.length) return;
+                var stored = localStorage.getItem('rp_admin_sec_' + key);
+                var expanded = stored === null ? !!defaults[key] : stored === '1';
+                var col = bootstrap.Collapse.getOrCreateInstance($body[0], { toggle: false });
+                if (expanded) col.show();
+                else col.hide();
+                $t.attr('aria-expanded', expanded ? 'true' : 'false');
+                $t.on('click', function(e) {
+                    if ($(e.target).closest('button, a, input, select, .form-check').length) return;
+                    col.toggle();
+                });
+                $t.on('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        col.toggle();
+                    }
+                });
+                $body.on('shown.bs.collapse hidden.bs.collapse', function() {
+                    var isShown = $body.hasClass('show');
+                    $t.attr('aria-expanded', isShown ? 'true' : 'false');
+                    localStorage.setItem('rp_admin_sec_' + key, isShown ? '1' : '0');
+                });
+            });
+        }
+
+        function applyAdminHashNavigation() {
+            var hash = window.location.hash;
+            if (!hash) return;
+            var id = hash.replace(/^#/, '');
+            var sectionMap = {
+                'bulk-import-spreadsheet': 'bulk-import',
+                'bulk-import-pending-section': 'pending-imports',
+                'bulk-import-jobs-section': 'recent-imports',
+                'hub-access-section': 'hub-access',
+                'admin-create-user-section': 'create-user',
+                'all-clients-section': null,
+                'pending-registrations-section': null
+            };
+            if (sectionMap[id]) adminExpandSection(sectionMap[id]);
+            setTimeout(function() {
+                var el = document.getElementById(id);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 220);
+        }
+
+        initAdminSectionCollapse();
+        applyAdminHashNavigation();
+
+        $('#admin-client-search').on('input', function() {
+            var q = $(this).val().trim().toLowerCase();
+            $('#admin-users-tbody tr').each(function() {
+                var hay = $(this).attr('data-search') || $(this).text().toLowerCase();
+                $(this).toggle(!q || hay.indexOf(q) >= 0);
+            });
+        });
+
         function loadPendingRegistrations() {
             var $body = $('#pending-registrations-body');
             API.request('/admin/registrations/pending')
                 .then(function(data) {
                     var list = data.pending || [];
+                    var $badge = $('#nav-pending-badge');
                     if (!list.length) {
                         $body.html('<p class="small text-muted mb-0">No pending registrations.</p>');
                         $('#pending-registrations-section').addClass('d-none');
+                        $badge.addClass('d-none').text('0');
                         return;
                     }
                     $('#pending-registrations-section').removeClass('d-none');
+                    $badge.removeClass('d-none').text(list.length);
                     var html = '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Submitted</th><th></th></tr></thead><tbody>';
                     list.forEach(function(u) {
                         html += '<tr><td>' + String(u.id).padStart(4, '0') + '</td><td>' + escapeHtml(u.full_name || '') + '</td><td>' + escapeHtml(u.email || '') + '</td><td class="small">' + escapeHtml(fmtDate(u.created_at)) + '</td><td class="text-nowrap">' +
@@ -632,7 +775,8 @@
                                 'data-id="' + u.id + '" value="' + escapeHtml(legRaw) + '" placeholder="Old ID" maxlength="64" />' +
                             '<button type="button" class="btn btn-sm btn-outline-primary save-legacy-id-btn" data-id="' + u.id + '">Save</button>' +
                         '</div>';
-                    var row = '<tr>' +
+                    var searchHay = (idPadded + ' ' + legRaw + ' ' + (u.full_name || '') + ' ' + (u.email || '') + ' ' + (u.company_name || '')).toLowerCase();
+                    var row = '<tr data-search="' + escapeHtml(searchHay) + '">' +
                         '<td>' + idPadded + '</td>' +
                         '<td>' + legCell + '</td>' +
                         '<td>' + escapeHtml(u.full_name || '-') + (isAdmin ? ' <span class="badge bg-secondary">Admin</span>' : '') + '</td>' +
@@ -657,11 +801,13 @@
             else renderHubAccessClientChecks(users, null, []);
             var q = new URLSearchParams(window.location.search || '');
             if (window.location.hash === '#bulk-import-spreadsheet' || q.get('all_client_sales') === '1' || q.get('marketplace_orders') === '1') {
+                adminExpandSection('bulk-import');
                 setTimeout(function() {
                     var el = document.getElementById('bulk-import-spreadsheet');
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }, 150);
             }
+            $('#admin-client-search').trigger('input');
         }
 
         $('#hub-access-hub-select').on('change', function() {
@@ -784,6 +930,7 @@
         });
 
         function prepareMarketplaceSalesUpload() {
+            adminExpandSection('bulk-import');
             $('#bulk-import-kind').val('sold');
             document.getElementById('bulk-import-multi').checked = true;
             syncBulkImportMultiUi();
