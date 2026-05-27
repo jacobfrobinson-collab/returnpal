@@ -104,6 +104,16 @@
 
             <div class="page-content">
                 <div class="container-fluid">
+                    <!-- Client ID (for return address) — first on page -->
+                    <div class="rp-card card border-0 p-3 mb-4" id="dashboard-client-id-card">
+                        <h6 class="mb-1">Your Client ID</h6>
+                        <p class="mb-2 small text-muted">Use this as the name on your return address in Amazon Seller Central so we can identify your shipments.</p>
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            <strong class="fs-5" id="dashboard-client-id-value">—</strong>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="dashboard-copy-client-id" title="Copy Client ID"><i class="ri-file-copy-line me-1"></i>Copy</button>
+                        </div>
+                    </div>
+
                     <!-- 5. Dashboard header: title, description, primary action, date -->
                     <div class="row mb-4">
                         <div class="col-12">
@@ -229,16 +239,6 @@
                         </div>
                     </div>
                     </section>
-
-                    <!-- Client ID (for return address) -->
-                    <div class="rp-card card border-0 p-3 mb-4" id="dashboard-client-id-card">
-                        <h6 class="mb-1">Your Client ID</h6>
-                        <p class="mb-2 small text-muted">Use this as the name on your return address in Amazon Seller Central so we can identify your shipments.</p>
-                        <div class="d-flex align-items-center flex-wrap gap-2">
-                            <strong class="fs-5" id="dashboard-client-id-value">—</strong>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="dashboard-copy-client-id" title="Copy Client ID"><i class="ri-file-copy-line me-1"></i>Copy</button>
-                        </div>
-                    </div>
 
                     <div class="rp-card card border-0 p-4 mb-4" id="dashboard-balance-card">
                         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
