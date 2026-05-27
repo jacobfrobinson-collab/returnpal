@@ -345,3 +345,18 @@ button,
   background: rgba(255, 255, 255, 0.08);
   color: #9CA3AF;
 }
+
+/* Overview block at top of client dashboard */
+.dashboard-overview-top {
+  padding: 0.25rem 0 0;
+}
+.dashboard-overview-top > .row.g-4:last-child {
+  margin-bottom: 0;
+}
+#dashboard-week-summary .d-flex.flex-wrap.gap-4 > div {
+  min-width: 7rem;
+}
+#dashboard-week-summary strong {
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
