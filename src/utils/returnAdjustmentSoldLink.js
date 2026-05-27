@@ -162,6 +162,76 @@ function findLinkedSoldItemId(db, userId, opts) {
     return null;
 }
 
+function getSoldItemById(db, userId, soldItemId) {
+    const sid = parseInt(soldItemId, 10);
+    const uid = parseInt(userId, 10);
+    if (!Number.isFinite(sid) || sid < 1 || !Number.isFinite(uid) || uid < 1) return null;
+    const rows = parseResults(
+        db.exec(
+            `SELECT id, product, profit, order_number FROM sold_items WHERE user_id = ? AND id = ?`,
+            [uid, sid]
+        )
+    );
+    return rows[0] || null;
+}
+
+/**
+ * Whether an existing link still makes sense (product/order vs refund amount).
+ * @param {{ product?: string, amount?: number, order_number?: string }} adjustment
+ * @param {{ product?: string, profit?: number, order_number?: string }} sold
+ */
+function isReturnAdjustmentLinkPlausible(adjustment, sold) {
+    if (!sold) return false;
+    const score = productMatchScore(adjustment.product, sold.product);
+    if (score >= 60) return true;
+
+    const amt = Number(adjustment.amount) || 0;
+    const profit = Number(sold.profit) || 0;
+    const onum = String(adjustment.order_number || '').trim();
+    const soldOnum = String(sold.order_number || '').trim();
+    const orderMatch = !!(onum && soldOnum && onum === soldOnum);
+
+    if (orderMatch && score < 60) return false;
+    if (profit > 0 && amt > profit + 5 && amt >= profit * 2 && score < 60) return false;
+    if (score < 60) return false;
+    return true;
+}
+
+/**
+ * Recompute linked_sold_item_id using current rules; clears implausible links.
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {{ order_number?: string, product?: string, reference?: string, amount?: number, linked_sold_item_id?: number|null }} adjustment
+ */
+function resolveRelinkedSoldItemId(db, userId, adjustment) {
+    const base = {
+        orderNumber: adjustment.order_number,
+        product: adjustment.product,
+        reference: adjustment.reference,
+    };
+    const tryLink = (opts) => findLinkedSoldItemId(db, userId, opts);
+
+    let next = tryLink(base);
+    if (next) {
+        const sold = getSoldItemById(db, userId, next);
+        if (!isReturnAdjustmentLinkPlausible(adjustment, sold)) {
+            next = tryLink({ ...base, reference: '' });
+            if (next) {
+                const sold2 = getSoldItemById(db, userId, next);
+                if (!isReturnAdjustmentLinkPlausible(adjustment, sold2)) next = null;
+            }
+        }
+    }
+
+    const prev =
+        adjustment.linked_sold_item_id != null ? parseInt(adjustment.linked_sold_item_id, 10) : null;
+    if (!next && prev) {
+        const soldPrev = getSoldItemById(db, userId, prev);
+        if (!isReturnAdjustmentLinkPlausible(adjustment, soldPrev)) return null;
+    }
+    return next != null && Number.isFinite(next) && next > 0 ? next : null;
+}
+
 module.exports = {
     normalizeProductKey,
     productTokens,
@@ -169,5 +239,8 @@ module.exports = {
     findSoldItemIdByProduct,
     findSoldItemIdByOrder,
     findLinkedSoldItemId,
+    getSoldItemById,
+    isReturnAdjustmentLinkPlausible,
+    resolveRelinkedSoldItemId,
     parseResults,
 };

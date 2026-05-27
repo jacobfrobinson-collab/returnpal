@@ -37,7 +37,9 @@
     "ebay:manual-postage-missing-2026": "node scripts/ebay-manual-postage-to-sheet.js --browser-url \"http://127.0.0.1:9222\" --orders-xlsx \"c:/Users/jacob/Downloads/MISSING POSTAGE 2026.xlsx\" --ebay-list-url \"https://www.ebay.co.uk/sh/ord/?filter=status%3APAID_SHIPPED%2Ctimerange%3ACURRENTYEAR\" --sheet-url \"https://docs.google.com/spreadsheets/d/1GFeoSLXKexR7-YIbTcglozzVhtHOa2zeQNT9I8RqdJs/edit?gid=0#gid=0\"",
     "ebay:manual-postage-missing-2026-ods": "node scripts/ebay-manual-postage-to-sheet.js --browser-url \"http://127.0.0.1:9222\" --orders-xlsx \"c:/Users/jacob/Downloads/MISSING POSTAGE 2026.xlsx\" --ebay-list-url \"https://www.ebay.co.uk/sh/ord/?filter=status%3APAID_SHIPPED%2Ctimerange%3ACURRENTYEAR\" --output-ods \"c:/Users/jacob/Documents/missing postage.ods\"",
     "orders-sheet:sync": "node scripts/google-orders-sheet-sync-sold.js",
-    "ebay:payout:recalc-legacy": "node scripts/recalc-ebay-payout-legacy-client-share.js"
+    "ebay:payout:recalc-legacy": "node scripts/recalc-ebay-payout-legacy-client-share.js",
+    "relink-refunds:dry": "node scripts/relink-return-adjustments.js --dry-run",
+    "relink-refunds": "node scripts/relink-return-adjustments.js"
   },
   "keywords": [
     "returnpal",
