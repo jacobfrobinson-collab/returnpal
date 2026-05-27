@@ -154,7 +154,7 @@ function findLinkedSoldItemId(db, userId, opts) {
         if (matchRef.length) return matchRef[0].id;
     }
 
-    if (!onum && product) {
+    if (product) {
         const byProduct = findSoldItemIdByProduct(db, uid, product);
         if (byProduct) return byProduct;
     }
@@ -227,7 +227,8 @@ function resolveRelinkedSoldItemId(db, userId, adjustment) {
         adjustment.linked_sold_item_id != null ? parseInt(adjustment.linked_sold_item_id, 10) : null;
     if (!next && prev) {
         const soldPrev = getSoldItemById(db, userId, prev);
-        if (!isReturnAdjustmentLinkPlausible(adjustment, soldPrev)) return null;
+        if (isReturnAdjustmentLinkPlausible(adjustment, soldPrev)) return prev;
+        return null;
     }
     return next != null && Number.isFinite(next) && next > 0 ? next : null;
 }

@@ -42,6 +42,11 @@ async function testMultiItemOrderRequiresProductMatch() {
         product: 'Garmin DriveSmart 51 LMT-S GPS Satellite Navigation',
     });
     assert(linked === 2, 'findLinkedSoldItemId uses order+product');
+    const byProductOnly = findLinkedSoldItemId(db, 5, {
+        orderNumber: 'ORDER-MISSING',
+        product: 'Liz Earle Skin Repair Gel Cream 50ml Hydrating',
+    });
+    assert(byProductOnly === 1, 'falls back to product when order number does not match');
 }
 
 function testProductMatchScore() {
@@ -64,6 +69,15 @@ async function testImplausibleLinkClearedOnRelink() {
     assert(!isReturnAdjustmentLinkPlausible(adj, { product: 'Liz Earle Skin Repair Gel Cream 50ml', profit: 3.51, order_number: 'ORD-99' }));
     const next = resolveRelinkedSoldItemId(db, 5, adj);
     assert(next === 2, 'mis-linked large refund moves to matching sold line');
+
+    const goodLink = {
+        order_number: 'ORD-OTHER',
+        product: 'Liz Earle Skin Repair Gel Cream 50ml',
+        amount: 3.5,
+        linked_sold_item_id: 1,
+    };
+    const kept = resolveRelinkedSoldItemId(db, 5, goodLink);
+    assert(kept === 1, 'keeps plausible existing link when order missing on sold match path');
 }
 
 function run() {
