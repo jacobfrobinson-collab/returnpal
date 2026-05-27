@@ -29,6 +29,34 @@ function normalizeProductKey(s) {
  * @param {string} product
  * @returns {number|null}
  */
+function productTokens(s) {
+    return normalizeProductKey(s)
+        .split(' ')
+        .filter((w) => w.length > 1);
+}
+
+/** @returns {number} 0 = no match, 100 = exact */
+function productMatchScore(refundProduct, soldProduct) {
+    const key = normalizeProductKey(refundProduct);
+    const pk = normalizeProductKey(soldProduct);
+    if (!key || !pk || key.length < 10) return 0;
+    if (pk === key) return 100;
+    if (key.length >= 18 && pk.length >= 18) {
+        if (pk.includes(key) || key.includes(pk)) return 60;
+    }
+    const rt = productTokens(refundProduct);
+    const st = productTokens(soldProduct);
+    if (rt.length < 4 || st.length < 4) return 0;
+    const [shorter, longer] = rt.length <= st.length ? [rt, st] : [st, rt];
+    const longerSet = new Set(longer);
+    let hit = 0;
+    for (const w of shorter) {
+        if (longerSet.has(w)) hit++;
+    }
+    if (hit / shorter.length >= 0.8) return 60;
+    return 0;
+}
+
 function findSoldItemIdByProduct(db, userId, product) {
     const key = normalizeProductKey(product);
     if (!key || key.length < 10) return null;
@@ -42,19 +70,54 @@ function findSoldItemIdByProduct(db, userId, product) {
         )
     );
 
-    let containsMatch = null;
+    let bestId = null;
+    let bestScore = 0;
     for (const r of rows) {
-        const pk = normalizeProductKey(r.product);
-        if (!pk) continue;
-        if (pk === key) return r.id;
-        if (key.length >= 18 && pk.length >= 18) {
-            if (pk.includes(key) || key.includes(pk)) {
-                containsMatch = r.id;
-                break;
-            }
+        const score = productMatchScore(product, r.product);
+        if (score > bestScore) {
+            bestScore = score;
+            bestId = r.id;
         }
     }
-    return containsMatch;
+    return bestScore >= 60 ? bestId : null;
+}
+
+/**
+ * One eBay order often has multiple sold lines — never link by order_number alone.
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {string} orderNumber
+ * @param {string} [refundProduct]
+ */
+function findSoldItemIdByOrder(db, userId, orderNumber, refundProduct) {
+    const onum = String(orderNumber || '').trim();
+    if (!onum) return null;
+    const uid = parseInt(userId, 10);
+    const rows = parseResults(
+        db.exec(
+            `SELECT id, product, profit FROM sold_items
+             WHERE user_id = ? AND order_number = ?
+             ORDER BY sold_date DESC, id DESC`,
+            [uid, onum]
+        )
+    );
+    if (!rows.length) return null;
+    if (rows.length === 1) {
+        const score = refundProduct ? productMatchScore(refundProduct, rows[0].product) : 100;
+        return score >= 60 || !refundProduct ? rows[0].id : null;
+    }
+    if (!refundProduct) return null;
+
+    let bestId = null;
+    let bestScore = 0;
+    for (const r of rows) {
+        const score = productMatchScore(refundProduct, r.product);
+        if (score > bestScore) {
+            bestScore = score;
+            bestId = r.id;
+        }
+    }
+    return bestScore >= 60 ? bestId : null;
 }
 
 /**
@@ -71,17 +134,10 @@ function findLinkedSoldItemId(db, userId, opts) {
     if (Number.isFinite(linked) && linked > 0) return linked;
 
     const onum = String(opts.orderNumber || '').trim().slice(0, 200);
+    const product = String(opts.product || '').trim();
     if (onum) {
-        const matchByOn = parseResults(
-            db.exec(
-                `SELECT id FROM sold_items
-                 WHERE user_id = ? AND order_number = ?
-                 ORDER BY sold_date DESC, id DESC
-                 LIMIT 1`,
-                [uid, onum]
-            )
-        );
-        if (matchByOn.length) return matchByOn[0].id;
+        const byOrder = findSoldItemIdByOrder(db, uid, onum, product);
+        if (byOrder) return byOrder;
     }
 
     const reference = String(opts.reference || '').trim();
@@ -98,8 +154,7 @@ function findLinkedSoldItemId(db, userId, opts) {
         if (matchRef.length) return matchRef[0].id;
     }
 
-    const product = String(opts.product || '').trim();
-    if (product) {
+    if (!onum && product) {
         const byProduct = findSoldItemIdByProduct(db, uid, product);
         if (byProduct) return byProduct;
     }
@@ -109,7 +164,10 @@ function findLinkedSoldItemId(db, userId, opts) {
 
 module.exports = {
     normalizeProductKey,
+    productTokens,
+    productMatchScore,
     findSoldItemIdByProduct,
+    findSoldItemIdByOrder,
     findLinkedSoldItemId,
     parseResults,
 };

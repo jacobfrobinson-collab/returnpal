@@ -37,6 +37,31 @@ function computeReturnsBySoldId(db, userId) {
     return map;
 }
 
+function computeLinkedReturnDetailsBySoldId(db, userId) {
+    const rows = parseResults(
+        db.exec(
+            `SELECT linked_sold_item_id, id, product, amount, order_number, refund_date
+             FROM return_adjustments
+             WHERE user_id = ? AND status = 'applied' AND linked_sold_item_id IS NOT NULL
+             ORDER BY refund_date DESC, id DESC`,
+            [userId]
+        )
+    );
+    const map = Object.create(null);
+    for (const r of rows) {
+        const key = String(r.linked_sold_item_id);
+        if (!map[key]) map[key] = [];
+        map[key].push({
+            id: r.id,
+            product: r.product,
+            amount: Number(r.amount) || 0,
+            order_number: r.order_number,
+            refund_date: r.refund_date,
+        });
+    }
+    return map;
+}
+
 // GET /api/sold/returns — list refund/return adjustments (define before /:id routes)
 router.get('/returns', authMiddleware, async (req, res) => {
     try {
@@ -96,6 +121,7 @@ router.get('/', authMiddleware, async (req, res) => {
         };
 
         const returnsBySold = computeReturnsBySoldId(db, req.user.id);
+        const linkedReturnDetails = computeLinkedReturnDetailsBySoldId(db, req.user.id);
         const totalReturnsRows = parseResults(
             db.exec(
                 `SELECT COALESCE(SUM(amount), 0) AS s FROM return_adjustments WHERE user_id = ? AND status = 'applied'`,
@@ -124,7 +150,9 @@ router.get('/', authMiddleware, async (req, res) => {
                 is_monthly_free_processing: !!w,
                 monthly_free_processing_month: w ? w.year_month : null,
                 returns_deducted: ret,
-                net_after_returns: profit - ret
+                net_after_returns: profit - ret,
+                linked_return_adjustments: linkedReturnDetails[String(row.id)] || [],
+                returns_exceed_sale: ret > profit + 0.01,
             };
         });
 
