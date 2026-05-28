@@ -3729,6 +3729,9 @@ const Dashboard = {
         const $cards = $('#inventory-cards');
         if (!$cards.length) return;
         const $stageBar = $('#inventory-stage-bar');
+        const $topCats = $('#inventory-top-refund-categories');
+        const $topProducts = $('#inventory-top-refund-products');
+        const $insightTotal = $('#inventory-refund-insights-total');
         if ($stageBar.length) $stageBar.html('<span class="spinner-border spinner-border-sm me-2"></span>Loading…');
         try {
             const data = await API.getInventorySummary();
@@ -3755,6 +3758,52 @@ const Dashboard = {
                     '</div>'
                 );
             }
+
+            if ($topCats.length && $topProducts.length) {
+                const esc = (s) => String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+                try {
+                    const insights = await API.getInventoryRefundInsights();
+                    const categories = Array.isArray(insights.top_categories) ? insights.top_categories : [];
+                    const products = Array.isArray(insights.top_products) ? insights.top_products : [];
+                    const totalRows = Number(insights.total_refund_rows || 0);
+                    if ($insightTotal.length) $insightTotal.text(totalRows + ' refunds analysed');
+
+                    if (!categories.length) {
+                        $topCats.html('<tr><td colspan="3" class="text-muted small">No refund category data yet.</td></tr>');
+                    } else {
+                        $topCats.html(categories.map((c) =>
+                            '<tr>' +
+                            '<td>' + esc(c.name) + '</td>' +
+                            '<td class="text-end">' + Number(c.refund_count || 0) + '</td>' +
+                            '<td class="text-end">£' + Number(c.refund_total || 0).toFixed(2) + '</td>' +
+                            '</tr>'
+                        ).join(''));
+                    }
+
+                    if (!products.length) {
+                        $topProducts.html('<tr><td colspan="3" class="text-muted small">No refund product data yet.</td></tr>');
+                    } else {
+                        $topProducts.html(products.map((p) =>
+                            '<tr>' +
+                            '<td title="' + esc(p.name) + '">' + esc((p.name || '').slice(0, 90)) + '</td>' +
+                            '<td class="text-end">' + Number(p.refund_count || 0) + '</td>' +
+                            '<td class="text-end">£' + Number(p.refund_total || 0).toFixed(2) + '</td>' +
+                            '</tr>'
+                        ).join(''));
+                    }
+                } catch (insightErr) {
+                    if ($insightTotal.length) $insightTotal.text('Insights unavailable');
+                    $topCats.html('<tr><td colspan="3" class="text-muted small">Unable to load category insights.</td></tr>');
+                    $topProducts.html('<tr><td colspan="3" class="text-muted small">Unable to load product insights.</td></tr>');
+                    console.error('Load inventory refund insights error:', insightErr);
+                }
+            }
+
             $('#inventory-csv-upload').off('click').on('click', async () => {
                 const inp = document.getElementById('inventory-csv-input');
                 const f = inp && inp.files && inp.files[0];

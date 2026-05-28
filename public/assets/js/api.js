@@ -1297,6 +1297,15 @@ const API = {
             throw err;
         }
     },
+    async getInventoryRefundInsights() {
+        if (window.RETURNPAL_CONFIG && window.RETURNPAL_CONFIG.useMock) return this._getInventoryRefundInsightsMock();
+        try {
+            return await this.request('/inventory/refund-insights');
+        } catch (err) {
+            if (err.status === 404 || err.status === 501) return this._getInventoryRefundInsightsMock();
+            throw err;
+        }
+    },
     _getInventorySummaryMock() {
         return {
             items_received: 45,
@@ -1308,6 +1317,25 @@ const API = {
             recovered_so_far: 687003.92,
             potential_remaining_value: 1200,
             stage_breakdown: { inspection: 5, listing: 7, listed: 12, sold: 89, storage: 3 }
+        };
+    },
+    _getInventoryRefundInsightsMock() {
+        return {
+            total_refund_rows: 126,
+            top_categories: [
+                { name: 'Electronics & Gaming', refund_count: 31, refund_total: 1482.33 },
+                { name: 'Home Appliances', refund_count: 28, refund_total: 1338.46 },
+                { name: 'Beauty & Personal Care', refund_count: 24, refund_total: 604.92 },
+                { name: 'DIY & Tools', refund_count: 19, refund_total: 1107.75 },
+                { name: 'Toys & Collectibles', refund_count: 12, refund_total: 986.14 }
+            ],
+            top_products: [
+                { name: 'VAX Platinum SmartWash Pet-Design Carpet Cleaner Upright Deep Clean System', refund_count: 6, refund_total: 726.43 },
+                { name: 'Pokemon TCG Prismatic Evolutions Elite Trainer Box ETB Sealed', refund_count: 5, refund_total: 605.06 },
+                { name: 'Milwaukee M18 FUEL FIW2F12 18V 1/2 Compact Impact Wrench Bare Unit', refund_count: 4, refund_total: 457.5 },
+                { name: 'Nokia 2660 Flip 4G Dual SIM Blue Feature Phone', refund_count: 4, refund_total: 107.45 },
+                { name: 'Liz Earle Skin Repair Gel Cream 50ml Hydrating Soothing Skincare Moisturiser', refund_count: 3, refund_total: 145.93 }
+            ]
         };
     },
 

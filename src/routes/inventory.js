@@ -14,6 +14,19 @@ function parseResults(result) {
     });
 }
 
+function inferRefundCategory(productName) {
+    const p = String(productName || '').toLowerCase();
+    if (!p) return 'Other';
+    if (/(air fryer|coffee|kettle|toaster|vacuum|cleaner|dehumidifier|blender|iron|washer|dishwasher)/.test(p)) return 'Home Appliances';
+    if (/(ps5|xbox|nintendo|gaming|headset|keyboard|mouse|monitor|console|sat nav|gps|router|wifi|printer|chromebook|laptop)/.test(p)) return 'Electronics & Gaming';
+    if (/(perfume|eau de|fragrance|cream|serum|shampoo|conditioner|skincare|lipstick|beauty|collagen|niacinamide)/.test(p)) return 'Beauty & Personal Care';
+    if (/(pokemon|tcg|booster|trainer box|funko|toy|figure|game)/.test(p)) return 'Toys & Collectibles';
+    if (/(tool|drill|wrench|jigsaw|stihl|milwaukee|bosch)/.test(p)) return 'DIY & Tools';
+    if (/(toothbrush|water flosser|health|supplement|vitamin)/.test(p)) return 'Health & Wellness';
+    if (/(pool|outdoor|garden|camp|sports|cycling)/.test(p)) return 'Outdoor & Leisure';
+    return 'Other';
+}
+
 // GET /api/inventory/summary
 router.get('/summary', authMiddleware, async (req, res) => {
     try {
@@ -69,6 +82,62 @@ router.get('/summary', authMiddleware, async (req, res) => {
         });
     } catch (err) {
         console.error('Inventory summary error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/inventory/refund-insights
+// Cross-client view for sourcing decisions: top refunded categories/products.
+router.get('/refund-insights', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec(
+                `SELECT r.product, COALESCE(r.amount, 0) AS amount
+                 FROM return_adjustments r
+                 LEFT JOIN users u ON u.id = r.user_id
+                 WHERE r.status = 'applied'
+                   AND COALESCE(u.is_admin, 0) = 0
+                   AND TRIM(COALESCE(r.product, '')) <> ''`
+            )
+        );
+
+        const byCategory = new Map();
+        const byProduct = new Map();
+        let totalRefundRows = 0;
+
+        for (const row of rows) {
+            const product = String(row.product || '').trim();
+            const amount = Number(row.amount) || 0;
+            if (!product) continue;
+            totalRefundRows++;
+
+            const category = inferRefundCategory(product);
+            const c = byCategory.get(category) || { name: category, refund_count: 0, refund_total: 0 };
+            c.refund_count += 1;
+            c.refund_total += amount;
+            byCategory.set(category, c);
+
+            const p = byProduct.get(product) || { name: product, refund_count: 0, refund_total: 0 };
+            p.refund_count += 1;
+            p.refund_total += amount;
+            byProduct.set(product, p);
+        }
+
+        const top_categories = Array.from(byCategory.values())
+            .sort((a, b) => (b.refund_count - a.refund_count) || (b.refund_total - a.refund_total))
+            .slice(0, 5);
+        const top_products = Array.from(byProduct.values())
+            .sort((a, b) => (b.refund_count - a.refund_count) || (b.refund_total - a.refund_total))
+            .slice(0, 5);
+
+        res.json({
+            total_refund_rows: totalRefundRows,
+            top_categories,
+            top_products
+        });
+    } catch (err) {
+        console.error('Inventory refund insights error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
