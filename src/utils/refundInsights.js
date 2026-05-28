@@ -25,6 +25,54 @@ function inferRefundCategory(productName) {
     return 'Other';
 }
 
+function inferRefundSubcategory(category, productName) {
+    const p = String(productName || '').toLowerCase();
+    if (!p) return 'General';
+    if (category === 'Home Appliances') {
+        if (/(air fryer)/.test(p)) return 'Air Fryers';
+        if (/(vacuum|carpet cleaner|spotwash)/.test(p)) return 'Vacuum & Carpet Care';
+        if (/(coffee|nespresso|kettle|toaster)/.test(p)) return 'Coffee & Kitchen';
+        if (/(washer|dishwasher|dehumidifier)/.test(p)) return 'Large Appliances';
+        return 'General Appliances';
+    }
+    if (category === 'Electronics & Gaming') {
+        if (/(console|ps5|xbox|nintendo)/.test(p)) return 'Consoles';
+        if (/(headset|keyboard|mouse|controller)/.test(p)) return 'Gaming Accessories';
+        if (/(sat nav|gps|router|wifi)/.test(p)) return 'Navigation & Networking';
+        if (/(printer|laptop|chromebook|monitor)/.test(p)) return 'Computing';
+        return 'General Electronics';
+    }
+    if (category === 'Beauty & Personal Care') {
+        if (/(perfume|eau de|fragrance|toilette|parfum)/.test(p)) return 'Fragrance';
+        if (/(cream|serum|skincare|niacinamide|collagen|mask)/.test(p)) return 'Skincare';
+        if (/(shampoo|conditioner|hair|pomade)/.test(p)) return 'Haircare';
+        if (/(lipstick|makeup|bronzer)/.test(p)) return 'Makeup';
+        return 'General Beauty';
+    }
+    if (category === 'DIY & Tools') {
+        if (/(wrench|drill|jigsaw|tool|impact)/.test(p)) return 'Power Tools';
+        if (/(stihl|ear protectors|safety)/.test(p)) return 'Safety & PPE';
+        return 'General Tools';
+    }
+    if (category === 'Toys & Collectibles') {
+        if (/(pokemon|tcg|booster|trainer box|etb)/.test(p)) return 'Pokemon TCG';
+        if (/(funko|figure|toy)/.test(p)) return 'Figures & Toys';
+        return 'General Collectibles';
+    }
+    if (category === 'Health & Wellness') {
+        if (/(toothbrush|water flosser|oral)/.test(p)) return 'Oral Care';
+        if (/(vitamin|supplement|capsule)/.test(p)) return 'Supplements';
+        return 'General Health';
+    }
+    if (category === 'Outdoor & Leisure') {
+        if (/(pool|swimming)/.test(p)) return 'Pool & Water';
+        if (/(cycling|bike)/.test(p)) return 'Cycling';
+        if (/(garden|outdoor)/.test(p)) return 'Garden & Outdoor';
+        return 'General Leisure';
+    }
+    return 'General';
+}
+
 function ensureInsightTables(db) {
     db.run(
         `CREATE TABLE IF NOT EXISTS refund_insight_category_stats (
@@ -41,6 +89,16 @@ function ensureInsightTables(db) {
             refund_count INTEGER NOT NULL DEFAULT 0,
             refund_total REAL NOT NULL DEFAULT 0,
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+    );
+    db.run(
+        `CREATE TABLE IF NOT EXISTS refund_insight_subcategory_stats (
+            category TEXT NOT NULL,
+            subcategory TEXT NOT NULL,
+            refund_count INTEGER NOT NULL DEFAULT 0,
+            refund_total REAL NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (category, subcategory)
         )`
     );
 }
@@ -63,6 +121,7 @@ function rebuildRefundInsightsCache(db) {
     const rows = buildRowsFromAdjustments(db);
     const byCategory = new Map();
     const byProduct = new Map();
+    const bySubcategory = new Map();
     let totalRefundRows = 0;
 
     for (const row of rows) {
@@ -70,6 +129,7 @@ function rebuildRefundInsightsCache(db) {
         if (!product) continue;
         const amount = Number(row.amount) || 0;
         const category = inferRefundCategory(product);
+        const subcategory = inferRefundSubcategory(category, product);
         totalRefundRows++;
 
         const c = byCategory.get(category) || { category, refund_count: 0, refund_total: 0 };
@@ -81,10 +141,17 @@ function rebuildRefundInsightsCache(db) {
         p.refund_count += 1;
         p.refund_total += amount;
         byProduct.set(product, p);
+
+        const skey = category + '||' + subcategory;
+        const s = bySubcategory.get(skey) || { category, subcategory, refund_count: 0, refund_total: 0 };
+        s.refund_count += 1;
+        s.refund_total += amount;
+        bySubcategory.set(skey, s);
     }
 
     db.run('DELETE FROM refund_insight_category_stats');
     db.run('DELETE FROM refund_insight_product_stats');
+    db.run('DELETE FROM refund_insight_subcategory_stats');
 
     for (const c of byCategory.values()) {
         db.run(
@@ -98,6 +165,13 @@ function rebuildRefundInsightsCache(db) {
             `INSERT INTO refund_insight_product_stats (product, category, refund_count, refund_total, updated_at)
              VALUES (?, ?, ?, ?, datetime('now'))`,
             [p.product, p.category, p.refund_count, p.refund_total]
+        );
+    }
+    for (const s of bySubcategory.values()) {
+        db.run(
+            `INSERT INTO refund_insight_subcategory_stats (category, subcategory, refund_count, refund_total, updated_at)
+             VALUES (?, ?, ?, ?, datetime('now'))`,
+            [s.category, s.subcategory, s.refund_count, s.refund_total]
         );
     }
 
@@ -129,15 +203,34 @@ function getRefundInsightsFromCache(db, limit = 5) {
             [lim]
         )
     );
+    const top_subcategories = parseResults(
+        db.exec(
+            `SELECT category, subcategory, refund_count, refund_total
+             FROM refund_insight_subcategory_stats
+             ORDER BY refund_count DESC, refund_total DESC`
+        )
+    );
     const totalRowsRes = parseResults(
         db.exec(
             `SELECT COALESCE(SUM(refund_count), 0) AS total_refund_rows
              FROM refund_insight_product_stats`
         )
     );
+    const subsByCategory = new Map();
+    for (const row of top_subcategories) {
+        const key = String(row.category || '');
+        if (!subsByCategory.has(key)) subsByCategory.set(key, []);
+        const list = subsByCategory.get(key);
+        if (list.length < 3) list.push(String(row.subcategory || 'General'));
+    }
+    const top_categories_with_subs = top_categories.map((c) => ({
+        ...c,
+        subcategories: subsByCategory.get(String(c.name || '')) || ['General']
+    }));
+
     return {
         total_refund_rows: Number(totalRowsRes[0]?.total_refund_rows) || 0,
-        top_categories,
+        top_categories: top_categories_with_subs,
         top_products,
     };
 }
@@ -159,6 +252,7 @@ function cacheIsStale(db, maxAgeHours) {
 
 module.exports = {
     inferRefundCategory,
+    inferRefundSubcategory,
     rebuildRefundInsightsCache,
     getRefundInsightsFromCache,
     cacheIsStale,
