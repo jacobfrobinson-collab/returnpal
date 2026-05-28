@@ -12,12 +12,21 @@ function parseResults(result) {
     });
 }
 
+/** Brands and product phrases that are beauty/personal care but lack generic keywords. */
+const BEAUTY_BRAND_OR_PRODUCT_RE =
+    /(?:baxter|babyliss|lancome|lanc[oô]me|l'oreal|loreal|ghd|remington|wella|clinique|elemis|liz earle|cerave|eucerin|aveeno|no7\b|philips lumea|braun silk|epilator|ipl\b|hair straightener|hair dryer|hot brush|curling wand|flat iron|aftershave|deodorant|antiperspirant|moisturis|moisturiz|micellar|body lotion|hand cream|face cream|night cream|day cream|sun cream|sunscreen|lip balm|lip gloss|nail varnish|mascara|eyeliner|foundation|concealer|bb cream|cc cream|setting spray|tonique|cr[eè]me de lait|\blait\b|pomade|wax melt hair)/;
+
 function inferRefundCategory(productName) {
     const p = String(productName || '').toLowerCase();
     if (!p) return 'Other';
     if (/(air fryer|coffee|kettle|toaster|vacuum|cleaner|dehumidifier|blender|iron|washer|dishwasher)/.test(p)) return 'Home Appliances';
     if (/(ps5|xbox|nintendo|gaming|headset|keyboard|mouse|monitor|console|sat nav|gps|router|wifi|printer|chromebook|laptop|nokia|phone|mobile|tablet|camera|hard drive|ssd)/.test(p)) return 'Electronics & Gaming';
-    if (/(perfume|eau de|fragrance|cream|serum|shampoo|conditioner|skincare|lipstick|beauty|collagen|niacinamide)/.test(p)) return 'Beauty & Personal Care';
+    if (
+        /(perfume|eau de|fragrance|cream|serum|shampoo|conditioner|skincare|lipstick|beauty|collagen|niacinamide|makeup|moistur|cleanser|toner|exfoliat)/.test(p) ||
+        BEAUTY_BRAND_OR_PRODUCT_RE.test(p)
+    ) {
+        return 'Beauty & Personal Care';
+    }
     if (/(pokemon|tcg|booster|trainer box|funko|toy|figure|game)/.test(p)) return 'Toys & Collectibles';
     if (/(tool|drill|wrench|jigsaw|stihl|milwaukee|bosch|screwdriver|sealant|caulk|work surface|impact)/.test(p)) return 'DIY & Tools';
     if (/(toothbrush|water flosser|health|supplement|vitamin)/.test(p)) return 'Health & Wellness';
@@ -66,9 +75,14 @@ function inferRefundSubcategory(category, productName) {
     }
     if (category === 'Beauty & Personal Care') {
         if (/(perfume|eau de|fragrance|toilette|parfum)/.test(p)) return 'Fragrance';
-        if (/(cream|serum|skincare|niacinamide|collagen|mask)/.test(p)) return 'Skincare';
-        if (/(shampoo|conditioner|hair|pomade)/.test(p)) return 'Haircare';
-        if (/(lipstick|makeup|bronzer)/.test(p)) return 'Makeup';
+        if (/(babyliss|ghd|remington|straightener|hair dryer|hot brush|curling|flat iron|styler|cordless)/.test(p)) {
+            return 'Hair Styling';
+        }
+        if (/(shampoo|conditioner|pomade)/.test(p)) return 'Haircare';
+        if (/(baxter|lancome|lanc[oô]me|lait|cream|serum|skincare|niacinamide|collagen|mask|moisturis|cleanser|toner|lotion|tonique)/.test(p)) {
+            return 'Skincare';
+        }
+        if (/(lipstick|makeup|bronzer|foundation|concealer|mascara)/.test(p)) return 'Makeup';
         return fallbackFromProduct();
     }
     if (category === 'DIY & Tools') {
@@ -331,6 +345,18 @@ function cacheIsStale(db, maxAgeHours) {
         const cached = String(row.category || '').trim();
         const inferred = inferRefundCategory(String(row.product || ''));
         if (cached && inferred && cached !== inferred) return true;
+    }
+    const otherProducts = parseResults(
+        db.exec(
+            `SELECT product
+             FROM refund_insight_product_stats
+             WHERE category = 'Other'
+             ORDER BY refund_count DESC, refund_total DESC
+             LIMIT 100`
+        )
+    );
+    for (const row of otherProducts) {
+        if (inferRefundCategory(String(row.product || '')) !== 'Other') return true;
     }
 
     const r = parseResults(
