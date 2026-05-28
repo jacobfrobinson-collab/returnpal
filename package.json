@@ -39,7 +39,8 @@
     "orders-sheet:sync": "node scripts/google-orders-sheet-sync-sold.js",
     "ebay:payout:recalc-legacy": "node scripts/recalc-ebay-payout-legacy-client-share.js",
     "relink-refunds:dry": "node scripts/relink-return-adjustments.js --dry-run",
-    "relink-refunds": "node scripts/relink-return-adjustments.js"
+    "relink-refunds": "node scripts/relink-return-adjustments.js",
+    "refund-insights:refresh": "node scripts/refresh-refund-insights.js"
   },
   "keywords": [
     "returnpal",
