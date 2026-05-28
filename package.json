@@ -40,7 +40,8 @@
     "ebay:payout:recalc-legacy": "node scripts/recalc-ebay-payout-legacy-client-share.js",
     "relink-refunds:dry": "node scripts/relink-return-adjustments.js --dry-run",
     "relink-refunds": "node scripts/relink-return-adjustments.js",
-    "refund-insights:refresh": "node scripts/refresh-refund-insights.js"
+    "refund-insights:refresh": "node scripts/refresh-refund-insights.js",
+    "check-client": "node scripts/check-client-legacy-id.js"
   },
   "keywords": [
     "returnpal",
