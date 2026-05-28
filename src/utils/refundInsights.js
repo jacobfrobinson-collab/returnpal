@@ -240,11 +240,26 @@ function getRefundInsightsFromCache(db, limit = 5) {
         const key = String(row.category || '');
         if (!subsByCategory.has(key)) subsByCategory.set(key, []);
         const list = subsByCategory.get(key);
-        if (list.length < 3) list.push(String(row.subcategory || 'General'));
+        const sub = String(row.subcategory || '').trim();
+        if (!sub) continue;
+        if (/^general(\s|$)/i.test(sub)) continue;
+        if (list.length < 3 && !list.includes(sub)) list.push(sub);
+    }
+    if (top_products.length) {
+        for (const p of top_products) {
+            const cat = String(inferRefundCategory(p.name || ''));
+            if (!cat) continue;
+            if (!subsByCategory.has(cat)) subsByCategory.set(cat, []);
+            const list = subsByCategory.get(cat);
+            const inferred = inferRefundSubcategory(cat, p.name || '');
+            if (inferred && !/^general(\s|$)/i.test(inferred) && !list.includes(inferred) && list.length < 3) {
+                list.push(inferred);
+            }
+        }
     }
     const top_categories_with_subs = top_categories.map((c) => ({
         ...c,
-        subcategories: subsByCategory.get(String(c.name || '')) || ['General']
+        subcategories: subsByCategory.get(String(c.name || '')) || ['Miscellaneous']
     }));
 
     return {
@@ -257,6 +272,16 @@ function getRefundInsightsFromCache(db, limit = 5) {
 function cacheIsStale(db, maxAgeHours) {
     ensureInsightTables(db);
     const age = Math.max(1, parseInt(maxAgeHours, 10) || 6);
+    const legacyGeneric = parseResults(
+        db.exec(
+            `SELECT COUNT(*) AS c
+             FROM refund_insight_subcategory_stats
+             WHERE LOWER(TRIM(subcategory)) LIKE 'general%'`
+        )
+    );
+    const genericCount = Number(legacyGeneric[0]?.c) || 0;
+    if (genericCount > 0) return true;
+
     const r = parseResults(
         db.exec(
             `SELECT MAX(updated_at) AS updated_at FROM refund_insight_category_stats`
