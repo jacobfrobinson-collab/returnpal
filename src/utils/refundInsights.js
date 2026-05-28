@@ -16,10 +16,10 @@ function inferRefundCategory(productName) {
     const p = String(productName || '').toLowerCase();
     if (!p) return 'Other';
     if (/(air fryer|coffee|kettle|toaster|vacuum|cleaner|dehumidifier|blender|iron|washer|dishwasher)/.test(p)) return 'Home Appliances';
-    if (/(ps5|xbox|nintendo|gaming|headset|keyboard|mouse|monitor|console|sat nav|gps|router|wifi|printer|chromebook|laptop)/.test(p)) return 'Electronics & Gaming';
+    if (/(ps5|xbox|nintendo|gaming|headset|keyboard|mouse|monitor|console|sat nav|gps|router|wifi|printer|chromebook|laptop|nokia|phone|mobile|tablet|camera|hard drive|ssd)/.test(p)) return 'Electronics & Gaming';
     if (/(perfume|eau de|fragrance|cream|serum|shampoo|conditioner|skincare|lipstick|beauty|collagen|niacinamide)/.test(p)) return 'Beauty & Personal Care';
     if (/(pokemon|tcg|booster|trainer box|funko|toy|figure|game)/.test(p)) return 'Toys & Collectibles';
-    if (/(tool|drill|wrench|jigsaw|stihl|milwaukee|bosch)/.test(p)) return 'DIY & Tools';
+    if (/(tool|drill|wrench|jigsaw|stihl|milwaukee|bosch|screwdriver|sealant|caulk|work surface|impact)/.test(p)) return 'DIY & Tools';
     if (/(toothbrush|water flosser|health|supplement|vitamin)/.test(p)) return 'Health & Wellness';
     if (/(pool|outdoor|garden|camp|sports|cycling)/.test(p)) return 'Outdoor & Leisure';
     return 'Other';
@@ -58,6 +58,9 @@ function inferRefundSubcategory(category, productName) {
         if (/(console|ps5|xbox|nintendo)/.test(p)) return 'Consoles';
         if (/(headset|keyboard|mouse|controller)/.test(p)) return 'Gaming Accessories';
         if (/(sat nav|gps|router|wifi)/.test(p)) return 'Navigation & Networking';
+        if (/(nokia|phone|mobile|smartphone|flip)/.test(p)) return 'Mobile Phones';
+        if (/(hard drive|ssd|storage|hdd)/.test(p)) return 'Storage Devices';
+        if (/(camera|webcam)/.test(p)) return 'Cameras';
         if (/(printer|laptop|chromebook|monitor)/.test(p)) return 'Computing';
         return fallbackFromProduct();
     }
@@ -70,6 +73,8 @@ function inferRefundSubcategory(category, productName) {
     }
     if (category === 'DIY & Tools') {
         if (/(wrench|drill|jigsaw|tool|impact)/.test(p)) return 'Power Tools';
+        if (/(screwdriver|bit set|packout|work surface)/.test(p)) return 'Hand Tools & Accessories';
+        if (/(caulk|sealant|adhesive)/.test(p)) return 'Adhesives & Sealants';
         if (/(stihl|ear protectors|safety)/.test(p)) return 'Safety & PPE';
         return fallbackFromProduct();
     }
@@ -229,6 +234,16 @@ function getRefundInsightsFromCache(db, limit = 5) {
              ORDER BY refund_count DESC, refund_total DESC`
         )
     );
+    const categoryDefaults = {
+        'Other': 'General Merchandise',
+        'Home Appliances': 'General Appliances',
+        'Beauty & Personal Care': 'General Beauty',
+        'Electronics & Gaming': 'Consumer Electronics',
+        'DIY & Tools': 'Tools & Hardware',
+        'Toys & Collectibles': 'General Collectibles',
+        'Health & Wellness': 'General Health',
+        'Outdoor & Leisure': 'General Leisure',
+    };
     const totalRowsRes = parseResults(
         db.exec(
             `SELECT COALESCE(SUM(refund_count), 0) AS total_refund_rows
@@ -257,10 +272,30 @@ function getRefundInsightsFromCache(db, limit = 5) {
             }
         }
     }
-    const top_categories_with_subs = top_categories.map((c) => ({
-        ...c,
-        subcategories: subsByCategory.get(String(c.name || '')) || ['Miscellaneous']
-    }));
+    const top_categories_with_subs = top_categories.map((c) => {
+        const name = String(c.name || '');
+        let subs = subsByCategory.get(name) || [];
+        if (!subs.length) {
+            const sample = parseResults(
+                db.exec(
+                    `SELECT product FROM refund_insight_product_stats
+                     WHERE category = ?
+                     ORDER BY refund_count DESC, refund_total DESC
+                     LIMIT 1`,
+                    [name]
+                )
+            );
+            const product = String(sample[0]?.product || '');
+            if (product) {
+                const inferred = inferRefundSubcategory(name, product);
+                if (inferred && !/^general(\s|$)/i.test(inferred) && !/^miscellaneous$/i.test(inferred)) {
+                    subs = [inferred];
+                }
+            }
+        }
+        if (!subs.length) subs = [categoryDefaults[name] || 'General Merchandise'];
+        return { ...c, subcategories: subs };
+    });
 
     return {
         total_refund_rows: Number(totalRowsRes[0]?.total_refund_rows) || 0,
