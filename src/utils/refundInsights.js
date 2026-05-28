@@ -317,6 +317,22 @@ function cacheIsStale(db, maxAgeHours) {
     const genericCount = Number(legacyGeneric[0]?.c) || 0;
     if (genericCount > 0) return true;
 
+    // If cached product categories no longer match current classifier rules,
+    // force a rebuild so "Other" does not retain stale legacy assignments.
+    const sampleProducts = parseResults(
+        db.exec(
+            `SELECT product, category
+             FROM refund_insight_product_stats
+             ORDER BY refund_count DESC, refund_total DESC
+             LIMIT 300`
+        )
+    );
+    for (const row of sampleProducts) {
+        const cached = String(row.category || '').trim();
+        const inferred = inferRefundCategory(String(row.product || ''));
+        if (cached && inferred && cached !== inferred) return true;
+    }
+
     const r = parseResults(
         db.exec(
             `SELECT MAX(updated_at) AS updated_at FROM refund_insight_category_stats`
