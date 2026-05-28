@@ -27,50 +27,69 @@ function inferRefundCategory(productName) {
 
 function inferRefundSubcategory(category, productName) {
     const p = String(productName || '').toLowerCase();
-    if (!p) return 'General';
+    if (!p) return 'Unclassified Item';
+    const titleCase = (s) => String(s || '')
+        .split(' ')
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+    const fallbackFromProduct = () => {
+        const cleaned = p
+            .replace(/[^a-z0-9\s]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const stop = new Set([
+            'for', 'with', 'and', 'the', 'new', 'other', 'pack', 'set', 'kit', 'pro',
+            'inch', 'ml', 'gb', 'dual', 'wireless', 'black', 'white', 'blue', 'green',
+            'used', 'edition', 'plus', 'max', 'mini', 'series', 'model'
+        ]);
+        const tokens = cleaned.split(' ').filter((t) => t.length >= 3 && !stop.has(t));
+        if (!tokens.length) return 'Miscellaneous';
+        return titleCase(tokens.slice(0, 2).join(' '));
+    };
     if (category === 'Home Appliances') {
         if (/(air fryer)/.test(p)) return 'Air Fryers';
         if (/(vacuum|carpet cleaner|spotwash)/.test(p)) return 'Vacuum & Carpet Care';
         if (/(coffee|nespresso|kettle|toaster)/.test(p)) return 'Coffee & Kitchen';
         if (/(washer|dishwasher|dehumidifier)/.test(p)) return 'Large Appliances';
-        return 'General Appliances';
+        return fallbackFromProduct();
     }
     if (category === 'Electronics & Gaming') {
         if (/(console|ps5|xbox|nintendo)/.test(p)) return 'Consoles';
         if (/(headset|keyboard|mouse|controller)/.test(p)) return 'Gaming Accessories';
         if (/(sat nav|gps|router|wifi)/.test(p)) return 'Navigation & Networking';
         if (/(printer|laptop|chromebook|monitor)/.test(p)) return 'Computing';
-        return 'General Electronics';
+        return fallbackFromProduct();
     }
     if (category === 'Beauty & Personal Care') {
         if (/(perfume|eau de|fragrance|toilette|parfum)/.test(p)) return 'Fragrance';
         if (/(cream|serum|skincare|niacinamide|collagen|mask)/.test(p)) return 'Skincare';
         if (/(shampoo|conditioner|hair|pomade)/.test(p)) return 'Haircare';
         if (/(lipstick|makeup|bronzer)/.test(p)) return 'Makeup';
-        return 'General Beauty';
+        return fallbackFromProduct();
     }
     if (category === 'DIY & Tools') {
         if (/(wrench|drill|jigsaw|tool|impact)/.test(p)) return 'Power Tools';
         if (/(stihl|ear protectors|safety)/.test(p)) return 'Safety & PPE';
-        return 'General Tools';
+        return fallbackFromProduct();
     }
     if (category === 'Toys & Collectibles') {
         if (/(pokemon|tcg|booster|trainer box|etb)/.test(p)) return 'Pokemon TCG';
         if (/(funko|figure|toy)/.test(p)) return 'Figures & Toys';
-        return 'General Collectibles';
+        return fallbackFromProduct();
     }
     if (category === 'Health & Wellness') {
         if (/(toothbrush|water flosser|oral)/.test(p)) return 'Oral Care';
         if (/(vitamin|supplement|capsule)/.test(p)) return 'Supplements';
-        return 'General Health';
+        return fallbackFromProduct();
     }
     if (category === 'Outdoor & Leisure') {
         if (/(pool|swimming)/.test(p)) return 'Pool & Water';
         if (/(cycling|bike)/.test(p)) return 'Cycling';
         if (/(garden|outdoor)/.test(p)) return 'Garden & Outdoor';
-        return 'General Leisure';
+        return fallbackFromProduct();
     }
-    return 'General';
+    return fallbackFromProduct();
 }
 
 function ensureInsightTables(db) {
