@@ -162,6 +162,18 @@ function repairAllMonthDaySwapIsoMisimportForDisplay(iso) {
  * @param {unknown} rawSoldDate
  * @param {(v: unknown) => string|null} normalizeSoldDateForDb
  */
+/** Ordinal label from calendar YYYY-MM-DD (post-migration storage). */
+function calendarIsoToOrdinalLabel(iso) {
+    const s = stripSoldDateToIsoHead(iso);
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return '';
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10);
+    const day = parseInt(m[3], 10);
+    if (mo < 1 || mo > 12 || day < 1 || day > 31) return '';
+    return MONTH_NAMES[mo - 1] + ' ' + dayWithOrdinal(day) + ' ' + y;
+}
+
 function mapSoldItemDatesForApi(rawSoldDate, normalizeSoldDateForDb) {
     let iso = normalizeSoldDateForDb(rawSoldDate);
     if (!iso) {
@@ -169,16 +181,26 @@ function mapSoldItemDatesForApi(rawSoldDate, normalizeSoldDateForDb) {
         if (/^\d{4}-\d{2}-\d{2}$/.test(head)) iso = head;
         else if (/^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(head)) iso = normalizeSoldDateForDb(head);
     }
-    const storedHead =
-        iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : stripSoldDateToIsoHead(rawSoldDate);
-    const isoFinal = /^\d{4}-\d{2}-\d{2}$/.test(String(storedHead))
+    if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+        let isoFinal = iso;
+        if (monthDaySwapRepairEnabled()) {
+            isoFinal = repairAllMonthDaySwapIsoMisimportForDisplay(iso);
+        }
+        return {
+            iso: isoFinal,
+            label: calendarIsoToOrdinalLabel(isoFinal) || '',
+            stored: rawSoldDate,
+        };
+    }
+    const storedHead = stripSoldDateToIsoHead(rawSoldDate);
+    const isoFinal = /^\d{4}-\d{2}-\d{2}$/.test(storedHead)
         ? resolveSoldDateIsoForDisplay(storedHead)
         : '';
-    const label = /^\d{4}-\d{2}-\d{2}$/.test(String(storedHead))
+    const label = /^\d{4}-\d{2}-\d{2}$/.test(storedHead)
         ? storedSoldYmdToOrdinalLabel(storedHead)
-        : '';
+        : calendarIsoToOrdinalLabel(isoFinal);
     return {
-        iso: isoFinal || '',
+        iso: isoFinal || iso || '',
         label: label || '',
         stored: rawSoldDate,
     };
@@ -199,6 +221,7 @@ module.exports = {
     parseStoredSoldYmd,
     storedSoldYmdToCalendarIso,
     storedSoldYmdToOrdinalLabel,
+    calendarIsoToOrdinalLabel,
     repairIsoFirstOfMonthToJanuary,
     resolveSoldDateIsoForDisplay,
     tryRepairMonthDaySwap,

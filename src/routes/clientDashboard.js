@@ -41,6 +41,12 @@ router.get('/snapshot', authMiddleware, async (req, res) => {
         if (!p) return res.status(400).json({ error: 'Use period=YYYY-MM' });
         const db = await getDb();
         const detail = buildInvoicePeriodPayload(db, req.user.id, p);
+        if (!detail) {
+            return res.status(409).json({
+                error:
+                    'Statement period could not be built: sold dates are inconsistent for this month. Contact support.',
+            });
+        }
         const soldCount = parseResults(
             db.exec(
                 `SELECT COUNT(*) AS c FROM sold_items WHERE user_id = ? AND sold_date >= ? AND sold_date <= ?`,

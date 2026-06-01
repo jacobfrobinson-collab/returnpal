@@ -1,6 +1,6 @@
 /**
- * Sold-date display: stored strings YYYY-MM-DD mean YYYY-DD-MM
- * (year, day-of-month, month). No Date(), no timezone.
+ * Sold-date display: stored/API values are calendar YYYY-MM-DD (year-month-day).
+ * Prefer API sold_date_label / sold_date_display when present.
  */
 (function (w) {
     'use strict';
@@ -40,40 +40,28 @@
         return s0;
     }
 
-    /** @returns {{ y: number, day: number, month: number }|null} */
-    function parseStoredSoldYmd(v) {
+    /** @returns {{ y: number, month: number, day: number }|null} */
+    function parseCalendarIso(v) {
         const s = stripToIsoYmd(v);
         const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         if (!m) return null;
         const y = parseInt(m[1], 10);
-        const day = parseInt(m[2], 10);
-        const month = parseInt(m[3], 10);
+        const month = parseInt(m[2], 10);
+        const day = parseInt(m[3], 10);
         if (!Number.isFinite(y) || month < 1 || month > 12 || day < 1 || day > 31) return null;
-        return { y: y, day: day, month: month };
-    }
-
-    function storedToCalendarIso(v) {
-        const p = parseStoredSoldYmd(v);
-        if (!p) return stripToIsoYmd(v);
-        return (
-            String(p.y) +
-            '-' +
-            String(p.month).padStart(2, '0') +
-            '-' +
-            String(p.day).padStart(2, '0')
-        );
+        return { y: y, month: month, day: day };
     }
 
     /** @returns {string|null} */
-    function isoYmdToOrdinalLabel(v) {
-        const p = parseStoredSoldYmd(v);
+    function calendarIsoToOrdinalLabel(v) {
+        const p = parseCalendarIso(v);
         if (!p) return null;
         return MONTH_NAMES[p.month - 1] + ' ' + dayWithOrdinal(p.day) + ' ' + p.y;
     }
 
     /** @returns {string} calendar YYYY-MM-DD for sort */
     function toSortKey(v) {
-        const s = storedToCalendarIso(v);
+        const s = stripToIsoYmd(v);
         return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
     }
 
@@ -83,9 +71,11 @@
      */
     function labelForSoldItem(item) {
         if (!item) return '-';
-        const fields = [item.sold_date_stored, item.sold_date, item.sold_date_display];
+        const api = item.sold_date_label && String(item.sold_date_label).trim();
+        if (api) return api;
+        const fields = [item.sold_date_display, item.sold_date, item.sold_date_stored];
         for (let i = 0; i < fields.length; i++) {
-            const lab = isoYmdToOrdinalLabel(fields[i]);
+            const lab = calendarIsoToOrdinalLabel(fields[i]);
             if (lab) return lab;
         }
         return '-';
@@ -97,7 +87,9 @@
      */
     function sortKeyForSoldItem(item) {
         if (!item) return '0000-00-00';
-        const fields = [item.sold_date_stored, item.sold_date, item.sold_date_display];
+        const disp = item.sold_date_display && String(item.sold_date_display).trim();
+        if (disp && /^\d{4}-\d{2}-\d{2}$/.test(disp)) return disp;
+        const fields = [item.sold_date, item.sold_date_stored, item.sold_date_display];
         for (let i = 0; i < fields.length; i++) {
             const k = toSortKey(fields[i]);
             if (k) return k;
@@ -107,9 +99,8 @@
 
     w.RP_SOLD_ISO = {
         stripToIsoYmd: stripToIsoYmd,
-        parseStoredSoldYmd: parseStoredSoldYmd,
-        storedToCalendarIso: storedToCalendarIso,
-        isoYmdToOrdinalLabel: isoYmdToOrdinalLabel,
+        parseCalendarIso: parseCalendarIso,
+        calendarIsoToOrdinalLabel: calendarIsoToOrdinalLabel,
         labelForSoldItem: labelForSoldItem,
         sortKeyForSoldItem: sortKeyForSoldItem,
     };

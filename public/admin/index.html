@@ -1588,7 +1588,7 @@
                 }
                 $('#bulk-import-preview-thead').html(
                     '<tr><th>Line</th><th>OK</th><th>Client</th>' +
-                        (isSold ? '<th>Sold date</th>' : '') +
+                        (isSold ? '<th>Sold date</th><th>Invoice month</th>' : '') +
                         (isRefund ? '<th>Sale on dashboard</th><th>On import</th>' : '') +
                         '<th>Warnings / error</th><th>Row</th></tr>'
                 );
@@ -1611,7 +1611,16 @@
                     var soldCell = '';
                     if (isSold) {
                         var sd = r.sold_date_preview != null && r.sold_date_preview !== '' ? r.sold_date_preview : '—';
-                        soldCell = '</td><td class="small text-nowrap">' + escapeHtml(sd);
+                        var invMo =
+                            r.invoice_month != null && String(r.invoice_month).trim() !== ''
+                                ? String(r.invoice_month)
+                                : '—';
+                        soldCell =
+                            '</td><td class="small text-nowrap">' +
+                            escapeHtml(sd) +
+                            '</td><td class="small text-nowrap"><strong>' +
+                            escapeHtml(invMo) +
+                            '</strong>';
                     }
                     var refundCells = '';
                     if (isRefund) {

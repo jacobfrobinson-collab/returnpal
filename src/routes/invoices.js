@@ -50,6 +50,12 @@ router.get('/period/:period', authMiddleware, async (req, res) => {
         }
         const db = await getDb();
         const payload = buildInvoicePeriodPayload(db, req.user.id, p);
+        if (!payload) {
+            return res.status(409).json({
+                error:
+                    'Statement period could not be built: sold dates in this month are inconsistent. Contact support or run reconcile-invoice-months after migrating sold dates.',
+            });
+        }
         const salesN = payload._items_count || 0;
         const returnsN = payload._returns_count || 0;
         if (!payload.statement_lines || payload.statement_lines.length === 0 || (salesN === 0 && returnsN === 0)) {

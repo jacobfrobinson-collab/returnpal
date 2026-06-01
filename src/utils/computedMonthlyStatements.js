@@ -179,6 +179,19 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
             reference: row.reference
         }));
 
+    for (const row of allSold) {
+        if (Number(row.user_id) !== Number(userId)) continue;
+        const calIso = calendarIsoDateFromDbDate(row.sold_date);
+        if (!calIso || calIso < monthStart || calIso > monthEndStr) continue;
+        const ym = calendarYearMonthFromDbDate(row.sold_date);
+        if (ym !== periodYm) {
+            console.error(
+                `[invoice] Period ${periodYm} consistency failed: sold_item id=${row.id} raw=${JSON.stringify(row.sold_date)} calendar_ym=${ym}`
+            );
+            return null;
+        }
+    }
+
     const fees = feesDeductedForCalendarMonth(allSold, periodYm);
 
     const returnCandidates = parseResults(
@@ -376,7 +389,7 @@ function getComputedMonthlyStatements(db, userId) {
             const p = parsePeriodYm(ym);
             if (!p) return null;
             const detail = buildInvoicePeriodPayload(db, userId, p, allSold);
-            if (!periodQualifiesForPayoutStatement(detail)) {
+            if (!detail || !periodQualifiesForPayoutStatement(detail)) {
                 return null;
             }
             const dueStr = statementPayoutEndDateStr(p.y, p.m);
