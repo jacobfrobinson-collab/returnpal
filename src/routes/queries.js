@@ -7,6 +7,7 @@ const {
     appendQueryMessage,
     listQueriesForUser,
     listMessagesForQuery,
+    tableHasColumn,
 } = require('../utils/itemQueryThread');
 
 const router = express.Router();
@@ -37,11 +38,19 @@ router.post('/', authMiddleware, async (req, res) => {
 
         const db = await getDb();
         ensureQueryThreadSchema(db);
-        db.run(
-            `INSERT INTO item_queries (user_id, context_type, context_id, context_label, message, status, last_sender)
-             VALUES (?, ?, ?, ?, ?, 'open', 'client')`,
-            [req.user.id, ctx, Number.isFinite(cid) ? cid : null, label, msg]
-        );
+        if (tableHasColumn(db, 'item_queries', 'last_sender')) {
+            db.run(
+                `INSERT INTO item_queries (user_id, context_type, context_id, context_label, message, status, last_sender)
+                 VALUES (?, ?, ?, ?, ?, 'open', 'client')`,
+                [req.user.id, ctx, Number.isFinite(cid) ? cid : null, label, msg]
+            );
+        } else {
+            db.run(
+                `INSERT INTO item_queries (user_id, context_type, context_id, context_label, message, status)
+                 VALUES (?, ?, ?, ?, ?, 'open')`,
+                [req.user.id, ctx, Number.isFinite(cid) ? cid : null, label, msg]
+            );
+        }
         const rid = db.exec('SELECT last_insert_rowid() as id');
         const id = rid[0].values[0][0];
         db.run(

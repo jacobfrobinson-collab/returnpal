@@ -478,7 +478,7 @@ async function getDb() {
         /* exists */
     }
     try {
-        db.run("ALTER TABLE item_queries ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))");
+        db.run("ALTER TABLE item_queries ADD COLUMN updated_at TEXT DEFAULT ''");
     } catch (e) {
         /* exists */
     }
