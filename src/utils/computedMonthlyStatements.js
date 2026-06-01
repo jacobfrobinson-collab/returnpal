@@ -302,11 +302,25 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
         vat_amount,
         total,
         status,
-        _items_count: items.length
+        _items_count: items.length,
+        _returns_count: returnRows.length,
+        refund_only_period: items.length === 0 && returnRows.length > 0
     };
 }
 
-/** Distinct YYYY-MM values that have invoice-relevant activity (sales or applied returns). */
+/** Payout month is shown only when it has sales and/or applied returns in that calendar month. */
+function periodQualifiesForPayoutStatement(detail) {
+    const salesN = detail._items_count || 0;
+    const returnsN = detail._returns_count || 0;
+    if (salesN === 0 && returnsN === 0) return false;
+    return !!(detail.statement_lines && detail.statement_lines.length > 0);
+}
+
+/**
+ * Distinct YYYY-MM values with invoice activity.
+ * Sales → sold_items.sold_date (same calendar rules as client sold dashboard).
+ * Returns → refund_date (or created_at when unlinked), not the linked sale’s sold month.
+ */
 function listDistinctInvoiceMonths(db, userId) {
     const rows = parseResults(
         db.exec(
@@ -315,12 +329,6 @@ function listDistinctInvoiceMonths(db, userId) {
              WHERE user_id = ?
                AND sold_date IS NOT NULL
                AND length(trim(sold_date)) > 0
-             UNION
-             SELECT DISTINCT trim(s.sold_date) AS d
-             FROM return_adjustments r
-             JOIN sold_items s ON s.id = r.linked_sold_item_id AND s.user_id = r.user_id
-             WHERE r.user_id = ? AND r.status = 'applied' AND r.linked_sold_item_id IS NOT NULL
-               AND s.sold_date IS NOT NULL AND length(trim(s.sold_date)) > 0
              UNION
              SELECT DISTINCT trim(r.refund_date) AS d
              FROM return_adjustments r
@@ -332,7 +340,7 @@ function listDistinctInvoiceMonths(db, userId) {
              WHERE r.user_id = ? AND r.status = 'applied' AND r.linked_sold_item_id IS NULL
                AND (r.refund_date IS NULL OR length(trim(r.refund_date)) = 0)
                AND r.created_at IS NOT NULL AND length(trim(r.created_at)) > 0`,
-            [userId, userId, userId, userId]
+            [userId, userId, userId]
         )
     );
     const yms = new Set();
@@ -368,7 +376,7 @@ function getComputedMonthlyStatements(db, userId) {
             const p = parsePeriodYm(ym);
             if (!p) return null;
             const detail = buildInvoicePeriodPayload(db, userId, p, allSold);
-            if (!detail.statement_lines || detail.statement_lines.length === 0) {
+            if (!periodQualifiesForPayoutStatement(detail)) {
                 return null;
             }
             const dueStr = statementPayoutEndDateStr(p.y, p.m);
@@ -391,6 +399,9 @@ function getComputedMonthlyStatements(db, userId) {
                 period_label: detail.period_label,
                 net_payout_estimate: detail.summary.net_payout_estimate,
                 gross_net: detail.gross_net,
+                refund_only_period: !!detail.refund_only_period,
+                sales_in_period: detail._items_count || 0,
+                returns_in_period: detail._returns_count || 0,
                 source: 'computed'
             };
         })

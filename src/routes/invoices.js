@@ -50,7 +50,9 @@ router.get('/period/:period', authMiddleware, async (req, res) => {
         }
         const db = await getDb();
         const payload = buildInvoicePeriodPayload(db, req.user.id, p);
-        if (!payload.statement_lines || payload.statement_lines.length === 0) {
+        const salesN = payload._items_count || 0;
+        const returnsN = payload._returns_count || 0;
+        if (!payload.statement_lines || payload.statement_lines.length === 0 || (salesN === 0 && returnsN === 0)) {
             return res.status(404).json({
                 error:
                     'No sales or applied returns for this month (by sold date / refund date). Nothing to invoice.',
