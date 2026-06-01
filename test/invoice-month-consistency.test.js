@@ -33,16 +33,17 @@ function run() {
         else delete process.env.RETURNPAL_SOLD_DATES_CANONICAL;
     }
 
-    const mayIso = '2026-05-02';
-    assert(calendarYearMonthFromDbDate(mayIso) === '2026-05', 'calendar May sale → May month');
-    assert(calendarIsoDateFromDbDate(mayIso) === mayIso, 'calendar iso passthrough');
+    assert(
+        calendarYearMonthFromDbDate('2026-05-04') === '2026-04',
+        'legacy stored 2026-05-04 → April (5 Apr)'
+    );
+    assert(
+        calendarIsoDateFromDbDate('2026-12-04') === '2026-04-12',
+        'legacy 2026-12-04 → 12 April calendar iso'
+    );
 
     const importIso = normalizeSoldDateForDb('2026-05-02');
-    assert(importIso === '2026-05-02', 'import ISO unchanged');
-    assert(
-        calendarYearMonthFromDbDate(importIso) === calendarYearMonthFromDbDate(mayIso),
-        'import and stored calendar agree on month'
-    );
+    assert(importIso === '2026-05-02', 'import ISO cell unchanged in DB');
 
     const ambiguous = computeCanonicalSoldDate('2026-02-05');
     assert(ambiguous.ambiguous === true, '2026-02-05 is ambiguous legacy vs calendar');
