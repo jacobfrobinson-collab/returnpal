@@ -4,7 +4,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { computeMonthlyFreeProcessing } = require('../utils/monthlyFreeProcessing');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 const { normalizeSoldDateForDb } = require('../utils/adminBulkImport');
-const { mapSoldItemDatesForApi } = require('../utils/soldDateDisplayRepair');
+const { mapSoldItemDatesForApi, soldDatesCanonicalStorage } = require('../utils/soldDateDisplayRepair');
 const { sortSoldItemsByDateDesc } = require('../utils/sortSoldItemsByDateDesc');
 
 const router = express.Router();
@@ -157,8 +157,10 @@ router.get('/', authMiddleware, async (req, res) => {
         });
 
         const outItems = clientIsAdmin(req) ? itemsWithPromo : itemsWithPromo.map((row) => redactOrderNumberForClientRow(row));
+        const soldDatesCanonical = soldDatesCanonicalStorage();
         res.json({
-            sold_date_display_version: 'legacy-ydm-2026-06b',
+            sold_dates_canonical: soldDatesCanonical,
+            sold_date_display_version: soldDatesCanonical ? 'calendar-iso-2026-06c' : 'legacy-ydm-2026-06b',
             items: outItems,
             stats,
             total: items.length,

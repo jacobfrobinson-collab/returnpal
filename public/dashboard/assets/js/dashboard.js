@@ -1401,8 +1401,10 @@ const Dashboard = {
         return RP_DATE.formatIso(dateStr);
     },
 
-    /** Sold list date: legacy YYYY-DD-MM via RP_SOLD_ISO (matches pre-migration DB). */
+    /** Sold list date: API label first; legacy client parse only pre-migration. */
     soldDateDisplayValue(item) {
+        const apiLab = item && item.sold_date_label && String(item.sold_date_label).trim();
+        if (apiLab) return apiLab;
         if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem) {
             const lab = RP_SOLD_ISO.labelForSoldItem(item);
             if (lab && lab !== '-') return lab;
@@ -1410,9 +1412,12 @@ const Dashboard = {
         return this.formatDate(item.sold_date_stored || item.sold_date);
     },
 
-    /** Re-apply display labels on sold rows after API (client-side; works even if API omits repair). */
+    /** Re-apply display labels on sold rows (pre-migration only; breaks calendar DB if used after migrate). */
     relabelSoldItemsForDisplay(items) {
         if (!Array.isArray(items)) return items;
+        if (String(typeof window !== 'undefined' && window.RETURNPAL_SOLD_DATES_CANONICAL || '').trim() === '1') {
+            return items;
+        }
         return items.map((row) => {
             const label =
                 typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem
@@ -2475,6 +2480,9 @@ const Dashboard = {
         if ($tbody.length) $tbody.html('<tr><td colspan="6" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getSold();
+            if (data && data.sold_dates_canonical && typeof window !== 'undefined') {
+                window.RETURNPAL_SOLD_DATES_CANONICAL = '1';
+            }
             if (data && data.items) data.items = this.relabelSoldItemsForDisplay(data.items);
 
             const esc = (s) => String(s == null ? '' : s)

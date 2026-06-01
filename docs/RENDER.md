@@ -18,14 +18,20 @@ Connect the service to your GitHub repo (`jacobfrobinson-collab/returnpal`) and 
 Without a disk, the database resets on every deploy/restart.
 
 1. Render Dashboard → your Web Service → **Disks** → **Add disk**
-2. **Mount path:** `/opt/render/project/src/data`
+2. **Mount path:** e.g. `/var/lib/returnpal` (check **Disks** in the dashboard for your service)
 3. **Size:** 1 GB (or more)
 4. Save — Render will redeploy
 
-Set env:
+Set env (match your disk mount + file name):
 
 ```env
-DB_PATH=/opt/render/project/src/data/returnpal.db
+DB_PATH=/var/lib/returnpal/data/returnpal.db
+```
+
+After `migrate-sold-dates --apply`:
+
+```env
+RETURNPAL_SOLD_DATES_CANONICAL=1
 ```
 
 ## 3. Environment variables (Production)
@@ -41,7 +47,8 @@ Dashboard → **Environment**.
 | `NODE_ENV` | `production` | Edit existing row |
 | `JWT_SECRET` | long random string | Edit or add if missing |
 | `FRONTEND_URL` | `https://www.returnpal.co.uk` | Edit existing row |
-| `DB_PATH` | `/opt/render/project/src/data/returnpal.db` | Edit or add *(with disk mounted)* |
+| `DB_PATH` | `/var/lib/returnpal/data/returnpal.db` | Edit or add *(must match disk mount)* |
+| `RETURNPAL_SOLD_DATES_CANONICAL` | `1` | Add **after** sold-date migration |
 
 ### Signup protection (recommended)
 
