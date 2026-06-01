@@ -3966,30 +3966,37 @@ const Dashboard = {
 
             this._renderInventoryStageBar(data);
 
-            const $userCats = $('#inventory-user-returns');
-            const categories = Array.isArray(data.user_return_categories)
-                ? data.user_return_categories
-                : [];
-            if ($userCats.length) {
-                if (!categories.length) {
-                    $userCats.html(
-                        '<tr><td colspan="3" class="text-muted small">No return adjustments on your account yet.</td></tr>'
+            const $topCats = $('#inventory-top-refund-categories');
+            if ($topCats.length) {
+                try {
+                    const insights = await API.getInventoryRefundInsights();
+                    const categories = Array.isArray(insights.top_categories) ? insights.top_categories : [];
+                    if (!categories.length) {
+                        $topCats.html(
+                            '<tr><td colspan="2" class="text-muted small">No category data yet.</td></tr>'
+                        );
+                    } else {
+                        $topCats.html(
+                            categories
+                                .map((c) => {
+                                    const subs = Array.isArray(c.subcategories) ? c.subcategories : [];
+                                    const subTxt = subs.length ? subs.join(', ') : 'General';
+                                    return (
+                                        '<tr><td>' +
+                                        this._invEsc(c.name) +
+                                        '</td><td>' +
+                                        this._invEsc(subTxt) +
+                                        '</td></tr>'
+                                    );
+                                })
+                                .join('')
+                        );
+                    }
+                } catch (insightErr) {
+                    $topCats.html(
+                        '<tr><td colspan="2" class="text-muted small">Unable to load category insights.</td></tr>'
                     );
-                } else {
-                    $userCats.html(
-                        categories
-                            .map(
-                                (c) =>
-                                    '<tr><td>' +
-                                    this._invEsc(c.name) +
-                                    '</td><td class="text-end">' +
-                                    (c.refund_count ?? 0) +
-                                    '</td><td class="text-end">£' +
-                                    Number(c.refund_total || 0).toFixed(2) +
-                                    '</td></tr>'
-                            )
-                            .join('')
-                    );
+                    console.error('Load inventory refund insights error:', insightErr);
                 }
             }
 

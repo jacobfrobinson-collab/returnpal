@@ -27,7 +27,7 @@ The client [inventory.html](public/dashboard/inventory.html) must render **only*
 
 - Pipeline counts, profit recovered, sell-through, estimates, and attention lists come from the API — **do not** recompute financial fields (e.g. `estimated - recovered`) in `loadInventory` or similar.
 - Use `sold_date_label` on `recent_sold` rows; do not re-parse sold dates in the browser.
-- Per-user return categories use `user_return_categories` on the summary — not the global `refund-insights` cache.
+- The **Most Returned Categories** table uses `GET /api/inventory/refund-insights` (global benchmark cache with sub-categories). Pipeline/KPI metrics still come from the summary only.
 - Run `node test/inventory-summary.test.js` when changing inventory summary logic.
 
 ## Production environment

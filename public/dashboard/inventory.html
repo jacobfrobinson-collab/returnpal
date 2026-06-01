@@ -197,22 +197,21 @@
                         <div id="inventory-stage-legend" class="inv-stage-legend"></div>
                     </div>
 
-                    <div class="rp-card card border-0 p-4 mb-4" id="inventory-return-insights">
+                    <div class="rp-card card border-0 p-4 mb-4" id="inventory-refund-insights">
                         <div class="mb-3">
-                            <h6 class="mb-1">Your most returned product types</h6>
-                            <p class="small text-muted mb-0">Based on your applied return adjustments — helps spot categories to watch when sourcing.</p>
+                            <h6 class="mb-1">Most Returned Categories</h6>
+                            <p class="small text-muted mb-0">Top 5 categories with auto-detected sub-categories across all clients.</p>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm align-middle mb-0">
                                 <thead class="table-light">
                                     <tr>
                                         <th>Category</th>
-                                        <th class="text-end">Returns</th>
-                                        <th class="text-end">Amount</th>
+                                        <th>Sub-categories</th>
                                     </tr>
                                 </thead>
-                                <tbody id="inventory-user-returns">
-                                    <tr><td colspan="3" class="text-muted small">Loading…</td></tr>
+                                <tbody id="inventory-top-refund-categories">
+                                    <tr><td colspan="2" class="text-muted small">Loading…</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -256,6 +255,6 @@
     <script src="/assets/js/api.js?v=rp-api-2026"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script src="assets/js/custom.js"></script>
-    <script src="assets/js/dashboard.js?v=rp-inventory-pipeline-2026"></script>
+    <script src="assets/js/dashboard.js?v=rp-inventory-pipeline-2026b"></script>
 </body>
 </html>
