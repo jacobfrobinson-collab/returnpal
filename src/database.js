@@ -28,6 +28,25 @@ function reloadDbFromDiskIfStaleSync(reason) {
     }
 }
 
+/** Always reload from disk (admin reads after signups on another instance). Call after getDb(). */
+function forceReloadDbFromDisk() {
+    if (!sqlJsModule || !fs.existsSync(DB_PATH)) return;
+    try {
+        if (db) {
+            try {
+                db.close();
+            } catch (e) {
+                /* ignore */
+            }
+        }
+        db = new sqlJsModule.Database(fs.readFileSync(DB_PATH));
+        db.run('PRAGMA foreign_keys = ON;');
+        dbFileMtimeMs = fs.statSync(DB_PATH).mtimeMs;
+    } catch (e) {
+        console.error('[db] forceReloadDbFromDisk failed:', e);
+    }
+}
+
 async function getDb() {
     if (!sqlInitPromise) sqlInitPromise = initSqlJs();
     const SQL = await sqlInitPromise;
@@ -582,7 +601,6 @@ async function pushActivity(userId, type, message, link) {
 
 function saveDb() {
     if (db) {
-        reloadDbFromDiskIfStaleSync('before save');
         const data = db.export();
         const buffer = Buffer.from(data);
         fs.writeFileSync(DB_PATH, buffer);
@@ -600,4 +618,4 @@ process.on('exit', saveDb);
 process.on('SIGINT', () => { saveDb(); process.exit(); });
 process.on('SIGTERM', () => { saveDb(); process.exit(); });
 
-module.exports = { getDb, saveDb, pushActivity, DB_PATH };
+module.exports = { getDb, saveDb, pushActivity, DB_PATH, forceReloadDbFromDisk };

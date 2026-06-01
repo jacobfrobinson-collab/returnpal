@@ -962,29 +962,65 @@
                     $('#pending-registrations-approval-hint').html('<span class="text-muted">Could not read signup approval setting.</span>');
                 });
 
-            API.request('/admin/registrations/pending')
-                .then(function(data) {
+            function pendingFromUsers(users) {
+                return (users || []).filter(function(u) {
+                    var st = String(u.account_status || 'approved').toLowerCase();
+                    var isAdmin = u.is_admin === true || u.is_admin === 1 || u.is_admin === '1';
+                    return st === 'pending' && !isAdmin;
+                });
+            }
+
+            function renderPendingTable(list, noteHtml) {
+                var $badge = $('#nav-pending-badge');
+                if (!list.length) {
+                    var empty =
+                        '<p class="small text-muted mb-0">No pending registrations in the database right now.</p>' +
+                        '<p class="small text-muted mb-0 mt-2">Tip: search the <strong>All clients</strong> table for their email — pending accounts show a <span class="badge bg-warning text-dark">Pending approval</span> badge in the Hub column.</p>';
+                    $body.html((noteHtml || '') + empty);
+                    $badge.addClass('d-none').text('0');
+                    return;
+                }
+                $badge.removeClass('d-none').text(list.length);
+                var html = (noteHtml || '') +
+                    '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Submitted</th><th></th></tr></thead><tbody>';
+                list.forEach(function(u) {
+                    html += '<tr><td>' + String(u.id).padStart(4, '0') + '</td><td>' + escapeHtml(u.full_name || '') + '</td><td>' + escapeHtml(u.email || '') + '</td><td class="small">' + escapeHtml(fmtDate(u.created_at)) + '</td><td class="text-nowrap">' +
+                        '<button type="button" class="btn btn-sm btn-success me-1 approve-reg-btn" data-id="' + u.id + '">Approve</button>' +
+                        '<button type="button" class="btn btn-sm btn-outline-danger reject-reg-btn" data-id="' + u.id + '">Reject & delete</button></td></tr>';
+                });
+                html += '</tbody></table></div>';
+                $body.html(html);
+            }
+
+            Promise.all([
+                API.request('/admin/registrations/pending'),
+                API.request('/admin/users'),
+            ])
+                .then(function(results) {
+                    var data = results[0];
+                    var usersPayload = results[1];
                     if (!data || typeof data !== 'object') {
                         throw { error: 'Empty response from server. Try logging out and back in.' };
                     }
                     var list = Array.isArray(data.pending) ? data.pending : [];
-                    var $badge = $('#nav-pending-badge');
-                    if (!list.length) {
-                        $body.html('<p class="small text-muted mb-0">No pending registrations right now. When someone signs up on the public login page while approval is on, they will appear here.</p>');
-                        $badge.addClass('d-none').text('0');
-                        return;
+                    var fromUsers = pendingFromUsers(usersPayload && usersPayload.users);
+                    var noteHtml = '';
+                    if (!list.length && fromUsers.length) {
+                        list = fromUsers;
+                        noteHtml =
+                            '<p class="small text-info mb-2">Loaded from client list (pending endpoint was empty — data refreshed from disk).</p>';
                     }
-                    $badge.removeClass('d-none').text(list.length);
-                    var html = '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Submitted</th><th></th></tr></thead><tbody>';
-                    list.forEach(function(u) {
-                        html += '<tr><td>' + String(u.id).padStart(4, '0') + '</td><td>' + escapeHtml(u.full_name || '') + '</td><td>' + escapeHtml(u.email || '') + '</td><td class="small">' + escapeHtml(fmtDate(u.created_at)) + '</td><td class="text-nowrap">' +
-                            '<button type="button" class="btn btn-sm btn-success me-1 approve-reg-btn" data-id="' + u.id + '">Approve</button>' +
-                            '<button type="button" class="btn btn-sm btn-outline-danger reject-reg-btn" data-id="' + u.id + '">Reject & delete</button></td></tr>';
-                    });
-                    html += '</tbody></table></div>';
-                    $body.html(html);
+                    renderPendingTable(list, noteHtml);
                 })
                 .catch(function(e) {
+                    var fromCache = pendingFromUsers(window._adminUsersList);
+                    if (fromCache.length) {
+                        renderPendingTable(
+                            fromCache,
+                            '<p class="small text-warning mb-2">Could not refresh pending list — showing pending clients from the table below.</p>'
+                        );
+                        return;
+                    }
                     $body.html('<p class="text-danger small mb-0">' + escapeHtml((e && e.error) || 'Failed to load pending registrations.') + '</p>');
                 });
         }
@@ -1169,6 +1205,12 @@
                 });
             }
             $('#admin-table-wrap').removeClass('d-none');
+            var pendingCount = (users || []).filter(function(u) {
+                return String(u.account_status || '').toLowerCase() === 'pending';
+            }).length;
+            if (pendingCount > 0) {
+                $('#nav-pending-badge').removeClass('d-none').text(pendingCount);
+            }
             populateBulkImportClientSelect(users);
             populateHubAccessHubSelect(users);
             if (window.ebayRefundsReview) window.ebayRefundsReview.rebuildDatalist();

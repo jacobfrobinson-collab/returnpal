@@ -2,7 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { getDb, saveDb, pushActivity } = require('../database');
+const { getDb, saveDb, pushActivity, forceReloadDbFromDisk } = require('../database');
+const { isSignupApprovalRequired } = require('../utils/accountApproval');
 const { authMiddleware, requireAdmin, generateToken } = require('../middleware/auth');
 const { adminRateLimitMiddleware } = require('../middleware/adminRateLimit');
 const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
@@ -96,10 +97,16 @@ router.use(authMiddleware);
 router.use(requireAdmin);
 router.use(adminRateLimitMiddleware);
 
+async function dbForAdminRead() {
+    await getDb();
+    forceReloadDbFromDisk();
+    return getDb();
+}
+
 // GET /api/admin/users – list all clients
 router.get('/users', async (req, res) => {
     try {
-        const db = await getDb();
+        const db = await dbForAdminRead();
         const rows = parseResults(
             db.exec(
                 `SELECT id, email, full_name, company_name, created_at, COALESCE(is_admin, 0) AS is_admin,
@@ -150,16 +157,21 @@ router.get('/hub-accounts', async (req, res) => {
 // GET /api/admin/registrations/pending — self-service signups awaiting approval
 router.get('/registrations/pending', async (req, res) => {
     try {
-        const db = await getDb();
+        const db = await dbForAdminRead();
         const rows = parseResults(
             db.exec(
-                `SELECT id, email, full_name, company_name, created_at, COALESCE(account_status, 'approved') AS account_status
+                `SELECT id, email, full_name, company_name, created_at, account_status
                  FROM users
-                 WHERE COALESCE(is_admin, 0) = 0 AND COALESCE(account_status, 'approved') = 'pending'
+                 WHERE COALESCE(is_admin, 0) = 0
+                   AND TRIM(LOWER(COALESCE(account_status, ''))) = 'pending'
                  ORDER BY created_at ASC`
             )
         );
-        res.json({ pending: rows, count: rows.length });
+        res.json({
+            pending: rows,
+            count: rows.length,
+            require_admin_approval: isSignupApprovalRequired(),
+        });
     } catch (err) {
         console.error('Admin pending registrations error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -231,7 +243,7 @@ router.post('/users/:id/approve-registration', async (req, res) => {
     try {
         const targetId = parseInt(req.params.id, 10);
         if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'Invalid user id' });
-        const db = await getDb();
+        const db = await dbForAdminRead();
         const rows = parseResults(
             db.exec(
                 `SELECT id, email, account_status, COALESCE(legacy_client_id, '') AS legacy_client_id
@@ -240,6 +252,9 @@ router.post('/users/:id/approve-registration', async (req, res) => {
             )
         );
         if (!rows.length) return res.status(404).json({ error: 'User not found' });
+        if (String(rows[0].account_status || '').toLowerCase() !== 'pending') {
+            return res.status(400).json({ error: 'This account is not awaiting approval.' });
+        }
         db.run(
             "UPDATE users SET account_status = 'approved', updated_at = datetime('now') WHERE id = ?",
             [targetId]
@@ -276,7 +291,7 @@ router.post('/users/:id/reject-registration', async (req, res) => {
     try {
         const targetId = parseInt(req.params.id, 10);
         if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'Invalid user id' });
-        const db = await getDb();
+        const db = await dbForAdminRead();
         const rows = parseResults(db.exec('SELECT id, email FROM users WHERE id = ?', [targetId]));
         if (!rows.length) return res.status(404).json({ error: 'User not found' });
 
