@@ -82,12 +82,13 @@
                     <div>
                         <h2 class="h6 mb-0">Pending registrations</h2>
                         <p class="small text-muted mb-0">Self-service signups waiting for approval.</p>
+                        <p class="small mb-0 mt-1" id="pending-registrations-approval-hint" aria-live="polite"></p>
                     </div>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary" id="pending-registrations-refresh" onclick="event.stopPropagation()">Refresh</button>
             </div>
             <div class="card-body collapse show" id="pending-registrations-body">
-                <p class="small text-muted mb-0">Loading…</p>
+                <p class="small text-muted mb-0" id="pending-registrations-status"><span class="spinner-border spinner-border-sm me-1"></span>Loading pending signups…</p>
             </div>
         </div>
 
@@ -506,7 +507,7 @@
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
-    <script src="/assets/js/api.js?v=rp13"></script>
+    <script src="/assets/js/api.js?v=rp-admin-pending-2026"></script>
     <script src="/assets/js/ebay-refund-review.js?v=rp2"></script>
     <script src="/assets/js/import-client-review.js?v=rp6"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
@@ -522,6 +523,8 @@
             window.location.assign(ao + '/admin/login.html');
             return;
         }
+
+        loadPendingRegistrations();
         var user = API.getUser();
         $('#admin-user-email').text((user && user.email) || '');
 
@@ -550,7 +553,13 @@
                 .replace(/"/g, '&quot;');
         }
         function fmtDate(s) {
-            return s ? RP_DATE.formatOrdinalEnGb(s) : '-';
+            if (!s) return '-';
+            try {
+                if (typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb) {
+                    return RP_DATE.formatOrdinalEnGb(s);
+                }
+            } catch (e) { /* fall through */ }
+            return String(s).slice(0, 10);
         }
         function pendingImportClientLabel(u) {
             var id = u.id;
@@ -926,19 +935,45 @@
             });
         });
 
+        function renderPendingApprovalHint(cfg) {
+            var $hint = $('#pending-registrations-approval-hint');
+            if (!$hint.length) return;
+            if (cfg && cfg.require_admin_approval) {
+                $hint.html('<span class="text-success">Signup approval is <strong>on</strong> — new public registrations wait here until you approve.</span>');
+            } else {
+                $hint.html('<span class="text-warning">Signup approval is <strong>off</strong> on the server (<code>SIGNUP_REQUIRE_ADMIN_APPROVAL=1</code> in Render). Public signups are auto-approved and will not appear here.</span>');
+            }
+        }
+
         function loadPendingRegistrations() {
             var $body = $('#pending-registrations-body');
+            var $status = $('#pending-registrations-status');
+            $('#pending-registrations-section').removeClass('d-none');
+            if ($status.length) {
+                $status.html('<span class="spinner-border spinner-border-sm me-1"></span>Loading pending signups…');
+            } else {
+                $body.html('<p class="small text-muted mb-0" id="pending-registrations-status"><span class="spinner-border spinner-border-sm me-1"></span>Loading pending signups…</p>');
+                $status = $('#pending-registrations-status');
+            }
+
+            API.getRegisterConfig()
+                .then(renderPendingApprovalHint)
+                .catch(function() {
+                    $('#pending-registrations-approval-hint').html('<span class="text-muted">Could not read signup approval setting.</span>');
+                });
+
             API.request('/admin/registrations/pending')
                 .then(function(data) {
-                    var list = data.pending || [];
+                    if (!data || typeof data !== 'object') {
+                        throw { error: 'Empty response from server. Try logging out and back in.' };
+                    }
+                    var list = Array.isArray(data.pending) ? data.pending : [];
                     var $badge = $('#nav-pending-badge');
                     if (!list.length) {
-                        $body.html('<p class="small text-muted mb-0">No pending registrations.</p>');
-                        $('#pending-registrations-section').addClass('d-none');
+                        $body.html('<p class="small text-muted mb-0">No pending registrations right now. When someone signs up on the public login page while approval is on, they will appear here.</p>');
                         $badge.addClass('d-none').text('0');
                         return;
                     }
-                    $('#pending-registrations-section').removeClass('d-none');
                     $badge.removeClass('d-none').text(list.length);
                     var html = '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Submitted</th><th></th></tr></thead><tbody>';
                     list.forEach(function(u) {
@@ -950,7 +985,7 @@
                     $body.html(html);
                 })
                 .catch(function(e) {
-                    $body.html('<p class="text-danger small mb-0">' + escapeHtml(e.error || 'Failed to load') + '</p>');
+                    $body.html('<p class="text-danger small mb-0">' + escapeHtml((e && e.error) || 'Failed to load pending registrations.') + '</p>');
                 });
         }
 
@@ -1195,7 +1230,6 @@
         function loadUsers() {
             showLoading();
             renderHubAccountsList();
-            loadPendingRegistrations();
             API.request('/admin/users')
                 .then(function(data) {
                     showTable(data.users || []);
