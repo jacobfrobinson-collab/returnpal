@@ -63,6 +63,7 @@ const {
 const {
     resolveUserIdFromClientSpecifier,
     lookupUserBrief,
+    enrichReturnAdjustmentReviewSaleMatch,
 } = require('../utils/adminBulkImport');
 const {
     findReturnAdjustmentDuplicate,
@@ -1418,9 +1419,19 @@ router.post(
                     resolved_label,
                     resolved_email,
                     legacy_client_id,
+                    row_data: {
+                        order_number: r.orderNumber || '',
+                        product: r.product || '',
+                        amount: r.amount,
+                        refund_date: refundDateCal,
+                        reference: r.reference || '',
+                        notes: r.notes || '',
+                        custom_label: r.customLabel || '',
+                    },
                 };
             });
             enrichReturnAdjustmentReviewDuplicates(db, resolveUserIdFromClientSpecifier, reviewRows);
+            enrichReturnAdjustmentReviewSaleMatch(db, resolveUserIdFromClientSpecifier, reviewRows);
             const ready = reviewRows.filter((r) => r.resolve_ok && !r.already_imported).length;
             const already_imported = reviewRows.filter((r) => r.already_imported).length;
             res.json({

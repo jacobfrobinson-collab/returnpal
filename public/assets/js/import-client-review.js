@@ -45,6 +45,32 @@
         return '';
     }
 
+    function rowNeedsClient(r) {
+        return !resolveClientLocally(r.client_id);
+    }
+
+    function rowNoMatchingSale(r) {
+        return !r.already_imported && resolveClientLocally(r.client_id) && r.sale_match_ok === false;
+    }
+
+    function rowReadyToImport(r) {
+        return !r.already_imported && resolveClientLocally(r.client_id) && r.sale_match_ok !== false;
+    }
+
+    function countReviewBuckets(rows) {
+        var imported = 0;
+        var needClient = 0;
+        var noSale = 0;
+        var ready = 0;
+        (rows || []).forEach(function (r) {
+            if (r.already_imported) imported++;
+            else if (rowNeedsClient(r)) needClient++;
+            else if (r.sale_match_ok === false) noSale++;
+            else ready++;
+        });
+        return { imported: imported, needClient: needClient, noSale: noSale, ready: ready };
+    }
+
     function skuApi() {
         return root.EbayRefundReview || null;
     }
@@ -86,19 +112,16 @@
             if (hay.indexOf(searchQ) < 0) return false;
         }
         if (filter === 'imported') return !!r.already_imported;
-        if (filter === 'needs') return !resolveClientLocally(r.client_id) && !r.already_imported;
-        if (filter === 'ready') {
-            if (r.already_imported) return false;
-            if (!resolveClientLocally(r.client_id)) return false;
-            if (r.sale_match_ok === false) return false;
-            return true;
-        }
+        if (filter === 'needs') return rowNeedsClient(r) && !r.already_imported;
+        if (filter === 'no_sale') return rowNoMatchingSale(r);
+        if (filter === 'ready') return rowReadyToImport(r);
         return true;
     };
 
     ImportClientReview.prototype.matchesScope = function (r, scope, filter, searchQ) {
         if (scope === 'all') return true;
-        if (scope === 'needs') return !resolveClientLocally(r.client_id) && !r.already_imported;
+        if (scope === 'needs') return rowNeedsClient(r) && !r.already_imported;
+        if (scope === 'no_sale') return rowNoMatchingSale(r);
         return this.rowMatchesFilter(r, filter, searchQ);
     };
 
@@ -214,34 +237,49 @@
         var filter = $(this.sel('review-filter')).val() || 'all';
         var $hint = $(this.sel('review-filter-hint'));
         if (!$hint.length) return;
-        var ready = 0;
-        var needs = 0;
-        var already = 0;
-        this.getRows().forEach(function (r) {
-            if (r.already_imported) already++;
-            else if (resolveClientLocally(r.client_id)) ready++;
-            else needs++;
-        });
-        if (filter === 'needs' && ready > 0) {
-            $hint
-                .removeClass('d-none')
-                .html(
-                    ready +
-                        ' row(s) now match a client and are hidden here. Switch <strong>Show</strong> to <strong>Ready to import</strong> to review them before importing.'
+        var buckets = countReviewBuckets(this.getRows());
+        if (filter === 'needs' && buckets.ready + buckets.noSale > 0) {
+            var parts = [];
+            if (buckets.ready)
+                parts.push(
+                    buckets.ready +
+                        ' ready to import (hidden here — use <strong>Ready to import</strong>)'
                 );
-        } else if (filter === 'needs' && already > 0) {
+            if (buckets.noSale)
+                parts.push(
+                    buckets.noSale +
+                        ' with no matching sale (use <strong>No matching sale</strong>)'
+                );
+            $hint.removeClass('d-none').html(parts.join('. ') + '.');
+        } else if (filter === 'needs' && buckets.imported > 0) {
             $hint
                 .removeClass('d-none')
                 .html(
-                    already +
+                    buckets.imported +
                         ' row(s) already in ReturnPal — use <strong>Already imported</strong> or <strong>All rows</strong>.'
+                );
+        } else if (filter === 'ready' && buckets.noSale > 0) {
+            $hint
+                .removeClass('d-none')
+                .html(
+                    buckets.ready +
+                        ' row(s) will import. ' +
+                        buckets.noSale +
+                        ' more have a Client ID but <strong>no matching sale</strong> — switch <strong>Show</strong> to see them (they are skipped on import).'
                 );
         } else if (filter === 'ready') {
             $hint
                 .removeClass('d-none')
                 .text(
-                    ready +
+                    buckets.ready +
                         ' row(s) will import to client dashboards when you click Import reviewed rows.'
+                );
+        } else if (filter === 'no_sale') {
+            $hint
+                .removeClass('d-none')
+                .text(
+                    buckets.noSale +
+                        ' row(s) have a Client ID but no sale on that dashboard — import the sale first, or they will be skipped.'
                 );
         } else {
             $hint.addClass('d-none');
@@ -282,27 +320,17 @@
             $tb.append($tr);
         });
         $(this.sel('review-visible-count')).text(visible + ' row' + (visible === 1 ? '' : 's') + ' shown');
-        var ready = 0;
-        var imported = 0;
-        var needs = 0;
-        this.getRows().forEach(function (r) {
-            if (r.already_imported) imported++;
-            else if (resolveClientLocally(r.client_id)) ready++;
-            else needs++;
-        });
+        var buckets = countReviewBuckets(this.getRows());
         var total = this.getRows().length;
-        $(this.sel('review-summary'))
-            .removeClass('d-none')
-            .text(
-                total +
-                    ' rows · ' +
-                    ready +
-                    ' to import · ' +
-                    imported +
-                    ' already imported · ' +
-                    needs +
-                    ' need attention'
-            );
+        var summary =
+            total +
+            ' rows · ' +
+            buckets.ready +
+            ' ready to import';
+        if (buckets.noSale) summary += ' · ' + buckets.noSale + ' no matching sale';
+        if (buckets.needClient) summary += ' · ' + buckets.needClient + ' need Client ID';
+        if (buckets.imported) summary += ' · ' + buckets.imported + ' already imported';
+        $(this.sel('review-summary')).removeClass('d-none').text(summary);
         this.updateFilterHint();
     };
 
@@ -416,14 +444,10 @@
     ImportClientReview.prototype.runImport = async function () {
         var rows = this.getRows();
         if (!rows.length) return alert('Load rows for review first.');
-        var ready = 0;
-        var already = 0;
-        var needs = 0;
-        rows.forEach(function (r) {
-            if (r.already_imported) already++;
-            else if (resolveClientLocally(r.client_id) && r.sale_match_ok !== false) ready++;
-            else needs++;
-        });
+        var buckets = countReviewBuckets(rows);
+        var ready = buckets.ready;
+        var already = buckets.imported;
+        var needs = buckets.needClient + buckets.noSale;
         if (!this.cfg.onImport) return alert('Import not configured.');
         var $btn = $(this.sel('import-reviewed-btn'));
         $btn.prop('disabled', true).text('Importing…');

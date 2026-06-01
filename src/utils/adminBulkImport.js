@@ -1463,6 +1463,7 @@ module.exports = {
     runBulkImportMulti,
     previewBulkImport,
     buildMultiImportReviewRows,
+    enrichReturnAdjustmentReviewSaleMatch,
     reviewedMultiRowsToCsvBuffer,
     buildTemplateBuffer,
     resolveUserIdFromClientSpecifier,
