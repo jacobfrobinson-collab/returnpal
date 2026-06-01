@@ -994,6 +994,17 @@ const API = {
         return this.request('/admin/users/' + encodeURIComponent(userId), { method: 'DELETE' });
     },
 
+    async adminListOpenQueries() {
+        return this.request('/admin/queries');
+    },
+
+    async adminReplyToQuery(queryId, admin_reply) {
+        return this.request('/admin/queries/' + encodeURIComponent(queryId) + '/reply', {
+            method: 'PUT',
+            body: { admin_reply },
+        });
+    },
+
     /** Admin: bulk import rows from .xlsx / .xls / .csv for a client (see /api/admin/bulk-import-template/:kind). */
     async adminBulkImportUser(userId, kind, file) {
         if (!file || !(file instanceof Blob)) {

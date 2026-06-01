@@ -5,46 +5,165 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin – Client queries – ReturnPal</title>
     <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
-    <style>body{background:#f8f9fa;} .admin-header{background:#212529;color:#fff;} .admin-header a{color:rgba(255,255,255,.9);}</style>
+    <style>
+        body { background: #f8f9fa; }
+        .admin-header { background: #212529; color: #fff; }
+        .admin-header a { color: rgba(255, 255, 255, 0.9); text-decoration: none; }
+        .admin-header a:hover { color: #fff; }
+        .query-reply-box { min-width: 220px; max-width: 360px; }
+    </style>
 </head>
 <body>
     <header class="admin-header py-3 mb-4">
         <div class="container-fluid d-flex justify-content-between flex-wrap gap-2">
             <h1 class="h5 mb-0">Open item queries</h1>
-            <div class="d-flex gap-3">
-                <a href="/admin/index.html" class="small text-white-50">Clients</a>
-                <a href="/admin/insights.html" class="small text-white-50">Insights</a>
-                <a href="/login.html" class="small text-white-50" id="logout">Logout</a>
+            <div class="d-flex gap-3 align-items-center">
+                <a href="/admin/index.html" class="small">Clients</a>
+                <a href="/admin/insights.html" class="small">Insights</a>
+                <a href="/login.html" class="small" id="logout">Logout</a>
             </div>
         </div>
     </header>
     <div class="container-fluid">
+        <p class="text-muted small mb-3">
+            Type your reply below and click <strong>Send reply</strong>. The client sees it on
+            <strong>Dashboard → My queries</strong> and gets an activity notification. The query is marked closed.
+        </p>
         <div id="msg" class="text-muted py-4 text-center">Loading…</div>
-        <div class="table-responsive d-none" id="wrap">
-            <table class="table table-sm bg-white shadow-sm">
-                <thead><tr><th>When</th><th>Client</th><th>Context</th><th>Message</th></tr></thead>
-                <tbody id="tbody"></tbody>
-            </table>
+        <div class="d-none" id="wrap">
+            <div class="table-responsive">
+                <table class="table table-sm bg-white shadow-sm align-top">
+                    <thead class="table-light">
+                        <tr>
+                            <th>When</th>
+                            <th>Client</th>
+                            <th>Context</th>
+                            <th>Message</th>
+                            <th style="min-width: 280px">Your reply</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
-    <script src="/assets/js/api.js?v=rp9"></script>
+    <script src="/assets/js/api.js?v=rp-admin-queries-reply-2026"></script>
     <script>
     $(function() {
         var ao = window.location.origin || '';
-        if (!API.isLoggedIn()) { window.location.assign(ao + '/admin/login.html'); return; }
-        if (!API.isCurrentUserAdmin()) { API.clearToken(); window.location.assign(ao + '/admin/login.html'); return; }
-        $('#logout').on('click', function(e) { e.preventDefault(); API.clearToken(); window.location.assign(ao + '/admin/login.html'); });
-        API.request('/admin/queries').then(function(d) {
-            $('#msg').addClass('d-none');
-            var q = d.queries || [];
-            if (!q.length) { $('#msg').removeClass('d-none').text('No open queries.'); return; }
-            var esc = function(s) { return $('<div/>').text(s || '').html(); };
-            q.forEach(function(r) {
-                $('#tbody').append('<tr><td class="text-nowrap small">' + esc(r.created_at) + '</td><td><div>' + esc(r.full_name) + '</div><small class="text-muted">' + esc(r.email) + '</small></td><td class="small">' + esc(r.context_type) + (r.context_id ? ' #' + r.context_id : '') + '<div class="text-muted">' + esc(r.context_label) + '</div></td><td class="small">' + esc(r.message) + '</td></tr>');
-            });
-            $('#wrap').removeClass('d-none');
-        }).catch(function(e) { $('#msg').text(e.error || 'Failed to load'); });
+        if (!API.isLoggedIn()) {
+            window.location.assign(ao + '/admin/login.html');
+            return;
+        }
+        if (!API.isCurrentUserAdmin()) {
+            API.clearToken();
+            window.location.assign(ao + '/admin/login.html');
+            return;
+        }
+
+        $('#logout').on('click', function(e) {
+            e.preventDefault();
+            API.clearToken();
+            window.location.assign(ao + '/admin/login.html');
+        });
+
+        function esc(s) {
+            return $('<div/>')
+                .text(s == null ? '' : s)
+                .html();
+        }
+
+        function loadQueries() {
+            $('#msg').removeClass('d-none text-danger').addClass('text-muted').text('Loading…');
+            $('#wrap').addClass('d-none');
+            $('#tbody').empty();
+
+            API.adminListOpenQueries()
+                .then(function(d) {
+                    var q = (d && d.queries) || [];
+                    if (!q.length) {
+                        $('#msg')
+                            .removeClass('d-none')
+                            .text('No open queries.');
+                        return;
+                    }
+                    $('#msg').addClass('d-none');
+                    q.forEach(function(r) {
+                        var ctx =
+                            esc(r.context_type) +
+                            (r.context_id ? ' #' + esc(String(r.context_id)) : '') +
+                            (r.context_label
+                                ? '<div class="text-muted">' + esc(r.context_label) + '</div>'
+                                : '');
+                        var row =
+                            '<tr data-query-id="' +
+                            esc(String(r.id)) +
+                            '">' +
+                            '<td class="text-nowrap small">' +
+                            esc(r.created_at) +
+                            '</td>' +
+                            '<td><div>' +
+                            esc(r.full_name) +
+                            '</div><small class="text-muted">' +
+                            esc(r.email) +
+                            '</small></td>' +
+                            '<td class="small">' +
+                            ctx +
+                            '</td>' +
+                            '<td class="small">' +
+                            esc(r.message) +
+                            '</td>' +
+                            '<td class="query-reply-box">' +
+                            '<textarea class="form-control form-control-sm mb-2 query-reply-input" rows="3" placeholder="Write your reply to the client…"></textarea>' +
+                            '<button type="button" class="btn btn-sm btn-primary query-reply-btn">Send reply</button>' +
+                            '<div class="small text-danger mt-1 d-none query-reply-err"></div>' +
+                            '</td></tr>';
+                        $('#tbody').append(row);
+                    });
+                    $('#wrap').removeClass('d-none');
+                })
+                .catch(function(e) {
+                    $('#msg')
+                        .removeClass('d-none text-muted')
+                        .addClass('text-danger')
+                        .text((e && e.error) || 'Failed to load');
+                });
+        }
+
+        $(document).on('click', '.query-reply-btn', function() {
+            var $btn = $(this);
+            var $tr = $btn.closest('tr');
+            var id = $tr.data('query-id');
+            var $ta = $tr.find('.query-reply-input');
+            var $err = $tr.find('.query-reply-err');
+            var reply = ($ta.val() || '').trim();
+            $err.addClass('d-none').text('');
+            if (reply.length < 2) {
+                $err.removeClass('d-none').text('Reply must be at least 2 characters.');
+                return;
+            }
+            $btn.prop('disabled', true).text('Sending…');
+            API.adminReplyToQuery(id, reply)
+                .then(function() {
+                    $tr.fadeOut(200, function() {
+                        $(this).remove();
+                        if (!$('#tbody tr').length) {
+                            $('#wrap').addClass('d-none');
+                            $('#msg')
+                                .removeClass('d-none text-danger')
+                                .addClass('text-muted')
+                                .text('No open queries.');
+                        }
+                    });
+                })
+                .catch(function(e) {
+                    $err.removeClass('d-none').text((e && e.error) || 'Send failed');
+                    $btn.prop('disabled', false).text('Send reply');
+                });
+        });
+
+        loadQueries();
     });
     </script>
 </body>
