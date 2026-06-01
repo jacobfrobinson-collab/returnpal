@@ -36,7 +36,7 @@ router.use(authMiddleware);
 router.use((req, res, next) => {
     if (isClientReimbursementEnabled()) return next();
     return res.status(503).json({
-        error: 'Reimbursement claims are not available yet. This feature is coming soon.',
+        error: 'Reimbursement claims are not available in the dashboard yet. Check back soon.',
         code: 'reimbursement_coming_soon',
     });
 });

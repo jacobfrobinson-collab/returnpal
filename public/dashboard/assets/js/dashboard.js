@@ -363,10 +363,10 @@ const Dashboard = {
             '<div class="modal fade" id="reimbursementComingSoonModal" tabindex="-1" aria-labelledby="reimbursementComingSoonTitle" aria-hidden="true">' +
             '<div class="modal-dialog modal-dialog-centered"><div class="modal-content">' +
             '<div class="modal-header border-0 pb-0">' +
-            '<h5 class="modal-title" id="reimbursementComingSoonTitle"><i class="ri-refund-line me-2 text-primary"></i>Reimbursement claims — coming soon</h5>' +
+            '<h5 class="modal-title" id="reimbursementComingSoonTitle"><i class="ri-refund-line me-2 text-primary"></i>Reimbursement claims (coming soon)</h5>' +
             '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>' +
             '<div class="modal-body pt-2">' +
-            '<p class="text-muted mb-0">We\'re finishing the self-serve reimbursement workspace in your dashboard. ReturnPal still pursues reimbursement on your behalf where appropriate — you\'ll be able to track and submit claims here soon.</p>' +
+            '<p class="text-muted mb-0">This page isn\'t live yet. We still handle reimbursement with Amazon when that\'s the right route for your stock. You\'ll be able to view and submit claims here once it\'s ready.</p>' +
             '</div>' +
             '<div class="modal-footer border-0 pt-0">' +
             '<button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>' +
