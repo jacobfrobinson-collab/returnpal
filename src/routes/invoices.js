@@ -50,6 +50,12 @@ router.get('/period/:period', authMiddleware, async (req, res) => {
         }
         const db = await getDb();
         const payload = buildInvoicePeriodPayload(db, req.user.id, p);
+        if (!payload.statement_lines || payload.statement_lines.length === 0) {
+            return res.status(404).json({
+                error:
+                    'No sales or applied returns for this month (by sold date / refund date). Nothing to invoice.',
+            });
+        }
         const { _items_count, ...rest } = payload;
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
         res.json(rest);

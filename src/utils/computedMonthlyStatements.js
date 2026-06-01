@@ -368,6 +368,9 @@ function getComputedMonthlyStatements(db, userId) {
             const p = parsePeriodYm(ym);
             if (!p) return null;
             const detail = buildInvoicePeriodPayload(db, userId, p, allSold);
+            if (!detail.statement_lines || detail.statement_lines.length === 0) {
+                return null;
+            }
             const dueStr = statementPayoutEndDateStr(p.y, p.m);
             const issueStr = statementIssueDateStr(p.y, p.m);
             const status = computeStatementStatus(dueStr, tz);
