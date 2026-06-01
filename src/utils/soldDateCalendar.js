@@ -11,7 +11,13 @@ const { storedSoldYmdToCalendarIso } = require('./soldDateDisplayRepair');
  * @returns {string|null} YYYY-MM-DD or null
  */
 function calendarIsoDateFromDbDate(v) {
-    return normalizeSoldDateForDb(v);
+    const n = normalizeSoldDateForDb(v);
+    if (!n || n.length < 10) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(n)) {
+        const cal = storedSoldYmdToCalendarIso(n);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(cal)) return cal;
+    }
+    return n;
 }
 
 /**

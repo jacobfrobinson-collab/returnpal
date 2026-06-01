@@ -4,9 +4,8 @@
  */
 
 const { feesDeductedForCalendarMonth } = require('./monthlyFreeProcessing');
-const { normalizeSoldDateForDb } = require('./adminBulkImport');
 const { effectiveDateForReturnAdjustment } = require('./returnAdjustmentDates');
-const { calendarYearMonthFromDbDate } = require('./soldDateCalendar');
+const { calendarYearMonthFromDbDate, calendarIsoDateFromDbDate } = require('./soldDateCalendar');
 const {
     isClientVatRegistered,
     clientPayoutFromGrossNet,
@@ -159,12 +158,12 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
     const items = allSold
         .filter((row) => {
             if (Number(row.user_id) !== Number(userId)) return false;
-            const n = normalizeSoldDateForDb(row.sold_date);
-            return !!(n && n >= monthStart && n <= monthEndStr);
+            const calIso = calendarIsoDateFromDbDate(row.sold_date);
+            return !!(calIso && calIso >= monthStart && calIso <= monthEndStr);
         })
         .sort((a, b) => {
-            const na = normalizeSoldDateForDb(a.sold_date) || '';
-            const nb = normalizeSoldDateForDb(b.sold_date) || '';
+            const na = calendarIsoDateFromDbDate(a.sold_date) || '';
+            const nb = calendarIsoDateFromDbDate(b.sold_date) || '';
             const c = na.localeCompare(nb);
             return c !== 0 ? c : (Number(a.id) || 0) - (Number(b.id) || 0);
         })
@@ -176,7 +175,7 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
             total_revenue: row.total_revenue,
             profit: row.profit,
             status: row.status,
-            sold_date: row.sold_date,
+            sold_date: calendarIsoDateFromDbDate(row.sold_date) || row.sold_date,
             reference: row.reference
         }));
 

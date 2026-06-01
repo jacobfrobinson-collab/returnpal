@@ -81,6 +81,15 @@ function run() {
     assert(calendarYearMonthFromDbDate('2026-03-25') === '2026-03', 'ISO date → March 2026');
     assert(calendarIsoDateFromDbDate('2026-03-25') === '2026-03-25', 'ISO passthrough');
 
+    assert(
+        calendarIsoDateFromDbDate('2026-05-04') === '2026-04-05',
+        'Stored YYYY-DD-MM: 2026-05-04 → calendar 5 April (matches sold dashboard)'
+    );
+    assert(
+        calendarYearMonthFromDbDate('2026-05-04') === '2026-04',
+        '2026-05-04 buckets to April invoice month, not May'
+    );
+
     assert(calendarYearMonthFromDbDate('2026-03-25 10:00:00') === '2026-03', 'datetime without T');
     assert(calendarYearMonthFromDbDate('2026-03-25T12:00:00.000Z') === '2026-03', 'ISO with Z');
 
