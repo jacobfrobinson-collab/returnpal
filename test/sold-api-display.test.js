@@ -1,5 +1,5 @@
 /**
- * Sold date display for API rows (calendar YYYY-MM-DD storage).
+ * Sold date display: stored YYYY-MM-DD means YYYY-DD-MM (year, day, month) by default.
  * Run: node test/sold-api-display.test.js
  */
 
@@ -29,30 +29,33 @@ function simulateSoldApiRow(sold_date, product) {
 }
 
 function run() {
-    assert(storedSoldYmdToOrdinalLabel('2026-02-05') === 'May 2nd 2026', 'legacy helper: day 2, month 5');
-    assert(storedSoldYmdToCalendarIso('2026-02-05') === '2026-05-02', 'legacy helper calendar iso');
+    assert(storedSoldYmdToOrdinalLabel('2026-02-05') === 'May 2nd 2026', 'day 2, month 5');
+    assert(storedSoldYmdToCalendarIso('2026-02-05') === '2026-05-02', 'calendar ISO for sort');
 
     const mapped = mapSoldItemDatesForApi('2026-02-05', normalizeSoldDateForDb);
-    assert(mapped.iso === '2026-02-05', 'mapSoldItemDatesForApi calendar iso');
-    assert(mapped.label === 'February 5th 2026', 'mapSoldItemDatesForApi label');
+    assert(mapped.iso === '2026-05-02', 'mapSoldItemDatesForApi calendar iso');
+    assert(mapped.label === 'May 2nd 2026', 'mapSoldItemDatesForApi label');
 
     const nov = mapSoldItemDatesForApi('2026-11-01', normalizeSoldDateForDb);
-    assert(nov.iso === '2026-11-01', '2026-11-01 → 1 November calendar');
-    assert(nov.label === 'November 1st 2026', '1 Nov label');
+    assert(nov.iso === '2026-01-11', '2026-11-01 → 11 Jan calendar');
+    assert(nov.label === 'January 11th 2026', '11 Jan label');
+
+    const dec4 = mapSoldItemDatesForApi('2026-12-04', normalizeSoldDateForDb);
+    assert(dec4.label === 'April 12th 2026', '2026-12-04 → 12 April (not December 4)');
 
     const mar9 = mapSoldItemDatesForApi('2026-09-03', normalizeSoldDateForDb);
-    assert(mar9.iso === '2026-09-03', '2026-09-03 calendar');
-    assert(mar9.label === 'September 3rd 2026', '3 Sep label');
+    assert(mar9.iso === '2026-03-09', '2026-09-03 → 9 Mar calendar');
+    assert(mar9.label === 'March 9th 2026', '9 Mar label');
 
     const row = simulateSoldApiRow('2026-11-01', 'Game of Thrones: Season 1-3 2014 DVD Box Set New Sealed');
-    assert(row.sold_date === '2026-11-01', 'API row sold_date calendar');
-    assert(row.sold_date_label === 'November 1st 2026', 'API row sold_date_label');
+    assert(row.sold_date === '2026-01-11', 'API row sold_date calendar');
+    assert(row.sold_date_label === 'January 11th 2026', 'API row sold_date_label');
 
     const clientLabel = global.RP_SOLD_ISO.labelForSoldItem(row);
-    assert(clientLabel === 'November 1st 2026', 'RP_SOLD_ISO.labelForSoldItem');
+    assert(clientLabel === 'January 11th 2026', 'RP_SOLD_ISO.labelForSoldItem');
 
     const datetime = mapSoldItemDatesForApi('2026-09-03 00:00:00', normalizeSoldDateForDb);
-    assert(datetime.label === 'September 3rd 2026', 'datetime suffix stripped');
+    assert(datetime.label === 'March 9th 2026', 'datetime suffix stripped');
 
     console.log('sold-api-display: all checks passed');
 }

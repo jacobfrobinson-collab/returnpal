@@ -8,11 +8,17 @@
 - Months with **no sales and no applied returns** in that calendar month do not appear as payout rows.
 - A month with **only returns** (no sales) can appear as `refund_only_period`.
 
-## Storage (post-migration)
+## Storage modes
 
-All `sold_items.sold_date` values should be canonical **calendar** `YYYY-MM-DD` (year-month-day), matching UK bulk import and eBay exports.
+Until you run the migration, production keeps legacy **YYYY-DD-MM** in `sold_items.sold_date` (middle = day, last = month). The app defaults to that encoding for the sold dashboard and invoices.
 
-Before migration, some rows used legacy **YYYY-DD-MM** (middle segment = day, last = month). That caused the sold dashboard and invoices to disagree on the same string.
+After `migrate-sold-dates --apply`, set on the server:
+
+```bash
+RETURNPAL_SOLD_DATES_CANONICAL=1
+```
+
+Then restart Node. Reads use true calendar `YYYY-MM-DD` only.
 
 ## Operator runbook
 

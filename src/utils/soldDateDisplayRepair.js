@@ -70,6 +70,11 @@ function monthDaySwapRepairEnabled() {
     return String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL || '').trim() === '1';
 }
 
+/** Set RETURNPAL_SOLD_DATES_CANONICAL=1 after migrate-sold-dates --apply on production. */
+function soldDatesCanonicalStorage() {
+    return String(process.env.RETURNPAL_SOLD_DATES_CANONICAL || '').trim() === '1';
+}
+
 /** @deprecated jan-day hack; stored format is YYYY-DD-MM — no-op when parse succeeds */
 function repairIsoFirstOfMonthToJanuary(iso) {
     return stripSoldDateToIsoHead(iso) || iso;
@@ -175,11 +180,21 @@ function calendarIsoToOrdinalLabel(iso) {
 }
 
 function mapSoldItemDatesForApi(rawSoldDate, normalizeSoldDateForDb) {
+    const storedHead = stripSoldDateToIsoHead(rawSoldDate);
+
+    if (!soldDatesCanonicalStorage() && /^\d{4}-\d{2}-\d{2}$/.test(storedHead)) {
+        const isoFinal = resolveSoldDateIsoForDisplay(storedHead);
+        return {
+            iso: isoFinal,
+            label: storedSoldYmdToOrdinalLabel(storedHead) || '',
+            stored: rawSoldDate,
+        };
+    }
+
     let iso = normalizeSoldDateForDb(rawSoldDate);
     if (!iso) {
-        const head = stripSoldDateToIsoHead(rawSoldDate);
-        if (/^\d{4}-\d{2}-\d{2}$/.test(head)) iso = head;
-        else if (/^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(head)) iso = normalizeSoldDateForDb(head);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(storedHead)) iso = storedHead;
+        else if (/^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(storedHead)) iso = normalizeSoldDateForDb(storedHead);
     }
     if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
         let isoFinal = iso;
@@ -192,7 +207,6 @@ function mapSoldItemDatesForApi(rawSoldDate, normalizeSoldDateForDb) {
             stored: rawSoldDate,
         };
     }
-    const storedHead = stripSoldDateToIsoHead(rawSoldDate);
     const isoFinal = /^\d{4}-\d{2}-\d{2}$/.test(storedHead)
         ? resolveSoldDateIsoForDisplay(storedHead)
         : '';
@@ -232,5 +246,6 @@ module.exports = {
     formatOrdinalEnGbFromIso,
     mapSoldItemDatesForApi,
     monthDaySwapRepairEnabled,
+    soldDatesCanonicalStorage,
     janDayRepairEnabled,
 };

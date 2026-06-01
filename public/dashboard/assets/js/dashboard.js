@@ -1401,15 +1401,13 @@ const Dashboard = {
         return RP_DATE.formatIso(dateStr);
     },
 
-    /** Sold list date: API sold_date_label first, then calendar ISO via RP_SOLD_ISO. */
+    /** Sold list date: legacy YYYY-DD-MM via RP_SOLD_ISO (matches pre-migration DB). */
     soldDateDisplayValue(item) {
-        const apiLab = item && item.sold_date_label && String(item.sold_date_label).trim();
-        if (apiLab) return apiLab;
         if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem) {
             const lab = RP_SOLD_ISO.labelForSoldItem(item);
             if (lab && lab !== '-') return lab;
         }
-        return this.formatDate(item.sold_date_display || item.sold_date_stored || item.sold_date);
+        return this.formatDate(item.sold_date_stored || item.sold_date);
     },
 
     /** Re-apply display labels on sold rows after API (client-side; works even if API omits repair). */

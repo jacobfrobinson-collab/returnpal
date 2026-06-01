@@ -158,7 +158,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
         const outItems = clientIsAdmin(req) ? itemsWithPromo : itemsWithPromo.map((row) => redactOrderNumberForClientRow(row));
         res.json({
-            sold_date_display_version: 'calendar-iso-2026-06',
+            sold_date_display_version: 'legacy-ydm-2026-06b',
             items: outItems,
             stats,
             total: items.length,

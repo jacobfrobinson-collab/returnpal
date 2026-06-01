@@ -16,14 +16,22 @@ function run() {
     const legacyRaw = '2026-05-04';
     const migrated = computeCanonicalSoldDate(legacyRaw);
     assert(migrated.iso === '2026-04-05', 'legacy 2026-05-04 migrates to 5 April calendar');
-    assert(
-        calendarYearMonthFromDbDate(migrated.iso) === '2026-04',
-        'migrated date buckets to April invoice month'
-    );
 
-    const apiAfter = mapSoldItemDatesForApi(migrated.iso, normalizeSoldDateForDb);
-    assert(apiAfter.iso === '2026-04-05', 'API display iso after migration');
-    assert(apiAfter.label === 'April 5th 2026', 'API label after migration');
+    const hadCanon = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DATES_CANONICAL');
+    const prevCanon = process.env.RETURNPAL_SOLD_DATES_CANONICAL;
+    process.env.RETURNPAL_SOLD_DATES_CANONICAL = '1';
+    try {
+        assert(
+            calendarYearMonthFromDbDate(migrated.iso) === '2026-04',
+            'migrated date buckets to April invoice month (canonical mode)'
+        );
+        const apiAfter = mapSoldItemDatesForApi(migrated.iso, normalizeSoldDateForDb);
+        assert(apiAfter.iso === '2026-04-05', 'API display iso after migration');
+        assert(apiAfter.label === 'April 5th 2026', 'API label after migration');
+    } finally {
+        if (hadCanon) process.env.RETURNPAL_SOLD_DATES_CANONICAL = prevCanon;
+        else delete process.env.RETURNPAL_SOLD_DATES_CANONICAL;
+    }
 
     const mayIso = '2026-05-02';
     assert(calendarYearMonthFromDbDate(mayIso) === '2026-05', 'calendar May sale → May month');
