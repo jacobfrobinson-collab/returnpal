@@ -141,10 +141,12 @@
                     $('#wrap').removeClass('d-none');
                 })
                 .catch(function(e) {
+                    var txt = (e && e.error) || 'Failed to load';
+                    if (e && e.status) txt += ' (HTTP ' + e.status + ')';
                     $('#msg')
                         .removeClass('d-none text-muted')
                         .addClass('text-danger')
-                        .text((e && e.error) || 'Failed to load');
+                        .text(txt);
                 });
         }
 

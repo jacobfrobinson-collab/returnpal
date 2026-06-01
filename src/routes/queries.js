@@ -2,6 +2,8 @@ const express = require('express');
 const { getDb, saveDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const {
+    ensureQueryThreadSchema,
+    backfillLegacyQueryMessages,
     appendQueryMessage,
     listQueriesForUser,
     listMessagesForQuery,
@@ -34,6 +36,7 @@ router.post('/', authMiddleware, async (req, res) => {
         const label = context_label != null ? String(context_label).slice(0, 500) : '';
 
         const db = await getDb();
+        ensureQueryThreadSchema(db);
         db.run(
             `INSERT INTO item_queries (user_id, context_type, context_id, context_label, message, status, last_sender)
              VALUES (?, ?, ?, ?, ?, 'open', 'client')`,
@@ -57,6 +60,10 @@ router.post('/', authMiddleware, async (req, res) => {
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
+        ensureQueryThreadSchema(db);
+        if (backfillLegacyQueryMessages(db)) {
+            saveDb();
+        }
         const queries = listQueriesForUser(db, req.user.id);
         res.json({ queries });
     } catch (err) {

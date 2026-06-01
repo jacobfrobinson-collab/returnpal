@@ -2,6 +2,42 @@
  * Threaded item queries — client ↔ admin messages on a single query.
  */
 
+/** Apply migrations needed for threaded queries (safe after reload from disk). */
+function ensureQueryThreadSchema(db) {
+    if (!db) return;
+    try {
+        db.run("ALTER TABLE item_queries ADD COLUMN admin_reply TEXT DEFAULT ''");
+    } catch (e) {
+        /* exists */
+    }
+    try {
+        db.run("ALTER TABLE item_queries ADD COLUMN replied_at TEXT DEFAULT ''");
+    } catch (e) {
+        /* exists */
+    }
+    try {
+        db.run("ALTER TABLE item_queries ADD COLUMN last_sender TEXT DEFAULT 'client'");
+    } catch (e) {
+        /* exists */
+    }
+    try {
+        db.run("ALTER TABLE item_queries ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))");
+    } catch (e) {
+        /* exists */
+    }
+    db.run(`
+        CREATE TABLE IF NOT EXISTS item_query_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query_id INTEGER NOT NULL,
+            sender_role TEXT NOT NULL CHECK(sender_role IN ('client', 'admin')),
+            body TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (query_id) REFERENCES item_queries(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_item_query_messages_query ON item_query_messages(query_id)');
+}
+
 function parseResults(result) {
     if (!result || !result.length) return [];
     const cols = result[0].columns;
@@ -18,12 +54,17 @@ function parseResults(result) {
  * One-time backfill: legacy message + admin_reply → item_query_messages rows.
  * @param {import('sql.js').Database} db
  */
+/**
+ * @returns {boolean} true if any rows were written
+ */
 function backfillLegacyQueryMessages(db) {
+    ensureQueryThreadSchema(db);
     const hasTable = parseResults(
         db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='item_query_messages'")
     );
-    if (!hasTable.length) return;
+    if (!hasTable.length) return false;
 
+    let changed = false;
     const queries = parseResults(
         db.exec(
             `SELECT id, message, COALESCE(admin_reply, '') AS admin_reply, created_at, replied_at
@@ -44,6 +85,7 @@ function backfillLegacyQueryMessages(db) {
                  VALUES (?, 'client', ?, ?)`,
                 [q.id, initial, q.created_at || null]
             );
+            changed = true;
         }
         const adminBody = String(q.admin_reply || '').trim();
         if (adminBody) {
@@ -56,13 +98,16 @@ function backfillLegacyQueryMessages(db) {
                 `UPDATE item_queries SET last_sender = 'admin', status = 'open', updated_at = datetime('now') WHERE id = ?`,
                 [q.id]
             );
+            changed = true;
         } else if (initial) {
             db.run(
                 `UPDATE item_queries SET last_sender = 'client', status = 'open', updated_at = datetime('now') WHERE id = ?`,
                 [q.id]
             );
+            changed = true;
         }
     }
+    return changed;
 }
 
 /**
@@ -88,6 +133,7 @@ function listMessagesForQuery(db, queryId) {
  * @param {string} body
  */
 function appendQueryMessage(db, queryId, senderRole, body) {
+    ensureQueryThreadSchema(db);
     const text = String(body || '').trim();
     if (text.length < 2) {
         throw new Error('Message too short');
@@ -168,6 +214,7 @@ function listOpenQueriesForAdmin(db) {
 }
 
 module.exports = {
+    ensureQueryThreadSchema,
     backfillLegacyQueryMessages,
     listMessagesForQuery,
     appendQueryMessage,

@@ -22,6 +22,12 @@ function reloadDbFromDiskIfStaleSync(reason) {
         db = new sqlJsModule.Database(fs.readFileSync(DB_PATH));
         db.run('PRAGMA foreign_keys = ON;');
         dbFileMtimeMs = st.mtimeMs;
+        try {
+            const { ensureQueryThreadSchema } = require('./utils/itemQueryThread');
+            ensureQueryThreadSchema(db);
+        } catch (migrateErr) {
+            console.error('[db] ensureQueryThreadSchema after stale reload:', migrateErr);
+        }
         console.log('[db] Reloaded from disk (' + reason + ')');
     } catch (e) {
         console.error('[db] Reload failed (' + reason + '):', e);
@@ -42,6 +48,12 @@ function forceReloadDbFromDisk() {
         db = new sqlJsModule.Database(fs.readFileSync(DB_PATH));
         db.run('PRAGMA foreign_keys = ON;');
         dbFileMtimeMs = fs.statSync(DB_PATH).mtimeMs;
+        try {
+            const { ensureQueryThreadSchema } = require('./utils/itemQueryThread');
+            ensureQueryThreadSchema(db);
+        } catch (migrateErr) {
+            console.error('[db] ensureQueryThreadSchema after reload:', migrateErr);
+        }
     } catch (e) {
         console.error('[db] forceReloadDbFromDisk failed:', e);
     }

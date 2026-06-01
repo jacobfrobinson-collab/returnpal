@@ -783,8 +783,16 @@ router.post('/impersonate/:id', async (req, res) => {
 // GET /api/admin/queries — threads waiting on ReturnPal (client spoke last)
 router.get('/queries', async (req, res) => {
     try {
-        const db = await dbForAdminRead();
-        const { listOpenQueriesForAdmin } = require('../utils/itemQueryThread');
+        const db = await getDb();
+        const {
+            ensureQueryThreadSchema,
+            backfillLegacyQueryMessages,
+            listOpenQueriesForAdmin,
+        } = require('../utils/itemQueryThread');
+        ensureQueryThreadSchema(db);
+        if (backfillLegacyQueryMessages(db)) {
+            saveDb();
+        }
         res.json({ queries: listOpenQueriesForAdmin(db) });
     } catch (err) {
         console.error('Admin list queries error:', err);
