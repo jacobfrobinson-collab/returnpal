@@ -311,11 +311,14 @@ async function runTests() {
         console.error('  ✗ GET /api/reports/roi:', e.message);
     }
 
-    // Reimbursement claims list
+    // Reimbursement claims list (503 when CLIENT_REIMBURSEMENT_ENABLED is not set)
     try {
         const reimb = await request('GET', '/api/reimbursement/claims', null, token);
-        assert(reimb.status === 200, 'Reimbursement claims should return 200');
-        assert(Array.isArray(reimb.data.claims), 'Claims should be array');
+        assert(
+            reimb.status === 200 || reimb.status === 503,
+            'Reimbursement claims should return 200 or 503 (coming soon)'
+        );
+        if (reimb.status === 200) assert(Array.isArray(reimb.data.claims), 'Claims should be array');
         console.log('  ✓ GET /api/reimbursement/claims');
     } catch (e) {
         console.error('  ✗ GET /api/reimbursement/claims:', e.message);

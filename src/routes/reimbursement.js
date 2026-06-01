@@ -6,6 +6,7 @@ const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 const { enrichClaimRow, buildCaseText, normalizeCaseStatus, CASE_STATUSES } = require('../utils/reimbursementCase');
+const { isClientReimbursementEnabled } = require('../utils/clientReimbursementFeature');
 
 const router = express.Router();
 
@@ -31,6 +32,14 @@ function parseResults(result) {
 }
 
 router.use(authMiddleware);
+
+router.use((req, res, next) => {
+    if (isClientReimbursementEnabled()) return next();
+    return res.status(503).json({
+        error: 'Reimbursement claims are not available yet. This feature is coming soon.',
+        code: 'reimbursement_coming_soon',
+    });
+});
 
 // GET /api/reimbursement/claims
 router.get('/claims', async (req, res) => {
