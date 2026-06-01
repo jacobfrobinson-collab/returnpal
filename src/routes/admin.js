@@ -1166,7 +1166,14 @@ router.post('/users/:userId/bulk-import', bulkSpreadsheetUpload.single('file'), 
         if (!ucheck.length) return res.status(404).json({ error: 'User not found' });
 
         const filename = (req.file && req.file.originalname) || 'import';
-        const { imported, errors, inserted, row_count } = await runBulkImport(db, kind, userId, req.file.buffer);
+        const {
+            imported,
+            errors,
+            inserted,
+            row_count,
+            skipped_no_matching_sale,
+            skipped_no_sale_samples,
+        } = await runBulkImport(db, kind, userId, req.file.buffer);
         const jobId = createBulkImportJob(db, {
             adminUserId: req.user.id,
             kind,
@@ -1188,7 +1195,16 @@ router.post('/users/:userId/bulk-import', bulkSpreadsheetUpload.single('file'), 
             error_count: errors.length,
             filename,
         });
-        res.json({ imported, errors, kind, user_id: userId, job_id: jobId, inserted_count: inserted.length });
+        res.json({
+            imported,
+            errors,
+            kind,
+            user_id: userId,
+            job_id: jobId,
+            inserted_count: inserted.length,
+            skipped_no_matching_sale: skipped_no_matching_sale || 0,
+            skipped_no_sale_samples: skipped_no_sale_samples || [],
+        });
     } catch (err) {
         console.error('Bulk import error:', err);
         res.status(500).json({ error: err.message || 'Server error' });
@@ -1279,12 +1295,21 @@ router.post(
                 extraOrderClientMap: savedOrderMap,
             });
             const filename = refundsFile.originalname || 'ebay-refunds.csv';
-            const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key } =
-                await runBulkImportMulti(db, 'return_adjustment', converted.csvBuffer, {
-                    adminUserId: req.user.id,
-                    originalFilename: filename,
-                    queueUnmatched: true,
-                });
+            const {
+                imported,
+                errors,
+                by_user,
+                inserted,
+                row_count,
+                pending_rows_saved,
+                pending_by_key,
+                skipped_no_matching_sale,
+                skipped_no_sale_samples,
+            } = await runBulkImportMulti(db, 'return_adjustment', converted.csvBuffer, {
+                adminUserId: req.user.id,
+                originalFilename: filename,
+                queueUnmatched: true,
+            });
             let jobId = null;
             if (inserted.length) {
                 jobId = createBulkImportJob(db, {
@@ -1314,9 +1339,11 @@ router.post(
                 convert: converted.stats,
                 pending_rows_saved: pending_rows_saved || 0,
                 pending_by_key: pending_by_key || {},
+                skipped_no_matching_sale: skipped_no_matching_sale || 0,
+                skipped_no_sale_samples: skipped_no_sale_samples || [],
                 message:
-                    'Refunds applied to client balances and monthly payout statements (by refund date). ' +
-                    'Clients see them under Sold Items → Refunds / Returns.',
+                    'Refunds applied where a matching sale exists on the dashboard (by refund date). ' +
+                    'Rows without a matching sale were skipped.',
             });
         } catch (err) {
             console.error('eBay refunds import error:', err);
@@ -1438,6 +1465,8 @@ router.post('/ebay-refunds-import-reviewed', async (req, res) => {
                 pending_by_key,
                 duplicates_skipped,
                 refund_dates_corrected,
+                skipped_no_matching_sale,
+                skipped_no_sale_samples,
             } = await runBulkImportMulti(db, 'return_adjustment', csvBuffer, {
                 adminUserId: req.user.id,
                 originalFilename: filename,
@@ -1478,8 +1507,10 @@ router.post('/ebay-refunds-import-reviewed', async (req, res) => {
                 order_mappings_saved,
                 duplicates_skipped: duplicates_skipped || 0,
                 refund_dates_corrected: refund_dates_corrected || 0,
+                skipped_no_matching_sale: skipped_no_matching_sale || 0,
+                skipped_no_sale_samples: skipped_no_sale_samples || [],
                 message:
-                    'Imported reviewed refunds. Client dashboards and payout months are updated from refund_date on each row.',
+                    'Imported reviewed refunds. Rows without a matching sale were skipped. Payout months use refund_date on imported rows.',
             });
     } catch (err) {
         console.error('eBay refunds import reviewed error:', err);
@@ -1505,12 +1536,22 @@ router.post('/bulk-import-multi-reviewed', async (req, res) => {
         const csvBuffer = reviewedMultiRowsToCsvBuffer(kind, bodyRows);
         const db = await getDb();
         const filename = String(req.body.source_filename || 'bulk-import-reviewed.json').slice(0, 200);
-        const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key, duplicates_skipped } =
-            await runBulkImportMulti(db, kind, csvBuffer, {
-                adminUserId: req.user.id,
-                originalFilename: filename,
-                queueUnmatched,
-            });
+        const {
+            imported,
+            errors,
+            by_user,
+            inserted,
+            row_count,
+            pending_rows_saved,
+            pending_by_key,
+            duplicates_skipped,
+            skipped_no_matching_sale,
+            skipped_no_sale_samples,
+        } = await runBulkImportMulti(db, kind, csvBuffer, {
+            adminUserId: req.user.id,
+            originalFilename: filename,
+            queueUnmatched,
+        });
         let jobId = null;
         if (inserted.length) {
             jobId = createBulkImportJob(db, {
@@ -1545,8 +1586,10 @@ router.post('/bulk-import-multi-reviewed', async (req, res) => {
             pending_by_key: pending_by_key || {},
             order_mappings_saved,
             duplicates_skipped: duplicates_skipped || 0,
+            skipped_no_matching_sale: skipped_no_matching_sale || 0,
+            skipped_no_sale_samples: skipped_no_sale_samples || [],
             message:
-                'Import complete. Rows with a valid Client ID were applied; others may be in Pending imports if that option is on.',
+                'Import complete. Rows with a valid Client ID were applied; refund rows without a matching sale were skipped.',
         });
     } catch (err) {
         console.error('bulk-import-multi-reviewed error:', err);
@@ -1567,12 +1610,21 @@ router.post('/bulk-import-multi', bulkSpreadsheetUpload.single('file'), async (r
         const db = await getDb();
         const filename = (req.file && req.file.originalname) || 'import';
         const queueUnmatched = !(req.body.queue_unmatched === '0' || req.body.queue_unmatched === false);
-        const { imported, errors, by_user, inserted, row_count, pending_rows_saved, pending_by_key } =
-            await runBulkImportMulti(db, kind, req.file.buffer, {
-                adminUserId: req.user.id,
-                originalFilename: filename,
-                queueUnmatched,
-            });
+        const {
+            imported,
+            errors,
+            by_user,
+            inserted,
+            row_count,
+            pending_rows_saved,
+            pending_by_key,
+            skipped_no_matching_sale,
+            skipped_no_sale_samples,
+        } = await runBulkImportMulti(db, kind, req.file.buffer, {
+            adminUserId: req.user.id,
+            originalFilename: filename,
+            queueUnmatched,
+        });
         let jobId = null;
         if (inserted.length) {
             jobId = createBulkImportJob(db, {
@@ -1604,6 +1656,8 @@ router.post('/bulk-import-multi', bulkSpreadsheetUpload.single('file'), async (r
             inserted_count: inserted.length,
             pending_rows_saved: pending_rows_saved || 0,
             pending_by_key: pending_by_key || {},
+            skipped_no_matching_sale: skipped_no_matching_sale || 0,
+            skipped_no_sale_samples: skipped_no_sale_samples || [],
         });
     } catch (err) {
         console.error('Bulk import multi error:', err);

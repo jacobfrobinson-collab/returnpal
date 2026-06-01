@@ -3,7 +3,10 @@
  */
 const XLSX = require('xlsx');
 const { saveDb, pushActivity } = require('../database');
-const { findLinkedSoldItemId } = require('./returnAdjustmentSoldLink');
+const {
+    resolveReturnAdjustmentImportLink,
+    noMatchingSaleImportMessage,
+} = require('./returnAdjustmentSoldLink');
 const {
     findReturnAdjustmentDuplicate,
     enrichReturnAdjustmentReviewDuplicates,
@@ -278,8 +281,53 @@ function buildMultiImportReviewRows(db, kind, parsedRows) {
     }
     if (kind === 'return_adjustment' || kind === 'refunds') {
         enrichReturnAdjustmentReviewDuplicates(db, resolveUserIdFromClientSpecifier, reviewRows);
+        enrichReturnAdjustmentReviewSaleMatch(db, resolveUserIdFromClientSpecifier, reviewRows);
     }
     return reviewRows;
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {typeof resolveUserIdFromClientSpecifier} resolveClient
+ * @param {Array<Record<string, unknown>>} reviewRows
+ */
+function enrichReturnAdjustmentReviewSaleMatch(db, resolveClient, reviewRows) {
+    for (const r of reviewRows) {
+        if (!r.resolve_ok || !r.client_id) {
+            r.matched_sale_id = null;
+            r.matched_sale_preview = '—';
+            r.sale_match_ok = false;
+            continue;
+        }
+        const res = resolveClient(db, r.client_id);
+        if (res.error) {
+            r.matched_sale_id = null;
+            r.matched_sale_preview = '—';
+            r.sale_match_ok = false;
+            continue;
+        }
+        const dataRow = r.row_data || {};
+        const link = resolveReturnAdjustmentImportLink(db, res.userId, dataRow);
+        r.matched_sale_id = link.linkedSoldItemId;
+        r.matched_sale_preview =
+            link.matchSource === 'explicit_invalid'
+                ? 'invalid linked_sold_item_id'
+                : link.matched && link.linkedSoldItemId
+                  ? '#' + link.linkedSoldItemId
+                  : link.matchSource === 'orphan_allowed'
+                    ? 'orphan (env)'
+                    : '—';
+        r.sale_match_ok = link.matched;
+        if (!link.matched) {
+            if (link.matchSource === 'explicit_invalid') {
+                r.sale_match_error = 'linked_sold_item_id is not a sale for this client';
+            } else {
+                r.sale_match_error = noMatchingSaleImportMessage(dataRow);
+            }
+        } else {
+            r.sale_match_error = '';
+        }
+    }
 }
 
 /**
@@ -293,6 +341,12 @@ function reviewedMultiRowsToCsvBuffer(kind, reviewedRows) {
     const aoa = [headers];
     for (const r of reviewedRows || []) {
         if (r.already_imported) continue;
+        if (
+            (kind === 'return_adjustment' || kind === 'refunds') &&
+            r.sale_match_ok === false
+        ) {
+            continue;
+        }
         const dataRow = r.row_data && typeof r.row_data === 'object' ? r.row_data : {};
         const clientId = String(r.clientId != null ? r.clientId : r.client_id || '').trim();
         const line = [clientId];
@@ -548,6 +602,21 @@ function soldDatePreviewLabel(dataRow) {
     return raws.length > 44 ? raws.slice(0, 44) + '…' : raws;
 }
 
+/** @returns {Record<string, unknown>} */
+function returnAdjustmentPreviewExtras(db, kind, userId, dataRow) {
+    if (kind !== 'return_adjustment' && kind !== 'refunds') return {};
+    const link = resolveReturnAdjustmentImportLink(db, userId, dataRow);
+    let matched_sale_preview = '—';
+    if (link.matchSource === 'explicit_invalid') matched_sale_preview = 'invalid id';
+    else if (link.matched && link.linkedSoldItemId) matched_sale_preview = '#' + link.linkedSoldItemId;
+    else if (link.matchSource === 'orphan_allowed') matched_sale_preview = 'orphan (env)';
+    return {
+        matched_sale_id: link.linkedSoldItemId,
+        matched_sale_preview,
+        sale_match_ok: link.matched,
+    };
+}
+
 /** @returns {{ reference: string, product: string, qty: number, soldDateParam: string|null, unit: number, total: number, profit: number, margin: number, orderNumber: string }} */
 function parseSoldRowFields(row) {
     const product = str(row.product);
@@ -750,18 +819,17 @@ function importReturnAdjustmentRow(db, userId, row) {
         };
     }
 
-    let linkedSoldItemId = null;
-    if (row.linked_sold_item_id != null && row.linked_sold_item_id !== '') {
-        const parsed = parseInt(row.linked_sold_item_id, 10);
-        if (Number.isFinite(parsed)) linkedSoldItemId = parsed;
+    const link = resolveReturnAdjustmentImportLink(db, userId, row);
+    if (!link.matched) {
+        return {
+            skipped: true,
+            skipReason:
+                link.matchSource === 'explicit_invalid'
+                    ? 'linked_sold_item_id is not a sale for this client'
+                    : noMatchingSaleImportMessage(row),
+        };
     }
-    if (!linkedSoldItemId) {
-        linkedSoldItemId = findLinkedSoldItemId(db, userId, {
-            orderNumber: onum,
-            product,
-            reference,
-        });
-    }
+    const linkedSoldItemId = link.linkedSoldItemId;
     db.run(
         `INSERT INTO return_adjustments (user_id, product, reference, amount, linked_sold_item_id, status, notes, order_number, refund_date)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -938,6 +1006,13 @@ function dryValidateRow(db, kind, userId, row) {
         const product = str(row.product);
         const amount = num(row.amount, NaN);
         if (!product || !Number.isFinite(amount) || amount <= 0) throw new Error('product and a positive amount are required');
+        const link = resolveReturnAdjustmentImportLink(db, userId, row);
+        if (!link.matched) {
+            if (link.matchSource === 'explicit_invalid') {
+                throw new Error('linked_sold_item_id is not a sale for this client');
+            }
+            throw new Error(noMatchingSaleImportMessage(row));
+        }
         return;
     }
     throw new Error('Unknown import type');
@@ -1023,6 +1098,7 @@ function previewBulkImport(db, opts) {
                 );
             }
         }
+        const refundPreviewExtras = returnAdjustmentPreviewExtras(db, kind, effUser, dataRow);
         try {
             dryValidateRow(db, kind, effUser, dataRow);
             ok++;
@@ -1037,6 +1113,7 @@ function previewBulkImport(db, opts) {
                 legacy_client_id: resolved ? resolved.legacy_client_id : null,
                 summary: summarizeRow(kind, dataRow),
                 ...(kind === 'sold' ? { sold_date_preview: soldDatePreviewLabel(dataRow) } : {}),
+                ...refundPreviewExtras,
             });
         } catch (e) {
             bad++;
@@ -1049,6 +1126,7 @@ function previewBulkImport(db, opts) {
                 resolved_name: resolved ? resolved.name : null,
                 summary: summarizeRow(kind, dataRow),
                 ...(kind === 'sold' ? { sold_date_preview: soldDatePreviewLabel(dataRow) } : {}),
+                ...refundPreviewExtras,
             });
         }
     }
@@ -1093,6 +1171,8 @@ async function runBulkImport(db, kind, userId, buffer, options = {}) {
 
     const errors = [];
     let imported = 0;
+    let skipped_no_matching_sale = 0;
+    const skipped_no_sale_samples = [];
     const activities = [];
     const inserted = [];
 
@@ -1101,6 +1181,16 @@ async function runBulkImport(db, kind, userId, buffer, options = {}) {
         try {
             const result = importer(db, userId, rows[i]);
             if (result && result.duplicate) continue;
+            if (result && result.skipped) {
+                skipped_no_matching_sale++;
+                if (skipped_no_sale_samples.length < 8) {
+                    skipped_no_sale_samples.push({
+                        line,
+                        error: result.skipReason || 'No matching sale',
+                    });
+                }
+                continue;
+            }
             if (result && result.activity) activities.push(result.activity);
             imported++;
             if (result && result.table) {
@@ -1127,7 +1217,14 @@ async function runBulkImport(db, kind, userId, buffer, options = {}) {
         }
     }
 
-    return { imported, errors, inserted, row_count: rows.length };
+    return {
+        imported,
+        errors,
+        inserted,
+        row_count: rows.length,
+        skipped_no_matching_sale,
+        skipped_no_sale_samples,
+    };
 }
 
 /**
@@ -1181,6 +1278,8 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
     const errors = [];
     let imported = 0;
     let duplicates_skipped = 0;
+    let skipped_no_matching_sale = 0;
+    const skipped_no_sale_samples = [];
     const activities = [];
     const byUser = {};
     const inserted = [];
@@ -1222,6 +1321,17 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
             const result = importer(db, userId, dataRow);
             if (result && result.duplicate) {
                 duplicates_skipped++;
+                continue;
+            }
+            if (result && result.skipped) {
+                skipped_no_matching_sale++;
+                if (skipped_no_sale_samples.length < 8) {
+                    skipped_no_sale_samples.push({
+                        line,
+                        error: result.skipReason || 'No matching sale',
+                        user_id: userId,
+                    });
+                }
                 continue;
             }
             if (result && result.activity) activities.push(result.activity);
@@ -1290,6 +1400,8 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
         pending_rows_saved,
         pending_by_key,
         duplicates_skipped,
+        skipped_no_matching_sale,
+        skipped_no_sale_samples,
         refund_dates_corrected,
     };
 }

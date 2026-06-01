@@ -166,6 +166,10 @@
                     <p class="mb-2 text-muted">Columns: <code>Client ID</code>, <code>sold_date</code>, <code>item_name</code>, <code>quantity</code>, <code>earnings</code>. Optional: <code>order_number</code>.</p>
                     <button type="button" class="btn btn-sm btn-primary" id="btn-marketplace-sales-setup">Use marketplace sales upload</button>
                 </details>
+                <p class="small alert alert-warning border-0 py-2 px-3 mb-3" id="bulk-import-refund-sale-match-note">
+                    <strong>Returns / refunds:</strong> Each row must match an existing <strong>sale</strong> on that client’s dashboard (same <code>order_number</code> + product title, or set <code>linked_sold_item_id</code>).
+                    Cancelled orders that were never imported as sales are <strong>skipped</strong> so they do not reduce payout.
+                </p>
                 <details class="mb-3 small border border-success rounded p-2 bg-success-subtle" open>
                     <summary class="fw-semibold mb-2">eBay refunds file → client dashboards &amp; payouts</summary>
                     <p class="mb-2 mt-2">Upload your <strong>eBay Refunds report</strong> plus your <strong>EVERY EBAY ORDER SHEET</strong>. Client IDs are filled automatically; review and edit any row before importing. Payouts use each row’s <strong>refund date</strong>.</p>
@@ -1420,6 +1424,14 @@
                     bits += ' <span class="text-danger">£' + Number(r.amount).toFixed(2) + '</span>';
                 }
                 if (r.custom_label) bits += ' <span class="text-muted" title="SKU">· ' + esc(r.custom_label) + '</span>';
+                if (r.matched_sale_preview != null && r.matched_sale_preview !== '') {
+                    bits +=
+                        ' <span class="badge text-bg-' +
+                        (r.sale_match_ok === false ? 'warning' : 'light') +
+                        ' border">' +
+                        esc(r.matched_sale_preview) +
+                        '</span>';
+                }
                 return '<td class="small">' + bits + '</td>';
             },
             rowHaystack: bulkImportRowHaystack,
@@ -1454,6 +1466,9 @@
                 txt += '\n\nImported: ' + (data.imported || 0);
                 txt += afterPendingImportSaved(data, { scroll: !!(data.pending_rows_saved) });
                 if (data.duplicates_skipped) txt += '\nAlready imported (skipped): ' + data.duplicates_skipped;
+                if (data.skipped_no_matching_sale)
+                    txt +=
+                        '\nSkipped (no matching sale): ' + data.skipped_no_matching_sale;
                 if (data.job_id) txt += '\nJob #' + data.job_id;
                 if (data.error_count) txt += '\nRow errors: ' + data.error_count;
                 $('#bulk-import-result').removeClass('d-none').text(txt);
@@ -1489,8 +1504,15 @@
             }
         });
 
+        function syncBulkImportRefundNote() {
+            var kind = $('#bulk-import-kind').val();
+            var isRefund = kind === 'return_adjustment' || kind === 'refunds';
+            $('#bulk-import-refund-sale-match-note').toggleClass('d-none', !isRefund);
+        }
+        $('#bulk-import-kind').on('change', syncBulkImportRefundNote);
         $('#bulk-import-multi').on('change', syncBulkImportMultiUi);
         syncBulkImportMultiUi();
+        syncBulkImportRefundNote();
 
         $('#bulk-import-template-btn').on('click', async function() {
             var kind = $('#bulk-import-kind').val();
@@ -1532,9 +1554,12 @@
                 var prev = await API.adminBulkImportPreview(kind, f, { multi: multi, userId: targetId });
                 $('#bulk-import-preview-wrap').removeClass('d-none');
                 var isSold = kind === 'sold';
+                var isRefund = kind === 'return_adjustment' || kind === 'refunds';
+                $('#bulk-import-refund-sale-match-note').toggleClass('d-none', !isRefund);
                 $('#bulk-import-preview-thead').html(
                     '<tr><th>Line</th><th>OK</th><th>Client</th>' +
                         (isSold ? '<th>Sold date</th>' : '') +
+                        (isRefund ? '<th>Matched sale</th>' : '') +
                         '<th>Warnings / error</th><th>Row</th></tr>'
                 );
                 var $tb = $('#bulk-import-preview-tbody').empty();
@@ -1549,6 +1574,14 @@
                     if (isSold) {
                         var sd = r.sold_date_preview != null && r.sold_date_preview !== '' ? r.sold_date_preview : '—';
                         soldCell = '</td><td class="small text-nowrap">' + escapeHtml(sd);
+                    }
+                    var matchCell = '';
+                    if (isRefund) {
+                        var ms =
+                            r.matched_sale_preview != null && r.matched_sale_preview !== ''
+                                ? r.matched_sale_preview
+                                : '—';
+                        matchCell = '</td><td class="small text-nowrap">' + escapeHtml(ms);
                     }
                     var issue =
                         r.warnings && r.warnings.length
@@ -1565,6 +1598,7 @@
                             '</td><td class="small">' +
                             client +
                             soldCell +
+                            matchCell +
                             '</td><td class="small">' +
                             issue +
                             '</td><td class="small">' +
@@ -1670,6 +1704,11 @@
                       })
                     : await API.adminBulkImportUser(targetId, kind, f);
                 var txt = 'Imported ' + (data.imported || 0) + ' row(s).';
+                if (data.skipped_no_matching_sale)
+                    txt +=
+                        ' Skipped ' +
+                        data.skipped_no_matching_sale +
+                        ' refund row(s) with no matching sale on the dashboard.';
                 if (data.pending_rows_saved)
                     txt += ' Saved ' + data.pending_rows_saved + ' row(s) to Pending imports (missing / unknown Client ID).';
                 if (data.job_id) txt += ' Job #' + data.job_id + ' (you can Undo from Recent imports).';

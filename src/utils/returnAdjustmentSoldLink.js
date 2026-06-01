@@ -233,6 +233,70 @@ function resolveRelinkedSoldItemId(db, userId, adjustment) {
     return next != null && Number.isFinite(next) && next > 0 ? next : null;
 }
 
+/** When true, refunds may import without a matching sold_items row (legacy behaviour). */
+function allowOrphanRefundImport() {
+    const v = process.env.RETURNPAL_ALLOW_ORPHAN_REFUND_IMPORT;
+    return v === '1' || String(v).toLowerCase() === 'true';
+}
+
+/**
+ * @param {Record<string, unknown>} row
+ * @returns {string}
+ */
+function noMatchingSaleImportMessage(row) {
+    const onum = String(row.order_number || '').trim();
+    const product = String(row.product || '').trim();
+    let msg = 'No matching sale on dashboard';
+    if (onum) msg += ` for order ${onum}`;
+    if (product) {
+        const slice = product.length > 60 ? product.slice(0, 60) + '…' : product;
+        msg += ` (${slice})`;
+    }
+    msg += ' — import the sale first or set linked_sold_item_id';
+    return msg;
+}
+
+/**
+ * Resolve sale link for refund import/preview. Requires a dashboard sale unless RETURNPAL_ALLOW_ORPHAN_REFUND_IMPORT=1.
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {Record<string, unknown>} row
+ * @returns {{ linkedSoldItemId: number|null, matched: boolean, matchSource: string }}
+ */
+function resolveReturnAdjustmentImportLink(db, userId, row) {
+    const uid = parseInt(userId, 10);
+    if (!Number.isFinite(uid) || uid < 1) {
+        return { linkedSoldItemId: null, matched: false, matchSource: 'invalid_user' };
+    }
+
+    const explicitRaw = row.linked_sold_item_id;
+    if (explicitRaw != null && explicitRaw !== '') {
+        const parsed = parseInt(explicitRaw, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+            const sold = getSoldItemById(db, uid, parsed);
+            if (sold) {
+                return { linkedSoldItemId: parsed, matched: true, matchSource: 'explicit' };
+            }
+            return { linkedSoldItemId: null, matched: false, matchSource: 'explicit_invalid' };
+        }
+    }
+
+    const onum = String(row.order_number || '').trim().slice(0, 200);
+    const product = String(row.product || '').trim();
+    const reference = String(row.reference || '').trim();
+    const linked = findLinkedSoldItemId(db, uid, { orderNumber: onum, product, reference });
+
+    if (linked) {
+        return { linkedSoldItemId: linked, matched: true, matchSource: 'auto' };
+    }
+
+    if (allowOrphanRefundImport()) {
+        return { linkedSoldItemId: null, matched: true, matchSource: 'orphan_allowed' };
+    }
+
+    return { linkedSoldItemId: null, matched: false, matchSource: 'none' };
+}
+
 module.exports = {
     normalizeProductKey,
     productTokens,
@@ -243,5 +307,8 @@ module.exports = {
     getSoldItemById,
     isReturnAdjustmentLinkPlausible,
     resolveRelinkedSoldItemId,
+    allowOrphanRefundImport,
+    noMatchingSaleImportMessage,
+    resolveReturnAdjustmentImportLink,
     parseResults,
 };

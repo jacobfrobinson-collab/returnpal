@@ -87,7 +87,12 @@
         }
         if (filter === 'imported') return !!r.already_imported;
         if (filter === 'needs') return !resolveClientLocally(r.client_id) && !r.already_imported;
-        if (filter === 'ready') return !!resolveClientLocally(r.client_id) && !r.already_imported;
+        if (filter === 'ready') {
+            if (r.already_imported) return false;
+            if (!resolveClientLocally(r.client_id)) return false;
+            if (r.sale_match_ok === false) return false;
+            return true;
+        }
         return true;
     };
 
@@ -142,12 +147,26 @@
             }
             return;
         }
+        if (row && row.sale_match_ok === false) {
+            $m.html(
+                '<span class="text-danger">' +
+                    escapeHtml(row.sale_match_error || 'No matching sale on dashboard — import the sale first') +
+                    '</span>'
+            );
+            return;
+        }
+        var saleNote =
+            row && row.matched_sale_preview && row.matched_sale_preview !== '—'
+                ? ' Matched sale ' + escapeHtml(row.matched_sale_preview) + '.'
+                : '';
         $m.html(
             '<span class="text-success">Ready — ' +
                 escapeHtml(u.full_name || u.email || 'Client') +
                 ' <span class="text-muted">(ID ' +
                 String(u.id).padStart(4, '0') +
-                ')</span>. Shown under <strong>Ready to import</strong>.</span>'
+                ')</span>.' +
+                saleNote +
+                ' Shown under <strong>Ready to import</strong>.</span>'
         );
     };
 
@@ -402,7 +421,7 @@
         var needs = 0;
         rows.forEach(function (r) {
             if (r.already_imported) already++;
-            else if (resolveClientLocally(r.client_id)) ready++;
+            else if (resolveClientLocally(r.client_id) && r.sale_match_ok !== false) ready++;
             else needs++;
         });
         if (!this.cfg.onImport) return alert('Import not configured.');
