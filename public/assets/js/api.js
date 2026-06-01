@@ -1342,6 +1342,13 @@ const API = {
         return this.request('/queries');
     },
 
+    async clientReplyToQuery(queryId, message) {
+        return this.request('/queries/' + encodeURIComponent(queryId) + '/messages', {
+            method: 'POST',
+            body: { message },
+        });
+    },
+
     async submitQuery(body) {
         return this.request('/queries', { method: 'POST', body });
     },

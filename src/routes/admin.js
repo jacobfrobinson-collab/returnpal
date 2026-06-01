@@ -780,21 +780,12 @@ router.post('/impersonate/:id', async (req, res) => {
     }
 });
 
-// GET /api/admin/queries — open client item queries
+// GET /api/admin/queries — threads waiting on ReturnPal (client spoke last)
 router.get('/queries', async (req, res) => {
     try {
-        const db = await getDb();
-        const rows = parseResults(
-            db.exec(
-                `SELECT q.id, q.user_id, q.context_type, q.context_id, q.context_label, q.message, q.status, q.created_at,
-                        u.email, u.full_name
-                 FROM item_queries q
-                 JOIN users u ON u.id = q.user_id
-                 WHERE q.status = 'open'
-                 ORDER BY q.created_at DESC`
-            )
-        );
-        res.json({ queries: rows });
+        const db = await dbForAdminRead();
+        const { listOpenQueriesForAdmin } = require('../utils/itemQueryThread');
+        res.json({ queries: listOpenQueriesForAdmin(db) });
     } catch (err) {
         console.error('Admin list queries error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -1691,7 +1682,7 @@ router.post('/bulk-import-multi', bulkSpreadsheetUpload.single('file'), async (r
     }
 });
 
-// PUT /api/admin/queries/:id/reply — reply to client query
+// PUT /api/admin/queries/:id/reply — admin message in thread (stays open for client follow-up)
 router.put('/queries/:id/reply', async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
@@ -1700,20 +1691,29 @@ router.put('/queries/:id/reply', async (req, res) => {
             return res.status(400).json({ error: 'Reply is required.' });
         }
         const db = await getDb();
-        const rows = parseResults(db.exec('SELECT user_id, context_label FROM item_queries WHERE id = ?', [id]));
-        if (!rows.length) return res.status(404).json({ error: 'Query not found' });
-        db.run(
-            "UPDATE item_queries SET admin_reply = ?, replied_at = datetime('now'), status = 'closed' WHERE id = ?",
-            [reply, id]
+        const { appendQueryMessage } = require('../utils/itemQueryThread');
+        const rows = parseResults(
+            db.exec(
+                `SELECT user_id, context_label, status, COALESCE(last_sender, 'client') AS last_sender
+                 FROM item_queries WHERE id = ?`,
+                [id]
+            )
         );
+        if (!rows.length) return res.status(404).json({ error: 'Query not found' });
+        if (String(rows[0].status) !== 'open') {
+            return res.status(400).json({ error: 'This conversation is not open.' });
+        }
+        appendQueryMessage(db, id, 'admin', reply);
         saveDb();
         await pushActivity(
             rows[0].user_id,
             'info',
-            'ReturnPal replied to your question' + (rows[0].context_label ? ': ' + String(rows[0].context_label).slice(0, 60) : '') + '.',
+            'ReturnPal replied to your question' +
+                (rows[0].context_label ? ': ' + String(rows[0].context_label).slice(0, 60) : '') +
+                '. You can reply again on My queries if you need to.',
             '/dashboard/queries.html'
         );
-        res.json({ message: 'Reply sent' });
+        res.json({ message: 'Reply sent — client can follow up on this thread.' });
     } catch (err) {
         console.error('Admin query reply error:', err);
         res.status(500).json({ error: 'Server error' });

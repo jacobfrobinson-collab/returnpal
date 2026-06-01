@@ -460,6 +460,28 @@ async function getDb() {
     } catch (e) {
         /* exists */
     }
+    try {
+        db.run("ALTER TABLE item_queries ADD COLUMN last_sender TEXT DEFAULT 'client'");
+    } catch (e) {
+        /* exists */
+    }
+    try {
+        db.run("ALTER TABLE item_queries ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))");
+    } catch (e) {
+        /* exists */
+    }
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS item_query_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query_id INTEGER NOT NULL,
+            sender_role TEXT NOT NULL CHECK(sender_role IN ('client', 'admin')),
+            body TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (query_id) REFERENCES item_queries(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_item_query_messages_query ON item_query_messages(query_id)');
 
     db.run(`
         CREATE TABLE IF NOT EXISTS announcements (

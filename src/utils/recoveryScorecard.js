@@ -66,7 +66,11 @@ function getRecoveryScorecard(db, userId, periodYm) {
     );
 
     const openQueries = parseResults(
-        db.exec(`SELECT COUNT(*) AS c FROM item_queries WHERE user_id = ? AND status = 'open'`, [userId])
+        db.exec(
+            `SELECT COUNT(*) AS c FROM item_queries
+             WHERE user_id = ? AND status = 'open' AND COALESCE(last_sender, 'client') = 'client'`,
+            [userId]
+        )
     );
 
     const payoutAmount = inv ? Number(inv.amount) || 0 : 0;

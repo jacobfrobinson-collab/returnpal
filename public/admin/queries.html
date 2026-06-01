@@ -26,8 +26,8 @@
     </header>
     <div class="container-fluid">
         <p class="text-muted small mb-3">
-            Type your reply below and click <strong>Send reply</strong>. The client sees it on
-            <strong>Dashboard → My queries</strong> and gets an activity notification. The query is marked closed.
+            Reply below to continue the conversation. The client can send follow-ups on
+            <strong>Dashboard → My queries</strong>; the thread returns here when they message again.
         </p>
         <div id="msg" class="text-muted py-4 text-center">Loading…</div>
         <div class="d-none" id="wrap">
@@ -38,7 +38,7 @@
                             <th>When</th>
                             <th>Client</th>
                             <th>Context</th>
-                            <th>Message</th>
+                            <th>Conversation</th>
                             <th style="min-width: 280px">Your reply</th>
                         </tr>
                     </thead>
@@ -96,12 +96,29 @@
                             (r.context_label
                                 ? '<div class="text-muted">' + esc(r.context_label) + '</div>'
                                 : '');
+                        var msgs =
+                            Array.isArray(r.messages) && r.messages.length
+                                ? r.messages
+                                : [{ sender_role: 'client', body: r.message, created_at: r.created_at }];
+                        var thread = '';
+                        msgs.forEach(function(m) {
+                            var isAdmin = m.sender_role === 'admin';
+                            thread +=
+                                '<div class="p-2 rounded mb-1 ' +
+                                (isAdmin ? 'bg-success-subtle' : 'bg-light') +
+                                '"><strong class="small">' +
+                                (isAdmin ? 'ReturnPal' : 'Client') +
+                                '</strong>' +
+                                '<div class="small">' +
+                                esc(m.body) +
+                                '</div></div>';
+                        });
                         var row =
                             '<tr data-query-id="' +
                             esc(String(r.id)) +
                             '">' +
                             '<td class="text-nowrap small">' +
-                            esc(r.created_at) +
+                            esc(r.updated_at || r.created_at) +
                             '</td>' +
                             '<td><div>' +
                             esc(r.full_name) +
@@ -111,8 +128,8 @@
                             '<td class="small">' +
                             ctx +
                             '</td>' +
-                            '<td class="small">' +
-                            esc(r.message) +
+                            '<td class="small" style="min-width:200px;max-width:320px">' +
+                            thread +
                             '</td>' +
                             '<td class="query-reply-box">' +
                             '<textarea class="form-control form-control-sm mb-2 query-reply-input" rows="3" placeholder="Write your reply to the client…"></textarea>' +
@@ -146,16 +163,7 @@
             $btn.prop('disabled', true).text('Sending…');
             API.adminReplyToQuery(id, reply)
                 .then(function() {
-                    $tr.fadeOut(200, function() {
-                        $(this).remove();
-                        if (!$('#tbody tr').length) {
-                            $('#wrap').addClass('d-none');
-                            $('#msg')
-                                .removeClass('d-none text-danger')
-                                .addClass('text-muted')
-                                .text('No open queries.');
-                        }
-                    });
+                    loadQueries();
                 })
                 .catch(function(e) {
                     $err.removeClass('d-none').text((e && e.error) || 'Send failed');

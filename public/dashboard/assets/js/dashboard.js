@@ -3327,11 +3327,16 @@ const Dashboard = {
             const data = await API.getQueries();
             const list = data.queries || [];
             const seenAt = localStorage.getItem('returnpal_queries_seen_at') || '';
-            const newReplies = list.filter(
-                (q) =>
-                    String(q.admin_reply || '').trim() &&
-                    (!seenAt || String(q.replied_at || '') > seenAt)
-            );
+            const newReplies = list.filter((q) => {
+                const msgs = Array.isArray(q.messages) ? q.messages : [];
+                const adminMsgs = msgs.filter((m) => m && m.sender_role === 'admin');
+                const lastAdmin = adminMsgs.length ? adminMsgs[adminMsgs.length - 1] : null;
+                if (!lastAdmin && String(q.admin_reply || '').trim()) {
+                    return !seenAt || String(q.replied_at || '') > seenAt;
+                }
+                if (!lastAdmin) return false;
+                return !seenAt || String(lastAdmin.created_at || '') > seenAt;
+            });
             if (newReplies.length) {
                 const $banner = $('#queries-reply-banner');
                 if ($banner.length) {
@@ -3351,19 +3356,56 @@ const Dashboard = {
             } else {
                 let html = '<div class="list-group list-group-flush">';
                 list.forEach(function(q) {
-                    const replied = q.admin_reply && String(q.admin_reply).trim();
+                    const msgs =
+                        Array.isArray(q.messages) && q.messages.length
+                            ? q.messages
+                            : [{ sender_role: 'client', body: q.message || '', created_at: q.created_at }];
+                    const updatedLabel = q.updated_at || q.created_at;
                     html +=
-                        '<div class="list-group-item px-0 py-3 border-bottom">' +
-                        '<div class="d-flex justify-content-between flex-wrap gap-2 mb-1">' +
-                        '<span class="badge bg-light text-dark">' + self.escHtml(q.context_label || q.context_type || 'General') + '</span>' +
-                        '<small class="text-muted">' + (q.created_at ? RP_DATE.formatOrdinalEnGb(q.created_at) : '') + '</small></div>' +
-                        '<p class="mb-2 small">' + self.escHtml(q.message || '') + '</p>' +
-                        (replied
-                            ? '<div class="p-2 rounded bg-success-subtle"><strong class="small">ReturnPal reply</strong>' +
-                              (q.replied_at ? ' <small class="text-muted">· ' + RP_DATE.formatOrdinalEnGb(q.replied_at) + '</small>' : '') +
-                              '<p class="mb-0 small mt-1">' + self.escHtml(q.admin_reply) + '</p></div>'
-                            : '<span class="badge bg-warning-subtle text-warning">Awaiting reply</span>') +
-                        '</div>';
+                        '<div class="list-group-item px-0 py-3 border-bottom" data-query-id="' +
+                        self.escHtml(String(q.id)) +
+                        '">' +
+                        '<div class="d-flex justify-content-between flex-wrap gap-2 mb-2">' +
+                        '<span class="badge bg-light text-dark">' +
+                        self.escHtml(q.context_label || q.context_type || 'General') +
+                        '</span>' +
+                        '<small class="text-muted">' +
+                        (updatedLabel && typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb
+                            ? RP_DATE.formatOrdinalEnGb(updatedLabel)
+                            : '') +
+                        '</small></div>';
+                    msgs.forEach(function(m) {
+                        const isAdmin = m.sender_role === 'admin';
+                        const when =
+                            m.created_at && typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb
+                                ? RP_DATE.formatOrdinalEnGb(m.created_at)
+                                : '';
+                        html +=
+                            '<div class="p-2 rounded mb-2 ' +
+                            (isAdmin ? 'bg-success-subtle' : 'bg-light') +
+                            '">' +
+                            '<strong class="small">' +
+                            (isAdmin ? 'ReturnPal' : 'You') +
+                            '</strong>' +
+                            (when ? ' <small class="text-muted">· ' + self.escHtml(when) + '</small>' : '') +
+                            '<p class="mb-0 small mt-1">' +
+                            self.escHtml(m.body || '') +
+                            '</p></div>';
+                    });
+                    if (q.can_client_reply) {
+                        html +=
+                            '<form class="query-followup-form mt-2" data-query-id="' +
+                            self.escHtml(String(q.id)) +
+                            '">' +
+                            '<label class="form-label small mb-1">Your follow-up</label>' +
+                            '<textarea class="form-control form-control-sm mb-2 query-followup-input" rows="2" minlength="5" placeholder="Add more detail or ask a follow-up question…" required></textarea>' +
+                            '<button type="submit" class="btn btn-primary btn-sm">Send follow-up</button>' +
+                            '</form>';
+                    } else if (String(q.last_sender || 'client') === 'client') {
+                        html +=
+                            '<span class="badge bg-warning-subtle text-warning">Awaiting reply from ReturnPal</span>';
+                    }
+                    html += '</div>';
                 });
                 html += '</div>';
                 $inbox.html(html);
@@ -3393,6 +3435,26 @@ const Dashboard = {
                     Dashboard.loadQueries();
                 } catch (err2) {
                     alert((err2 && err2.error) || err2.message || 'Failed to send');
+                }
+            });
+
+        $inbox
+            .off('submit', '.query-followup-form')
+            .on('submit', '.query-followup-form', async function(e) {
+                e.preventDefault();
+                const $form = $(this);
+                const qid = $form.data('query-id');
+                const msg = ($form.find('.query-followup-input').val() || '').trim();
+                if (msg.length < 5) return alert('Please enter at least 5 characters.');
+                const $btn = $form.find('button[type="submit"]');
+                $btn.prop('disabled', true);
+                try {
+                    await API.clientReplyToQuery(qid, msg);
+                    Dashboard.showToast('Follow-up sent');
+                    Dashboard.loadQueries();
+                } catch (err2) {
+                    alert((err2 && err2.error) || err2.message || 'Failed to send');
+                    $btn.prop('disabled', false);
                 }
             });
     },
