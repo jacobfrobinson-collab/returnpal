@@ -1415,15 +1415,37 @@ const API = {
     },
     _getInventorySummaryMock() {
         return {
+            packages_sent: 52,
+            pipeline: { sent: 52, received: 45, processing: 5, listing: 4, ready: 3, sold: 89 },
+            pipeline_hints: [],
             items_received: 45,
             items_processing: 12,
             items_sold: 89,
             awaiting_inspection: 5,
             awaiting_listing: 7,
-            estimated_resale_value: 2840,
-            recovered_so_far: 687003.92,
-            potential_remaining_value: 1200,
-            stage_breakdown: { inspection: 5, listing: 7, listed: 12, sold: 89, storage: 3 }
+            recovered_profit: 2840.5,
+            recovered_revenue: 12000,
+            recovered_so_far: 12000,
+            sell_through_pct: 0.89,
+            estimated_pipeline_value: 2400,
+            estimated_resale_value: 2400,
+            potential_remaining_value: 400,
+            stage_breakdown: { inspection: 5, listing: 7, listed: 12, sold: 89, storage: 3 },
+            attention_items: [
+                { id: 1, product: 'Sample pending item', current_stage: 'Listing', days_in_stage: 4 },
+            ],
+            recent_sold: [
+                {
+                    id: 10,
+                    product: 'Mock sold item',
+                    sold_date: '2026-01-15',
+                    sold_date_label: 'January 15th 2026',
+                    profit: 42.5,
+                },
+            ],
+            user_return_categories: [
+                { name: 'Electronics & Gaming', refund_count: 5, refund_total: 120.5 },
+            ],
         };
     },
     _getInventoryRefundInsightsMock() {

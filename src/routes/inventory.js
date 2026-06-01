@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { buildInventorySummaryPayload } = require('../utils/inventorySummary');
 const {
     rebuildRefundInsightsCache,
     getRefundInsightsFromCache,
@@ -23,63 +24,15 @@ function parseResults(result) {
 router.get('/summary', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
-        const userId = req.user.id;
-
-        const receivedCount = parseResults(
-            db.exec('SELECT COUNT(*) as c FROM received_items WHERE user_id = ?', [userId])
-        );
-        const soldCount = parseResults(
-            db.exec('SELECT COUNT(*) as c FROM sold_items WHERE user_id = ?', [userId])
-        );
-        const pendingCount = parseResults(
-            db.exec('SELECT COUNT(*) as c FROM pending_items WHERE user_id = ?', [userId])
-        );
-        const recoveredSum = parseResults(
-            db.exec('SELECT COALESCE(SUM(total_revenue), 0) as total FROM sold_items WHERE user_id = ?', [userId])
-        );
-
-        const pendingByStage = parseResults(
-            db.exec(
-                `SELECT current_stage, COUNT(*) as c FROM pending_items WHERE user_id = ? GROUP BY current_stage`,
-                [userId]
-            )
-        );
-        const stageMap = { 'Initial Inspection': 'inspection', 'Quality Check': 'inspection', 'Return Verification': 'inspection', 'Listing': 'listing', 'Ready for Sale': 'listed' };
-        const stage_breakdown = { inspection: 0, listing: 0, listed: 0, sold: soldCount[0]?.c || 0, storage: 0 };
-        pendingByStage.forEach(row => {
-            const key = stageMap[row.current_stage] || 'storage';
-            if (key in stage_breakdown) stage_breakdown[key] += row.c || 0;
-            else stage_breakdown.storage += row.c || 0;
-        });
-
-        const items_received = receivedCount[0]?.c || 0;
-        const items_processing = pendingCount[0]?.c || 0;
-        const items_sold = soldCount[0]?.c || 0;
-        const recovered_so_far = recoveredSum[0]?.total || 0;
-        const awaiting_inspection = stage_breakdown.inspection || 0;
-        const awaiting_listing = stage_breakdown.listing || 0;
-        const estimated_resale_value = 0;
-        const potential_remaining_value = estimated_resale_value;
-
-        res.json({
-            items_received,
-            items_processing,
-            items_sold,
-            awaiting_inspection,
-            awaiting_listing,
-            estimated_resale_value,
-            recovered_so_far,
-            potential_remaining_value,
-            stage_breakdown
-        });
+        const payload = buildInventorySummaryPayload(db, req.user.id);
+        res.json(payload);
     } catch (err) {
         console.error('Inventory summary error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
-// GET /api/inventory/refund-insights
-// Cross-client view for sourcing decisions: top refunded categories/products.
+// GET /api/inventory/refund-insights — admin / global cache (not used on client inventory hub)
 router.get('/refund-insights', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
@@ -98,7 +51,6 @@ router.get('/refund-insights', authMiddleware, async (req, res) => {
 });
 
 // POST /api/inventory/import — bulk intake lines from client CSV (parsed in browser)
-// Body: { rows: [{ sku?, product, quantity?, reference? }, ...] }
 router.post('/import', authMiddleware, async (req, res) => {
     try {
         const rows = req.body.rows;

@@ -3706,69 +3706,290 @@ const Dashboard = {
     },
 
     // ─── INVENTORY PAGE ───────────────────────────────────────
+    _invEsc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    },
+
+    _renderInventoryPipeline(data) {
+        const p = data.pipeline || {};
+        const stages = [
+            {
+                key: 'sent',
+                label: 'Packages sent',
+                sub: 'Shipped to ReturnPal',
+                icon: 'ri-box-3-line',
+                href: 'packages.html',
+                count: Number(p.sent) || 0,
+                empty: 'No packages logged yet — add one to start tracking intake.',
+            },
+            {
+                key: 'received',
+                label: 'Received',
+                sub: 'Intake logged',
+                icon: 'ri-import-line',
+                href: 'received.html',
+                count: Number(p.received) || 0,
+                empty: 'Nothing received yet — log intake when stock arrives.',
+            },
+            {
+                key: 'processing',
+                label: 'Processing',
+                sub: 'Inspection & prep',
+                icon: 'ri-time-line',
+                href: 'item-pending.html',
+                count: Number(p.processing) || 0,
+                empty: 'No items in processing.',
+            },
+            {
+                key: 'listing',
+                label: 'Listing',
+                sub: 'Ready / listed',
+                icon: 'ri-store-2-line',
+                href: 'item-pending.html',
+                count: (Number(p.listing) || 0) + (Number(p.ready) || 0),
+                empty: 'No items in listing stages.',
+            },
+            {
+                key: 'sold',
+                label: 'Sold',
+                sub: 'Completed sales',
+                icon: 'ri-shopping-bag-3-line',
+                href: 'sold-items.html',
+                count: Number(p.sold) || 0,
+                empty: 'No sales recorded yet.',
+            },
+        ];
+        const journeyTotal = stages.reduce((sum, s) => sum + s.count, 0) || 1;
+        const html = stages
+            .map((s) => {
+                const pct = Math.round((s.count / journeyTotal) * 100);
+                const sub =
+                    s.count === 0 && journeyTotal <= 1
+                        ? s.empty
+                        : s.count + ' · ' + pct + '% of journey';
+                return (
+                    '<a class="inv-pipeline-stage" href="' +
+                    s.href +
+                    '" title="Open ' +
+                    this._invEsc(s.label) +
+                    '">' +
+                    '<div class="inv-pipeline-stage-inner">' +
+                    '<i class="inv-pipeline-icon ' +
+                    s.icon +
+                    '"></i>' +
+                    '<div class="inv-pipeline-count">' +
+                    s.count +
+                    '</div>' +
+                    '<div class="inv-pipeline-label">' +
+                    this._invEsc(s.label) +
+                    '</div>' +
+                    '<div class="inv-pipeline-sub">' +
+                    this._invEsc(sub) +
+                    '</div>' +
+                    '<div class="inv-pipeline-bar"><div class="inv-pipeline-bar-fill" style="width:' +
+                    pct +
+                    '%"></div></div>' +
+                    '</div></a>'
+                );
+            })
+            .join('');
+        $('#inv-pipeline').html(html);
+    },
+
+    _renderInventoryStageBar(data) {
+        const sb = data.stage_breakdown || {};
+        const segments = [
+            { key: 'inspection', label: 'Inspection', cls: 'bg-warning', count: sb.inspection || 0 },
+            { key: 'listing', label: 'Listing', cls: 'bg-info', count: sb.listing || 0 },
+            { key: 'listed', label: 'Listed', cls: 'bg-primary', count: sb.listed || 0 },
+            { key: 'sold', label: 'Sold', cls: 'bg-success', count: sb.sold || 0 },
+            { key: 'storage', label: 'Storage', cls: 'bg-secondary', count: sb.storage || 0 },
+        ];
+        const total = segments.reduce((sum, s) => sum + s.count, 0);
+        const $bar = $('#inventory-stage-bar');
+        const $legend = $('#inventory-stage-legend');
+        if (!$bar.length) return;
+        if (!total) {
+            $bar.html('<p class="text-muted small mb-0">No items in workflow stages right now.</p>');
+            if ($legend.length) $legend.empty();
+            return;
+        }
+        const pct = (v) => Math.round((v / total) * 100);
+        $bar.html(
+            '<div class="progress rounded" style="height:24px">' +
+                segments
+                    .filter((s) => s.count > 0)
+                    .map(
+                        (s) =>
+                            '<div class="progress-bar ' +
+                            s.cls +
+                            ' inv-stage-segment" style="width:' +
+                            pct(s.count) +
+                            '%" data-stage="' +
+                            s.key +
+                            '" title="' +
+                            this._invEsc(s.label) +
+                            '">' +
+                            this._invEsc(s.label) +
+                            '</div>'
+                    )
+                    .join('') +
+                '</div>'
+        );
+        $bar.find('.inv-stage-segment').on('click', () => {
+            window.location.href = 'item-pending.html';
+        });
+        if ($legend.length) {
+            $legend.html(
+                segments
+                    .map(
+                        (s) =>
+                            '<span class="inv-seg-' +
+                            s.key +
+                            '">' +
+                            this._invEsc(s.label) +
+                            ': ' +
+                            s.count +
+                            '</span>'
+                    )
+                    .join('')
+            );
+        }
+    },
+
     async loadInventory() {
-        const $cards = $('#inventory-cards');
-        if (!$cards.length) return;
+        const $hub = $('#inventory-hub');
+        if (!$hub.length) return;
         const $stageBar = $('#inventory-stage-bar');
-        const $topCats = $('#inventory-top-refund-categories');
         if ($stageBar.length) $stageBar.html('<span class="spinner-border spinner-border-sm me-2"></span>Loading…');
+        $('#inv-pipeline-updated').text('Loading…');
         try {
             const data = await API.getInventorySummary();
-            $('#inv-received').text(data.items_received ?? 0);
-            $('#inv-processing').text(data.items_processing ?? 0);
-            $('#inv-sold').text(data.items_sold ?? 0);
-            $('#inv-awaiting-inspection').text(data.awaiting_inspection ?? 0);
-            $('#inv-awaiting-listing').text(data.awaiting_listing ?? 0);
-            $('#inv-est-value').text('£' + Number(data.estimated_resale_value || 0).toFixed(2));
-            $('#inv-recovered').text('£' + Number(data.recovered_so_far || 0).toFixed(2));
-            $('#inv-remaining').text('£' + Number(data.potential_remaining_value || data.estimated_resale_value - data.recovered_so_far || 0).toFixed(2));
-            const sb = data.stage_breakdown || {};
-            const total = (sb.inspection || 0) + (sb.listing || 0) + (sb.listed || 0) + (sb.sold || 0) + (sb.storage || 0) || 1;
-            const pct = v => Math.round((v / total) * 100);
-            const $bar = $('#inventory-stage-bar');
-            if ($bar.length && total) {
-                $bar.html(
-                    '<div class="progress rounded" style="height:24px">' +
-                    '<div class="progress-bar bg-warning" style="width:' + pct(sb.inspection || 0) + '%">Inspection</div>' +
-                    '<div class="progress-bar bg-info" style="width:' + pct(sb.listing || 0) + '%">Listing</div>' +
-                    '<div class="progress-bar bg-primary" style="width:' + pct(sb.listed || 0) + '%">Listed</div>' +
-                    '<div class="progress-bar bg-success" style="width:' + pct(sb.sold || 0) + '%">Sold</div>' +
-                    '<div class="progress-bar bg-secondary" style="width:' + pct(sb.storage || 0) + '%">Storage</div>' +
-                    '</div>'
+
+            const hints = Array.isArray(data.pipeline_hints) ? data.pipeline_hints : [];
+            const $hints = $('#inv-hints');
+            if (hints.length) {
+                $hints.removeClass('d-none').html(hints.map((h) => this._invEsc(h)).join('<br>'));
+            } else {
+                $hints.addClass('d-none').empty();
+            }
+
+            this._renderInventoryPipeline(data);
+            $('#inv-pipeline-updated').text('Updated just now');
+
+            const profit = Number(data.recovered_profit) || 0;
+            $('#inv-kpi-profit').text('£' + profit.toFixed(2));
+            const st = Number(data.sell_through_pct);
+            $('#inv-kpi-sellthrough').text(
+                Number.isFinite(st) ? Math.round(st * 100) + '%' : '—'
+            );
+            const recv = Number(data.items_received) || 0;
+            const sent = Number(data.packages_sent) || 0;
+            $('#inv-kpi-sellthrough-sub').text(
+                recv > 0
+                    ? 'Sold vs received intake'
+                    : sent > 0
+                      ? 'Sold vs packages sent'
+                      : 'Sold items on your account'
+            );
+            $('#inv-kpi-sold').text(String(data.items_sold ?? 0));
+
+            const est = data.estimated_pipeline_value;
+            const $estRow = $('#inv-estimate-row');
+            if (est != null && Number(est) > 0) {
+                $estRow.removeClass('d-none');
+                $('#inv-estimate-value').text('£' + Number(est).toFixed(2));
+                const rem = data.potential_remaining_value;
+                $('#inv-potential-remaining').text(
+                    rem != null ? '£' + Number(rem).toFixed(2) : '—'
+                );
+            } else {
+                $estRow.addClass('d-none');
+            }
+
+            const attention = Array.isArray(data.attention_items) ? data.attention_items : [];
+            const $att = $('#inv-attention-tbody');
+            if (!attention.length) {
+                $att.html(
+                    '<tr><td colspan="3" class="text-muted small p-3">Nothing needs attention — no open pending items.</td></tr>'
+                );
+            } else {
+                $att.html(
+                    attention
+                        .map((row) => {
+                            const days =
+                                row.days_in_stage != null ? String(row.days_in_stage) : '—';
+                            return (
+                                '<tr><td>' +
+                                this._invEsc(row.product || '—') +
+                                '</td><td><span class="badge bg-light text-dark">' +
+                                this._invEsc(row.current_stage || '—') +
+                                '</span></td><td class="text-end">' +
+                                days +
+                                '</td></tr>'
+                            );
+                        })
+                        .join('')
                 );
             }
 
-            if ($topCats.length) {
-                const esc = (s) => String(s == null ? '' : s)
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#039;');
-                try {
-                    const insights = await API.getInventoryRefundInsights();
-                    const categories = Array.isArray(insights.top_categories) ? insights.top_categories : [];
+            const recent = Array.isArray(data.recent_sold) ? data.recent_sold : [];
+            const $recent = $('#inv-recent-sold-tbody');
+            if (!recent.length) {
+                $recent.html(
+                    '<tr><td colspan="3" class="text-muted small p-3">No sold items yet.</td></tr>'
+                );
+            } else {
+                $recent.html(
+                    recent
+                        .map((row) => {
+                            const lab = this.soldDateDisplayValue(row);
+                            const p = Number(row.profit) || 0;
+                            return (
+                                '<tr><td>' +
+                                this._invEsc(row.product || '—') +
+                                '</td><td class="small">' +
+                                this._invEsc(lab) +
+                                '</td><td class="text-end text-success">£' +
+                                p.toFixed(2) +
+                                '</td></tr>'
+                            );
+                        })
+                        .join('')
+                );
+            }
 
-                    if (!categories.length) {
-                        $topCats.html('<tr><td colspan="2" class="text-muted small">No category data yet.</td></tr>');
-                    } else {
-                        $topCats.html(categories.map((c) =>
-                            {
-                                const subs = Array.isArray(c.subcategories) ? c.subcategories : [];
-                                const subTxt = subs.length ? subs.join(', ') : 'General';
-                                return (
-                            '<tr>' +
-                            '<td>' + esc(c.name) + '</td>' +
-                            '<td>' + esc(subTxt) + '</td>' +
-                            '</tr>'
-                                );
-                            }
-                        ).join(''));
-                    }
+            this._renderInventoryStageBar(data);
 
-                } catch (insightErr) {
-                    $topCats.html('<tr><td colspan="2" class="text-muted small">Unable to load category insights.</td></tr>');
-                    console.error('Load inventory refund insights error:', insightErr);
+            const $userCats = $('#inventory-user-returns');
+            const categories = Array.isArray(data.user_return_categories)
+                ? data.user_return_categories
+                : [];
+            if ($userCats.length) {
+                if (!categories.length) {
+                    $userCats.html(
+                        '<tr><td colspan="3" class="text-muted small">No return adjustments on your account yet.</td></tr>'
+                    );
+                } else {
+                    $userCats.html(
+                        categories
+                            .map(
+                                (c) =>
+                                    '<tr><td>' +
+                                    this._invEsc(c.name) +
+                                    '</td><td class="text-end">' +
+                                    (c.refund_count ?? 0) +
+                                    '</td><td class="text-end">£' +
+                                    Number(c.refund_total || 0).toFixed(2) +
+                                    '</td></tr>'
+                            )
+                            .join('')
+                    );
                 }
             }
 

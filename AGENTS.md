@@ -21,6 +21,15 @@ Production `sold_items.sold_date` is **calendar `YYYY-MM-DD`** (migrated 2026-06
 - Legacy read exists only for `RETURNPAL_SOLD_DATES_LEGACY=1` (unmigrated local DB) and `scripts/migrate-sold-dates-to-calendar.js`.
 - Before changing sold-date display, run `node test/sold-display-invariant.test.js`.
 
+## Inventory hub metrics
+
+The client [inventory.html](public/dashboard/inventory.html) must render **only** from `GET /api/inventory/summary` (`buildInventorySummaryPayload`):
+
+- Pipeline counts, profit recovered, sell-through, estimates, and attention lists come from the API — **do not** recompute financial fields (e.g. `estimated - recovered`) in `loadInventory` or similar.
+- Use `sold_date_label` on `recent_sold` rows; do not re-parse sold dates in the browser.
+- Per-user return categories use `user_return_categories` on the summary — not the global `refund-insights` cache.
+- Run `node test/inventory-summary.test.js` when changing inventory summary logic.
+
 ## Production environment
 
 Document signup and secrets in repo templates only — never commit real `.env` files:
