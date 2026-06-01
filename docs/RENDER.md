@@ -28,11 +28,7 @@ Set env (match your disk mount + file name):
 DB_PATH=/var/lib/returnpal/data/returnpal.db
 ```
 
-After `migrate-sold-dates --apply`:
-
-```env
-RETURNPAL_SOLD_DATES_CANONICAL=1
-```
+After `migrate-sold-dates --apply`, redeploy. Do **not** set `RETURNPAL_SOLD_DATES_LEGACY=1` on production.
 
 ## 3. Environment variables (Production)
 
@@ -48,7 +44,7 @@ Dashboard → **Environment**.
 | `JWT_SECRET` | long random string | Edit or add if missing |
 | `FRONTEND_URL` | `https://www.returnpal.co.uk` | Edit existing row |
 | `DB_PATH` | `/var/lib/returnpal/data/returnpal.db` | Edit or add *(must match disk mount)* |
-| `RETURNPAL_SOLD_DATES_CANONICAL` | `1` | Add **after** sold-date migration |
+| `RETURNPAL_SOLD_DATES_LEGACY` | *(omit on production)* | Only `1` for unmigrated local DB |
 
 ### Signup protection (recommended)
 

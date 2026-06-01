@@ -1401,49 +1401,26 @@ const Dashboard = {
         return RP_DATE.formatIso(dateStr);
     },
 
-    /** Sold list date: API label first; legacy client parse only pre-migration. */
+    /** Sold list date: server-computed sold_date_label only (do not re-parse on the client). */
     soldDateDisplayValue(item) {
         const apiLab = item && item.sold_date_label && String(item.sold_date_label).trim();
         if (apiLab) return apiLab;
-        if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem) {
-            const lab = RP_SOLD_ISO.labelForSoldItem(item);
+        const iso =
+            item && item.sold_date_display && String(item.sold_date_display).trim()
+                ? item.sold_date_display
+                : item && item.sold_date;
+        if (iso && typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb) {
+            const lab = RP_DATE.formatOrdinalEnGb(iso);
             if (lab && lab !== '-') return lab;
         }
-        return this.formatDate(item.sold_date_stored || item.sold_date);
-    },
-
-    /** Re-apply display labels on sold rows (pre-migration only; breaks calendar DB if used after migrate). */
-    relabelSoldItemsForDisplay(items) {
-        if (!Array.isArray(items)) return items;
-        if (String(typeof window !== 'undefined' && window.RETURNPAL_SOLD_DATES_CANONICAL || '').trim() === '1') {
-            return items;
-        }
-        return items.map((row) => {
-            const label =
-                typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem
-                    ? RP_SOLD_ISO.labelForSoldItem(row)
-                    : '';
-            const iso =
-                typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.sortKeyForSoldItem
-                    ? RP_SOLD_ISO.sortKeyForSoldItem(row)
-                    : '';
-            return {
-                ...row,
-                sold_date_label: label && label !== '-' ? label : row.sold_date_label,
-                sold_date_display: iso || row.sold_date_display,
-                sold_date: iso || row.sold_date,
-            };
-        });
+        return '-';
     },
 
     _soldDateSortKey(item) {
-        if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.sortKeyForSoldItem) {
-            return RP_SOLD_ISO.sortKeyForSoldItem(item);
-        }
         const raw =
-            item.sold_date_display != null && String(item.sold_date_display).trim() !== ''
+            item && item.sold_date_display != null && String(item.sold_date_display).trim() !== ''
                 ? item.sold_date_display
-                : item.sold_date;
+                : item && item.sold_date;
         const iso =
             typeof RP_DATE !== 'undefined' && RP_DATE.stripSoldDateToIsoHead
                 ? RP_DATE.stripSoldDateToIsoHead(raw)
@@ -2480,10 +2457,6 @@ const Dashboard = {
         if ($tbody.length) $tbody.html('<tr><td colspan="6" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getSold();
-            if (data && data.sold_dates_canonical && typeof window !== 'undefined') {
-                window.RETURNPAL_SOLD_DATES_CANONICAL = '1';
-            }
-            if (data && data.items) data.items = this.relabelSoldItemsForDisplay(data.items);
 
             const esc = (s) => String(s == null ? '' : s)
                 .replace(/&/g, '&amp;')

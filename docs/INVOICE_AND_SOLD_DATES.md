@@ -8,17 +8,13 @@
 - Months with **no sales and no applied returns** in that calendar month do not appear as payout rows.
 - A month with **only returns** (no sales) can appear as `refund_only_period`.
 
-## Storage modes
+## Storage (production)
 
-Until you run the migration, production keeps legacy **YYYY-DD-MM** in `sold_items.sold_date` (middle = day, last = month). The app defaults to that encoding for the sold dashboard and invoices.
+`sold_items.sold_date` is **calendar `YYYY-MM-DD`**. The app reads calendar dates by default (`soldDateStorageMode.js`).
 
-After `migrate-sold-dates --apply`, set on the server:
+Only set `RETURNPAL_SOLD_DATES_LEGACY=1` on a machine that still has the **unmigrated** old database (local dev). Do **not** set this on Render after migration.
 
-```bash
-RETURNPAL_SOLD_DATES_CANONICAL=1
-```
-
-Then restart Node. Reads use true calendar `YYYY-MM-DD` only.
+The sold dashboard shows **`sold_date_label` from the API** — the browser must not re-parse dates client-side.
 
 ## Operator runbook
 

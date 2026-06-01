@@ -64,6 +64,18 @@ function withSpringDayRepair(on, fn) {
     }
 }
 
+function withLegacyStorage(fn) {
+    const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DATES_LEGACY');
+    const prev = process.env.RETURNPAL_SOLD_DATES_LEGACY;
+    process.env.RETURNPAL_SOLD_DATES_LEGACY = '1';
+    try {
+        fn();
+    } finally {
+        if (had) process.env.RETURNPAL_SOLD_DATES_LEGACY = prev;
+        else delete process.env.RETURNPAL_SOLD_DATES_LEGACY;
+    }
+}
+
 function withAmbiguousOrder(order, fn) {
     const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_AMBIGUOUS_DATE_ORDER');
     const prev = process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER;
@@ -81,14 +93,16 @@ function run() {
     assert(calendarYearMonthFromDbDate('2026-03-25') === '2026-03', 'ISO date → March 2026');
     assert(calendarIsoDateFromDbDate('2026-03-25') === '2026-03-25', 'ISO passthrough');
 
-    assert(
-        calendarIsoDateFromDbDate('2026-05-04') === '2026-04-05',
-        'Legacy default: 2026-05-04 → calendar 5 April'
-    );
-    assert(
-        calendarYearMonthFromDbDate('2026-05-04') === '2026-04',
-        '2026-05-04 buckets to April invoice month'
-    );
+    assert(calendarIsoDateFromDbDate('2026-05-04') === '2026-05-04', 'canonical default: 5 May');
+    assert(calendarYearMonthFromDbDate('2026-05-04') === '2026-05', 'May invoice month');
+
+    withLegacyStorage(() => {
+        assert(
+            calendarIsoDateFromDbDate('2026-05-04') === '2026-04-05',
+            'legacy mode: 2026-05-04 → 5 April'
+        );
+        assert(calendarYearMonthFromDbDate('2026-05-04') === '2026-04', 'legacy April month');
+    });
 
     assert(calendarYearMonthFromDbDate('2026-03-25 10:00:00') === '2026-03', 'datetime without T');
     assert(calendarYearMonthFromDbDate('2026-03-25T12:00:00.000Z') === '2026-03', 'ISO with Z');
@@ -120,15 +134,24 @@ function run() {
     });
 
     {
+        const feb = mapSoldItemDatesForApi('2026-02-05', normalizeSoldDateForDb);
+        assert(feb.iso === '2026-02-05', 'canonical API map: 5 February');
+        assert(feb.label === 'February 5th 2026', 'Feb 5 label');
+        const sep = mapSoldItemDatesForApi('2026-09-03', normalizeSoldDateForDb);
+        assert(sep.label === 'September 3rd 2026', '2026-09-03 → 3 September');
+
+        withLegacyStorage(() => {
+            const febLegacy = mapSoldItemDatesForApi('2026-02-05', normalizeSoldDateForDb);
+            assert(febLegacy.iso === '2026-05-02', 'legacy API map: May 2');
+            assert(febLegacy.label === 'May 2nd 2026', 'legacy May 2 label');
+            const sepLegacy = mapSoldItemDatesForApi('2026-09-03', normalizeSoldDateForDb);
+            assert(sepLegacy.label === 'March 9th 2026', 'legacy 9 March');
+        });
+
         const had = Object.prototype.hasOwnProperty.call(process.env, 'RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL');
         const prev = process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL;
         delete process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL;
         try {
-            const feb = mapSoldItemDatesForApi('2026-02-05', normalizeSoldDateForDb);
-            assert(feb.iso === '2026-05-02', 'API map: legacy → May 2 calendar');
-            assert(feb.label === 'May 2nd 2026', 'API map: day 2 month 5');
-            const sep = mapSoldItemDatesForApi('2026-09-03', normalizeSoldDateForDb);
-            assert(sep.label === 'March 9th 2026', '2026-09-03 → 9 March');
             assert(
                 repairAllMonthDaySwapIsoMisimportForDisplay('2026-02-05') === '2026-02-05',
                 'Default: no month/day swap on ISO (Feb 5 stays)'

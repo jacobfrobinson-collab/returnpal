@@ -70,10 +70,7 @@ function monthDaySwapRepairEnabled() {
     return String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL || '').trim() === '1';
 }
 
-/** Set RETURNPAL_SOLD_DATES_CANONICAL=1 after migrate-sold-dates --apply on production. */
-function soldDatesCanonicalStorage() {
-    return String(process.env.RETURNPAL_SOLD_DATES_CANONICAL || '').trim() === '1';
-}
+const { soldDatesCanonicalStorage } = require('./soldDateStorageMode');
 
 /** @deprecated jan-day hack; stored format is YYYY-DD-MM — no-op when parse succeeds */
 function repairIsoFirstOfMonthToJanuary(iso) {
@@ -192,30 +189,20 @@ function mapSoldItemDatesForApi(rawSoldDate, normalizeSoldDateForDb) {
     }
 
     let iso = normalizeSoldDateForDb(rawSoldDate);
-    if (!iso) {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(storedHead)) iso = storedHead;
-        else if (/^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(storedHead)) iso = normalizeSoldDateForDb(storedHead);
+    if (!iso && /^\d{4}-\d{2}-\d{2}$/.test(storedHead)) iso = storedHead;
+    if (!iso && /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(storedHead)) {
+        iso = normalizeSoldDateForDb(storedHead);
     }
-    if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
-        let isoFinal = iso;
-        if (monthDaySwapRepairEnabled()) {
-            isoFinal = repairAllMonthDaySwapIsoMisimportForDisplay(iso);
-        }
-        return {
-            iso: isoFinal,
-            label: calendarIsoToOrdinalLabel(isoFinal) || '',
-            stored: rawSoldDate,
-        };
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+        return { iso: '', label: '', stored: rawSoldDate };
     }
-    const isoFinal = /^\d{4}-\d{2}-\d{2}$/.test(storedHead)
-        ? resolveSoldDateIsoForDisplay(storedHead)
-        : '';
-    const label = /^\d{4}-\d{2}-\d{2}$/.test(storedHead)
-        ? storedSoldYmdToOrdinalLabel(storedHead)
-        : calendarIsoToOrdinalLabel(isoFinal);
+    let isoFinal = iso;
+    if (monthDaySwapRepairEnabled()) {
+        isoFinal = repairAllMonthDaySwapIsoMisimportForDisplay(iso);
+    }
     return {
-        iso: isoFinal || iso || '',
-        label: label || '',
+        iso: isoFinal,
+        label: calendarIsoToOrdinalLabel(isoFinal) || '',
         stored: rawSoldDate,
     };
 }

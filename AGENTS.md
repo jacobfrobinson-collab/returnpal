@@ -12,6 +12,15 @@ After completing a substantive change set (features, fixes, tests), **commit and
 
 Run `npm run test:unit` before pushing when you touch date, invoice, or sold-date logic. Use `npm test` when the API server is running for integration checks.
 
+## Sold dates (do not break on deploy)
+
+Production `sold_items.sold_date` is **calendar `YYYY-MM-DD`** (migrated 2026-06). Rules:
+
+- **Server** formats labels via `mapSoldItemDatesForApi` in `soldDateDisplayRepair.js` (canonical by default in `soldDateStorageMode.js`).
+- **Client sold list** must show `sold_date_label` from the API only — **no** `relabelSoldItemsForDisplay`, **no** legacy YYYY-DD-MM parse in the browser on `sold_date` strings.
+- Legacy read exists only for `RETURNPAL_SOLD_DATES_LEGACY=1` (unmigrated local DB) and `scripts/migrate-sold-dates-to-calendar.js`.
+- Before changing sold-date display, run `node test/sold-display-invariant.test.js`.
+
 ## Production environment
 
 Document signup and secrets in repo templates only — never commit real `.env` files:
