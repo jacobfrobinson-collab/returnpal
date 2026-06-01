@@ -9,6 +9,7 @@ const assert = (cond, msg) => {
 const initSqlJs = require('sql.js');
 const {
     appendQueryMessage,
+    deleteClientMessage,
     listQueriesForUser,
     listOpenQueriesForAdmin,
 } = require('../src/utils/itemQueryThread');
@@ -66,6 +67,14 @@ async function run() {
     const afterFollow = listQueriesForUser(db, 1);
     assert(afterFollow[0].status === 'open', 'still open');
     assert(afterFollow[0].can_client_reply === false, 'waiting on admin');
+
+    const clientMsg = afterFollow[0].messages.find((m) => m.body === 'Thanks, one more thing');
+    assert(clientMsg && clientMsg.can_delete, 'follow-up deletable after admin replied');
+    const del = deleteClientMessage(db, 1, 1, clientMsg.id);
+    assert(del.deleted === 'message', 'message deleted');
+    const afterDel = listQueriesForUser(db, 1);
+    assert(afterDel[0].messages.length === 2, 'one client msg removed');
+    assert(afterDel[0].messages.every((m) => m.body !== 'Thanks, one more thing'), 'follow-up gone');
 
     console.log('item-query-thread.test.js: all passed');
 }

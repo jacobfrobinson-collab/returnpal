@@ -1349,6 +1349,17 @@ const API = {
         });
     },
 
+    async clientDeleteQueryMessage(queryId, messageId) {
+        return this.request(
+            '/queries/' + encodeURIComponent(queryId) + '/messages/' + encodeURIComponent(messageId),
+            { method: 'DELETE' }
+        );
+    },
+
+    async clientDeleteQuery(queryId) {
+        return this.request('/queries/' + encodeURIComponent(queryId), { method: 'DELETE' });
+    },
+
     async submitQuery(body) {
         return this.request('/queries', { method: 'POST', body });
     },

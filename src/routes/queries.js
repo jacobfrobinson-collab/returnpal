@@ -5,8 +5,11 @@ const {
     ensureQueryThreadSchema,
     backfillLegacyQueryMessages,
     appendQueryMessage,
+    deleteClientMessage,
+    deleteQueryThread,
     listQueriesForUser,
     listMessagesForQuery,
+    enrichMessagesForClientView,
     tableHasColumn,
 } = require('../utils/itemQueryThread');
 
@@ -118,13 +121,80 @@ router.post('/:id/messages', authMiddleware, async (req, res) => {
         appendQueryMessage(db, queryId, 'client', body);
         saveDb();
 
+        const qRow = parseResults(db.exec('SELECT status, last_sender FROM item_queries WHERE id = ?', [queryId]))[0];
+        const msgs = listMessagesForQuery(db, queryId);
         res.json({
             message: 'Follow-up sent',
-            messages: listMessagesForQuery(db, queryId),
+            messages: enrichMessagesForClientView(qRow || { status: 'open' }, msgs),
             can_client_reply: false,
         });
     } catch (err) {
         console.error('Client query follow-up error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// DELETE /api/queries/:id/messages/:messageId — remove one of your messages (after ReturnPal has replied)
+router.delete('/:id/messages/:messageId', authMiddleware, async (req, res) => {
+    try {
+        const queryId = parseInt(req.params.id, 10);
+        const messageId = parseInt(req.params.messageId, 10);
+        if (!Number.isFinite(queryId) || !Number.isFinite(messageId)) {
+            return res.status(400).json({ error: 'Invalid id' });
+        }
+        const db = await getDb();
+        ensureQueryThreadSchema(db);
+        const result = deleteClientMessage(db, req.user.id, queryId, messageId);
+        if (result.error === 'not_found') {
+            return res.status(404).json({ error: 'Query or message not found' });
+        }
+        if (result.error === 'closed') {
+            return res.status(400).json({ error: 'This conversation is closed.' });
+        }
+        if (result.error === 'admin_not_replied') {
+            return res.status(400).json({
+                error: 'You can remove messages after ReturnPal has replied to this thread.',
+            });
+        }
+        if (result.error === 'not_yours') {
+            return res.status(403).json({ error: 'You can only delete your own messages.' });
+        }
+        if (result.error === 'message_not_found') {
+            return res.status(404).json({ error: 'Message not found' });
+        }
+        saveDb();
+        if (result.deleted === 'thread') {
+            return res.json({ message: 'Conversation removed', deleted: 'thread' });
+        }
+        const qRow = parseResults(db.exec('SELECT status, last_sender FROM item_queries WHERE id = ?', [queryId]))[0];
+        res.json({
+            message: 'Message removed',
+            deleted: 'message',
+            messages: enrichMessagesForClientView(qRow || { status: 'open' }, result.messages),
+            can_client_reply: qRow && String(qRow.last_sender) === 'admin',
+        });
+    } catch (err) {
+        console.error('Delete query message error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// DELETE /api/queries/:id — remove entire conversation
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        const queryId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(queryId)) {
+            return res.status(400).json({ error: 'Invalid query id' });
+        }
+        const db = await getDb();
+        const result = deleteQueryThread(db, req.user.id, queryId);
+        if (result.error === 'not_found') {
+            return res.status(404).json({ error: 'Query not found' });
+        }
+        saveDb();
+        res.json({ message: 'Conversation removed', deleted: 'thread' });
+    } catch (err) {
+        console.error('Delete query thread error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

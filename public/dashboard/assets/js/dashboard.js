@@ -3380,18 +3380,36 @@ const Dashboard = {
                             m.created_at && typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb
                                 ? RP_DATE.formatOrdinalEnGb(m.created_at)
                                 : '';
+                        const delBtn =
+                            !isAdmin && m.can_delete && m.id != null
+                                ? '<button type="button" class="btn btn-link btn-sm text-danger p-0 query-delete-msg-btn" data-query-id="' +
+                                  self.escHtml(String(q.id)) +
+                                  '" data-message-id="' +
+                                  self.escHtml(String(m.id)) +
+                                  '" title="Remove this message">Delete</button>'
+                                : '';
                         html +=
                             '<div class="p-2 rounded mb-2 ' +
                             (isAdmin ? 'bg-success-subtle' : 'bg-light') +
                             '">' +
+                            '<div class="d-flex justify-content-between align-items-start gap-2">' +
                             '<strong class="small">' +
                             (isAdmin ? 'ReturnPal' : 'You') +
                             '</strong>' +
-                            (when ? ' <small class="text-muted">· ' + self.escHtml(when) + '</small>' : '') +
+                            delBtn +
+                            '</div>' +
+                            (when ? '<small class="text-muted">' + self.escHtml(when) + '</small>' : '') +
                             '<p class="mb-0 small mt-1">' +
                             self.escHtml(m.body || '') +
                             '</p></div>';
                     });
+                    if (q.can_delete_thread) {
+                        html +=
+                            '<div class="mt-2">' +
+                            '<button type="button" class="btn btn-link btn-sm text-danger p-0 query-delete-thread-btn" data-query-id="' +
+                            self.escHtml(String(q.id)) +
+                            '">Delete entire conversation</button></div>';
+                    }
                     if (q.can_client_reply) {
                         html +=
                             '<form class="query-followup-form mt-2" data-query-id="' +
@@ -3435,6 +3453,35 @@ const Dashboard = {
                     Dashboard.loadQueries();
                 } catch (err2) {
                     alert((err2 && err2.error) || err2.message || 'Failed to send');
+                }
+            });
+
+        $inbox
+            .off('click', '.query-delete-msg-btn')
+            .on('click', '.query-delete-msg-btn', async function() {
+                const qid = $(this).data('query-id');
+                const mid = $(this).data('message-id');
+                if (!confirm('Remove this message from the conversation?')) return;
+                try {
+                    await API.clientDeleteQueryMessage(qid, mid);
+                    Dashboard.showToast('Message removed');
+                    Dashboard.loadQueries();
+                } catch (err2) {
+                    alert((err2 && err2.error) || err2.message || 'Could not delete');
+                }
+            });
+
+        $inbox
+            .off('click', '.query-delete-thread-btn')
+            .on('click', '.query-delete-thread-btn', async function() {
+                const qid = $(this).data('query-id');
+                if (!confirm('Delete this entire conversation? This cannot be undone.')) return;
+                try {
+                    await API.clientDeleteQuery(qid);
+                    Dashboard.showToast('Conversation removed');
+                    Dashboard.loadQueries();
+                } catch (err2) {
+                    alert((err2 && err2.error) || err2.message || 'Could not delete');
                 }
             });
 

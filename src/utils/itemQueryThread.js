@@ -170,6 +170,124 @@ function listMessagesForQuery(db, queryId) {
     );
 }
 
+function threadHasAdminMessage(messages) {
+    return (messages || []).some((m) => String(m.sender_role) === 'admin');
+}
+
+/**
+ * Keep item_queries row in sync with message thread (legacy columns + last_sender).
+ * @param {import('sql.js').Database} db
+ * @param {number} queryId
+ */
+function syncQueryThreadMeta(db, queryId) {
+    const msgs = listMessagesForQuery(db, queryId);
+    if (!msgs.length) return;
+    const last = msgs[msgs.length - 1];
+    const lastSender = String(last.sender_role) === 'admin' ? 'admin' : 'client';
+    const firstClient = msgs.find((m) => String(m.sender_role) === 'client');
+    const lastAdmin = [...msgs].reverse().find((m) => String(m.sender_role) === 'admin');
+    const preview = firstClient ? String(firstClient.body || '') : String(msgs[0].body || '');
+    const adminReply = lastAdmin ? String(lastAdmin.body || '') : '';
+    const hasUpdatedAt = tableHasColumn(db, 'item_queries', 'updated_at');
+    if (hasUpdatedAt) {
+        db.run(
+            `UPDATE item_queries
+             SET last_sender = ?, message = ?, admin_reply = ?,
+                 replied_at = CASE WHEN ? != '' THEN COALESCE(?, replied_at) ELSE replied_at END,
+                 updated_at = datetime('now'), status = 'open'
+             WHERE id = ?`,
+            [
+                lastSender,
+                preview.slice(0, 5000),
+                adminReply.slice(0, 5000),
+                adminReply,
+                lastAdmin ? lastAdmin.created_at : '',
+                queryId,
+            ]
+        );
+    } else {
+        db.run(
+            `UPDATE item_queries
+             SET last_sender = ?, message = ?, admin_reply = ?, status = 'open'
+             WHERE id = ?`,
+            [lastSender, preview.slice(0, 5000), adminReply.slice(0, 5000), queryId]
+        );
+    }
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {number} queryId
+ */
+function getQueryForUser(db, userId, queryId) {
+    const rows = parseResults(
+        db.exec(
+            `SELECT id, user_id, status, COALESCE(last_sender, 'client') AS last_sender
+             FROM item_queries WHERE id = ?`,
+            [queryId]
+        )
+    );
+    const q = rows[0];
+    if (!q || Number(q.user_id) !== Number(userId)) return null;
+    return q;
+}
+
+/**
+ * Client may delete own messages after ReturnPal has replied at least once.
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {number} queryId
+ * @param {number} messageId
+ */
+function deleteClientMessage(db, userId, queryId, messageId) {
+    ensureQueryThreadSchema(db);
+    const q = getQueryForUser(db, userId, queryId);
+    if (!q) return { error: 'not_found' };
+    if (String(q.status) !== 'open') return { error: 'closed' };
+
+    const msgs = listMessagesForQuery(db, queryId);
+    if (!threadHasAdminMessage(msgs)) {
+        return { error: 'admin_not_replied' };
+    }
+
+    const target = msgs.find((m) => Number(m.id) === Number(messageId));
+    if (!target) return { error: 'message_not_found' };
+    if (String(target.sender_role) !== 'client') return { error: 'not_yours' };
+
+    db.run('DELETE FROM item_query_messages WHERE id = ? AND query_id = ?', [messageId, queryId]);
+    const remaining = listMessagesForQuery(db, queryId);
+    if (!remaining.length) {
+        db.run('DELETE FROM item_queries WHERE id = ? AND user_id = ?', [queryId, userId]);
+        return { deleted: 'thread' };
+    }
+    syncQueryThreadMeta(db, queryId);
+    return { deleted: 'message', messages: remaining };
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {number} queryId
+ */
+function deleteQueryThread(db, userId, queryId) {
+    ensureQueryThreadSchema(db);
+    const q = getQueryForUser(db, userId, queryId);
+    if (!q) return { error: 'not_found' };
+    db.run('DELETE FROM item_queries WHERE id = ? AND user_id = ?', [queryId, userId]);
+    return { deleted: 'thread' };
+}
+
+function enrichMessagesForClientView(query, messages) {
+    const hasAdmin = threadHasAdminMessage(messages);
+    const open = String(query.status) === 'open';
+    const allowDeleteOwn = hasAdmin && open;
+    return (messages || []).map((m) => ({
+        ...m,
+        can_delete: allowDeleteOwn && String(m.sender_role) === 'client' && m.id != null,
+    }));
+}
+
 /**
  * @param {import('sql.js').Database} db
  * @param {number} queryId
@@ -245,11 +363,17 @@ function listQueriesForUser(db, userId) {
             [userId]
         )
     );
-    return rows.map((q) => ({
-        ...q,
-        messages: listMessagesForQuery(db, q.id),
-        can_client_reply: String(q.last_sender) === 'admin' && String(q.status) === 'open',
-    }));
+    return rows.map((q) => {
+        const messages = listMessagesForQuery(db, q.id);
+        const hasAdmin = threadHasAdminMessage(messages);
+        return {
+            ...q,
+            messages: enrichMessagesForClientView(q, messages),
+            can_client_reply: String(q.last_sender) === 'admin' && String(q.status) === 'open',
+            can_delete_thread:
+                String(q.status) === 'open' && (hasAdmin || messages.filter((m) => m.sender_role === 'client').length > 0),
+        };
+    });
 }
 
 /**
@@ -287,6 +411,10 @@ module.exports = {
     backfillLegacyQueryMessages,
     listMessagesForQuery,
     appendQueryMessage,
+    syncQueryThreadMeta,
+    deleteClientMessage,
+    deleteQueryThread,
+    enrichMessagesForClientView,
     listQueriesForUser,
     listOpenQueriesForAdmin,
 };
