@@ -193,17 +193,42 @@ const API = {
                 return null;
             }
 
-            const data = await response.json();
+            const raw = await response.text();
+            let data = {};
+            if (raw) {
+                try {
+                    data = JSON.parse(raw);
+                } catch (parseErr) {
+                    console.error('API non-JSON response:', response.status, raw.slice(0, 200));
+                    const hint =
+                        response.status === 413
+                            ? 'Upload too large — try importing fewer rows at a time.'
+                            : response.status === 502 || response.status === 504
+                              ? 'Server timed out — import is still running or retry in smaller batches.'
+                              : 'Server returned an unexpected response. Refresh and try again.';
+                    throw { status: response.status, error: hint };
+                }
+            }
 
             if (!response.ok) {
-                throw { status: response.status, ...data };
+                throw {
+                    status: response.status,
+                    error: data.error || data.message || response.statusText || 'Request failed',
+                    ...data,
+                };
             }
 
             return data;
         } catch (err) {
             if (err.status) throw err;
             console.error('API request failed:', err);
-            throw { error: 'Network error. Please try again.' };
+            const msg =
+                err && err.message && /failed to fetch|networkerror|load failed/i.test(err.message)
+                    ? 'Could not reach the server (connection lost or timed out). Try again — large imports are sent in batches automatically.'
+                    : err && err.message
+                      ? err.message
+                      : 'Network error. Please try again.';
+            throw { error: msg };
         }
     },
 
@@ -1018,15 +1043,93 @@ const API = {
         return this.request('/admin/ebay-refunds-preview', { method: 'POST', body: fd });
     },
 
+    _mergeReviewedImportResults(agg, part) {
+        if (!part) return agg;
+        agg.imported = (agg.imported || 0) + (part.imported || 0);
+        agg.error_count = (agg.error_count || 0) + (part.error_count || 0);
+        agg.duplicates_skipped = (agg.duplicates_skipped || 0) + (part.duplicates_skipped || 0);
+        agg.skipped_no_matching_sale =
+            (agg.skipped_no_matching_sale || 0) + (part.skipped_no_matching_sale || 0);
+        agg.pending_rows_saved = (agg.pending_rows_saved || 0) + (part.pending_rows_saved || 0);
+        agg.refund_dates_corrected =
+            (agg.refund_dates_corrected || 0) + (part.refund_dates_corrected || 0);
+        if (part.errors && part.errors.length) {
+            agg.errors = (agg.errors || []).concat(part.errors);
+        }
+        if (part.skipped_no_sale_samples && part.skipped_no_sale_samples.length) {
+            agg.skipped_no_sale_samples = (agg.skipped_no_sale_samples || []).concat(
+                part.skipped_no_sale_samples
+            );
+        }
+        if (part.job_id) {
+            agg.job_ids = agg.job_ids || [];
+            agg.job_ids.push(part.job_id);
+        }
+        if (part.by_user && typeof part.by_user === 'object') {
+            agg.by_user = agg.by_user || {};
+            Object.keys(part.by_user).forEach(function (k) {
+                agg.by_user[k] = (agg.by_user[k] || 0) + part.by_user[k];
+            });
+        }
+        if (part.pending_by_key && typeof part.pending_by_key === 'object') {
+            agg.pending_by_key = agg.pending_by_key || {};
+            Object.keys(part.pending_by_key).forEach(function (k) {
+                agg.pending_by_key[k] = (agg.pending_by_key[k] || 0) + part.pending_by_key[k];
+            });
+        }
+        if (part.message) agg.message = part.message;
+        return agg;
+    },
+
+    async _postReviewedImportBatched(endpoint, buildBody, rows, opts) {
+        const list = rows || [];
+        const batchSize =
+            opts && opts.batchSize != null ? parseInt(opts.batchSize, 10) : 120;
+        if (!list.length) {
+            return { imported: 0, message: 'No rows to import.', error_count: 0 };
+        }
+        if (list.length <= batchSize) {
+            return this.request(endpoint, { method: 'POST', body: buildBody(list, opts) });
+        }
+        let agg = {
+            imported: 0,
+            error_count: 0,
+            errors: [],
+            job_ids: [],
+            batches: 0,
+        };
+        for (let i = 0; i < list.length; i += batchSize) {
+            const chunk = list.slice(i, i + batchSize);
+            const part = await this.request(endpoint, {
+                method: 'POST',
+                body: buildBody(chunk, opts),
+            });
+            agg.batches++;
+            this._mergeReviewedImportResults(agg, part);
+        }
+        if (agg.errors && agg.errors.length > 50) agg.errors = agg.errors.slice(0, 50);
+        agg.job_id = agg.job_ids && agg.job_ids.length === 1 ? agg.job_ids[0] : null;
+        agg.message =
+            'Imported in ' +
+            agg.batches +
+            ' batch(es). Undo each job separately from Recent imports if needed.';
+        return agg;
+    },
+
     async adminEbayRefundsImportReviewed(rows, opts) {
-        return this.request('/admin/ebay-refunds-import-reviewed', {
-            method: 'POST',
-            body: {
-                rows: rows || [],
-                queue_unmatched: opts && opts.queue_unmatched === false ? false : true,
-                source_filename: (opts && opts.source_filename) || 'ebay-refunds-reviewed',
+        const self = this;
+        return this._postReviewedImportBatched(
+            '/admin/ebay-refunds-import-reviewed',
+            function (chunk, o) {
+                return {
+                    rows: chunk,
+                    queue_unmatched: o && o.queue_unmatched === false ? false : true,
+                    source_filename: (o && o.source_filename) || 'ebay-refunds-reviewed',
+                };
             },
-        });
+            rows,
+            opts
+        );
     },
 
     /** Admin: validate spreadsheet without writing (Client ID → email preview). */
@@ -1051,15 +1154,19 @@ const API = {
     },
 
     async adminBulkImportMultiReviewed(kind, rows, opts) {
-        return this.request('/admin/bulk-import-multi-reviewed', {
-            method: 'POST',
-            body: {
-                kind: kind,
-                rows: rows || [],
-                queue_unmatched: opts && opts.queue_unmatched === false ? false : true,
-                source_filename: (opts && opts.source_filename) || 'bulk-import-reviewed',
+        return this._postReviewedImportBatched(
+            '/admin/bulk-import-multi-reviewed',
+            function (chunk, o) {
+                return {
+                    kind: kind,
+                    rows: chunk,
+                    queue_unmatched: o && o.queue_unmatched === false ? false : true,
+                    source_filename: (o && o.source_filename) || 'bulk-import-reviewed',
+                };
             },
-        });
+            rows,
+            opts
+        );
     },
 
     async adminBulkImportPreview(kind, file, opts) {

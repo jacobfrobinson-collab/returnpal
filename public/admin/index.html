@@ -236,6 +236,7 @@
                             <span class="small text-muted" id="ebay-refunds-review-visible-count"></span>
                         </div>
                         <p class="small alert alert-info border-0 py-1 px-2 mb-0 d-none" id="ebay-refunds-review-filter-hint" role="status"></p>
+                        <p class="small alert alert-light border py-2 px-2 mb-0 d-none" id="ebay-refunds-review-legend" role="status"></p>
                         <datalist id="ebay-refunds-client-datalist"></datalist>
                         <div style="max-height:min(55vh,520px);overflow:auto">
                             <table class="table table-sm table-hover mb-0">
@@ -249,7 +250,9 @@
                                         <th>Amt</th>
                                         <th>Auto</th>
                                         <th style="min-width:120px">Client ID</th>
-                                        <th>Matches</th>
+                                        <th>Sale on dashboard</th>
+                                        <th>On import</th>
+                                        <th>Client</th>
                                     </tr>
                                 </thead>
                                 <tbody id="ebay-refunds-review-tbody"></tbody>
@@ -301,6 +304,7 @@
                 <div id="bulk-import-preview-wrap" class="d-none mt-3">
                     <div class="small fw-semibold mb-1">Preview (not saved)</div>
                     <p class="small text-muted mb-1">When <strong>Multi-client file</strong> is on, Preview also opens <strong>Client ID review</strong> below so you can fix missing clients before importing.</p>
+                    <p class="small alert alert-light border py-2 px-2 mb-2 d-none" id="bulk-import-preview-refund-legend" role="status"></p>
                     <div class="table-responsive border rounded" style="max-height:260px;overflow:auto">
                         <table class="table table-sm table-striped mb-0">
                             <thead class="table-light" id="bulk-import-preview-thead"><tr><th>Line</th><th>OK</th><th>Client</th><th>Warnings / error</th><th>Row</th></tr></thead>
@@ -348,6 +352,7 @@
                             <button type="button" class="btn btn-sm btn-success ms-auto d-none" id="bulk-import-review-import-reviewed-btn">Import reviewed rows</button>
                         </div>
                         <p class="small alert alert-info border-0 py-1 px-2 mb-0 d-none" id="bulk-import-review-review-filter-hint" role="status"></p>
+                        <p class="small alert alert-light border py-2 px-2 mb-0 d-none" id="bulk-import-review-review-legend" role="status"></p>
                         <span class="small text-muted d-none" id="bulk-import-review-review-summary"></span>
                     </div>
                     <datalist id="bulk-import-review-client-datalist"></datalist>
@@ -359,7 +364,9 @@
                                     <th>Row</th>
                                     <th>Auto</th>
                                     <th style="min-width:120px">Client ID</th>
-                                    <th>Matches</th>
+                                    <th>Sale on dashboard</th>
+                                    <th>On import</th>
+                                    <th>Client</th>
                                 </tr>
                             </thead>
                             <tbody id="bulk-import-review-review-tbody"></tbody>
@@ -499,9 +506,9 @@
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
-    <script src="/assets/js/api.js?v=rp12"></script>
+    <script src="/assets/js/api.js?v=rp13"></script>
     <script src="/assets/js/ebay-refund-review.js?v=rp2"></script>
-    <script src="/assets/js/import-client-review.js?v=rp5"></script>
+    <script src="/assets/js/import-client-review.js?v=rp6"></script>
     <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script>
     $(function() {
@@ -1314,6 +1321,7 @@
 
         window.ebayRefundsReview = ImportClientReview.create({
             prefix: 'ebay-refunds',
+            refundImport: true,
             getRows: function() {
                 return window._ebayRefundsReviewRows;
             },
@@ -1389,7 +1397,13 @@
                 txt += '\n\nImported onto dashboards: ' + (data.imported || 0);
                 txt += afterPendingImportSaved(data, { scroll: true });
                 if (data.duplicates_skipped) txt += '\nAlready imported (skipped): ' + data.duplicates_skipped;
+                if (data.skipped_no_matching_sale) {
+                    txt += '\nNo matching sale (not on dashboard): ' + data.skipped_no_matching_sale;
+                }
                 if (data.job_id) txt += '\nJob #' + data.job_id;
+                if (data.job_ids && data.job_ids.length > 1) {
+                    txt += '\nJobs: #' + data.job_ids.join(', #');
+                }
                 if (data.error_count) txt += '\nRow errors: ' + data.error_count;
                 showEbayRefundsResult(txt);
                 loadBulkImportJobs();
@@ -1426,14 +1440,6 @@
                     bits += ' <span class="text-danger">£' + Number(r.amount).toFixed(2) + '</span>';
                 }
                 if (r.custom_label) bits += ' <span class="text-muted" title="SKU">· ' + esc(r.custom_label) + '</span>';
-                if (r.matched_sale_preview != null && r.matched_sale_preview !== '') {
-                    bits +=
-                        ' <span class="badge text-bg-' +
-                        (r.sale_match_ok === false ? 'warning' : 'light') +
-                        ' border">' +
-                        esc(r.matched_sale_preview) +
-                        '</span>';
-                }
                 return '<td class="small">' + bits + '</td>';
             },
             rowHaystack: bulkImportRowHaystack,
@@ -1468,11 +1474,16 @@
                 txt += '\n\nImported: ' + (data.imported || 0);
                 txt += afterPendingImportSaved(data, { scroll: !!(data.pending_rows_saved) });
                 if (data.duplicates_skipped) txt += '\nAlready imported (skipped): ' + data.duplicates_skipped;
-                if (data.skipped_no_matching_sale)
+                if (data.skipped_no_matching_sale) {
                     txt +=
-                        '\nSkipped (no matching sale): ' + data.skipped_no_matching_sale;
+                        '\nNo matching sale (not on dashboard): ' + data.skipped_no_matching_sale;
+                }
                 if (data.job_id) txt += '\nJob #' + data.job_id;
+                if (data.job_ids && data.job_ids.length > 1) {
+                    txt += '\nJobs: #' + data.job_ids.join(', #');
+                }
                 if (data.error_count) txt += '\nRow errors: ' + data.error_count;
+                txt += '\n\nCheck each client dashboard → Returns/refunds for imported rows.';
                 $('#bulk-import-result').removeClass('d-none').text(txt);
                 loadBulkImportJobs();
                 loadUsers();
@@ -1558,15 +1569,40 @@
                 var isSold = kind === 'sold';
                 var isRefund = kind === 'return_adjustment' || kind === 'refunds';
                 $('#bulk-import-refund-sale-match-note').toggleClass('d-none', !isRefund);
+                function refundPreviewImportCell(r) {
+                    if (!r.ok) return '<span class="badge text-bg-danger">Error</span>';
+                    if (r.sale_match_ok === false) {
+                        return '<span class="badge text-bg-danger">Skipped — no sale</span>';
+                    }
+                    return '<span class="badge text-bg-success">→ Client dashboard</span>';
+                }
+                function refundPreviewSaleCell(r) {
+                    if (r.sale_match_ok === false) {
+                        return '<span class="badge text-bg-danger">No match</span>';
+                    }
+                    var ms = r.matched_sale_preview;
+                    if (ms && ms !== '—') {
+                        return '<span class="badge text-bg-success">Sale ' + escapeHtml(ms) + '</span>';
+                    }
+                    return '<span class="badge text-bg-success">Matched</span>';
+                }
                 $('#bulk-import-preview-thead').html(
                     '<tr><th>Line</th><th>OK</th><th>Client</th>' +
                         (isSold ? '<th>Sold date</th>' : '') +
-                        (isRefund ? '<th>Matched sale</th>' : '') +
+                        (isRefund ? '<th>Sale on dashboard</th><th>On import</th>' : '') +
                         '<th>Warnings / error</th><th>Row</th></tr>'
                 );
                 var $tb = $('#bulk-import-preview-tbody').empty();
+                var prevReady = 0;
+                var prevNoSale = 0;
                 (prev.rows || []).forEach(function(r) {
-                    var ok = r.ok ? 'Yes' : 'No';
+                    if (isRefund && r.ok && r.sale_match_ok !== false) prevReady++;
+                    if (isRefund && r.sale_match_ok === false) prevNoSale++;
+                    var ok = r.ok
+                        ? r.sale_match_ok === false
+                            ? '<span class="text-warning">Yes*</span>'
+                            : 'Yes'
+                        : 'No';
                     var client = r.resolved_email
                         ? escapeHtml((r.resolved_name || '').trim()) + ' · ' + escapeHtml(r.resolved_email)
                         : r.user_id
@@ -1577,13 +1613,13 @@
                         var sd = r.sold_date_preview != null && r.sold_date_preview !== '' ? r.sold_date_preview : '—';
                         soldCell = '</td><td class="small text-nowrap">' + escapeHtml(sd);
                     }
-                    var matchCell = '';
+                    var refundCells = '';
                     if (isRefund) {
-                        var ms =
-                            r.matched_sale_preview != null && r.matched_sale_preview !== ''
-                                ? r.matched_sale_preview
-                                : '—';
-                        matchCell = '</td><td class="small text-nowrap">' + escapeHtml(ms);
+                        refundCells =
+                            '</td><td class="small text-nowrap">' +
+                            refundPreviewSaleCell(r) +
+                            '</td><td class="small text-nowrap">' +
+                            refundPreviewImportCell(r);
                     }
                     var issue =
                         r.warnings && r.warnings.length
@@ -1591,16 +1627,19 @@
                             : r.error
                               ? escapeHtml(r.error)
                               : '<span class="text-muted">No issues</span>';
-                    var trCls = r.will_queue_as_pending ? ' class="table-warning"' : '';
+                    var trCls = '';
+                    if (r.will_queue_as_pending) trCls = 'table-warning';
+                    else if (isRefund && r.sale_match_ok === false) trCls = 'table-danger';
+                    else if (isRefund && r.ok && r.sale_match_ok !== false) trCls = 'table-success';
                     $tb.append(
-                        '<tr' + trCls + '><td>' +
+                        '<tr' + (trCls ? ' class="' + trCls + '"' : '') + '><td>' +
                             r.line +
                             '</td><td>' +
                             ok +
                             '</td><td class="small">' +
                             client +
                             soldCell +
-                            matchCell +
+                            refundCells +
                             '</td><td class="small">' +
                             issue +
                             '</td><td class="small">' +
@@ -1608,18 +1647,34 @@
                             '</td></tr>'
                     );
                 });
+                var $prevLeg = $('#bulk-import-preview-refund-legend');
+                if (isRefund) {
+                    $prevLeg
+                        .removeClass('d-none')
+                        .html(
+                            '<strong>Refunds:</strong> green rows will go on the client dashboard (sale matched). Red = <strong>no matching sale</strong> — skipped on import. ' +
+                                'Preview ready: <strong>' +
+                                prevReady +
+                                '</strong>, no sale: <strong>' +
+                                prevNoSale +
+                                '</strong>. Use Client ID review below for per-row badges before importing.'
+                        );
+                } else {
+                    $prevLeg.addClass('d-none');
+                }
                 if (multi && prev.review_rows && prev.review_rows.length && window.bulkImportClientReview) {
                     window._bulkImportReviewMeta = { kind: kind, filename: f.name || 'import' };
                     var needsReview = (prev.summary && prev.summary.review_needs_client) > 0;
                     var hasDup = (prev.summary && prev.summary.review_already_imported) > 0;
                     window.bulkImportClientReview.open(prev.review_rows, {
-                        filter: needsReview ? 'needs' : hasDup ? 'imported' : 'all',
+                        refundImport: isRefund,
+                        filter: needsReview ? 'needs' : hasDup ? 'imported' : 'ready',
                         message:
                             'Client ID review: ' +
                             prev.review_rows.length +
                             ' rows' +
                             (hasDup ? ' (' + prev.summary.review_already_imported + ' already imported).' : '.') +
-                            ' Fix missing clients, then Import reviewed rows.',
+                            ' Check <strong>Sale on dashboard</strong> and <strong>On import</strong> columns, then Import reviewed rows.',
                     });
                     var el = document.getElementById('bulk-import-review-wrap');
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

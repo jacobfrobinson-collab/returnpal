@@ -34,7 +34,10 @@ function adminRateLimitMiddleware(req, res, next) {
     if (!enabled()) return next();
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
     const p = req.path || '';
-    if (req.method === 'POST' && p.includes('bulk-import')) {
+    if (
+        req.method === 'POST' &&
+        (p.includes('bulk-import') || p.includes('ebay-refunds-import'))
+    ) {
         return bulkImportLimiter(req, res, next);
     }
     return adminMutationLimiter(req, res, next);

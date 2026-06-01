@@ -71,6 +71,90 @@
         return { imported: imported, needClient: needClient, noSale: noSale, ready: ready };
     }
 
+    /** What happens when you click Import reviewed rows. */
+    function importOutcomeForRow(r) {
+        if (r.already_imported) {
+            return {
+                code: 'duplicate',
+                label: 'Already imported',
+                badge: 'secondary',
+                title: 'Duplicate refund — skipped',
+            };
+        }
+        if (rowNeedsClient(r)) {
+            if (getOrderNumberFromRow(r) && String(r.client_id || '').trim()) {
+                return {
+                    code: 'pending',
+                    label: '→ Pending imports',
+                    badge: 'info',
+                    title: 'Unknown Client ID — saved for when that client exists',
+                };
+            }
+            return {
+                code: 'need_client',
+                label: 'Need Client ID',
+                badge: 'warning',
+                title: 'Pick a Client ID that matches a ReturnPal account',
+            };
+        }
+        if (rowNoMatchingSale(r)) {
+            return {
+                code: 'no_sale',
+                label: 'Skipped — no sale',
+                badge: 'danger',
+                title:
+                    r.sale_match_error ||
+                    'No matching sale on this client dashboard — import the sale first',
+            };
+        }
+        return {
+            code: 'dashboard',
+            label: '→ Client dashboard',
+            badge: 'success',
+            title: 'Refund will be applied to this client payout',
+        };
+    }
+
+    function renderImportOutcomeBadge(r, esc) {
+        var o = importOutcomeForRow(r);
+        return (
+            '<span class="badge text-bg-' +
+            o.badge +
+            '" title="' +
+            esc(o.title) +
+            '">' +
+            esc(o.label) +
+            '</span>'
+        );
+    }
+
+    function renderSaleMatchBadge(r, esc) {
+        if (r.already_imported) {
+            return '<span class="text-muted small">—</span>';
+        }
+        if (!resolveClientLocally(r.client_id)) {
+            return '<span class="text-muted small">Set client first</span>';
+        }
+        if (r.sale_match_ok === false) {
+            return '<span class="badge text-bg-danger" title="' + esc(r.sale_match_error || '') + '">No match</span>';
+        }
+        var preview = r.matched_sale_preview;
+        if (preview && preview !== '—') {
+            return '<span class="badge text-bg-success" title="Linked sold_items row">Sale ' + esc(preview) + '</span>';
+        }
+        return '<span class="badge text-bg-success">Matched</span>';
+    }
+
+    function applyRowStatusClasses($tr, r) {
+        $tr.removeClass('table-success table-warning table-danger table-secondary table-info');
+        var o = importOutcomeForRow(r);
+        if (o.code === 'duplicate') $tr.addClass('table-secondary');
+        else if (o.code === 'dashboard') $tr.addClass('table-success');
+        else if (o.code === 'no_sale') $tr.addClass('table-danger');
+        else if (o.code === 'pending') $tr.addClass('table-info');
+        else if (o.code === 'need_client') $tr.addClass('table-warning');
+    }
+
     function skuApi() {
         return root.EbayRefundReview || null;
     }
@@ -140,19 +224,28 @@
     };
 
     ImportClientReview.prototype.updateRowResolve = function ($tr, clientId, row) {
+        var esc = escapeHtml;
+        var refundCols = !!this.cfg.refundImport;
         var $m = $tr.find('.' + this.prefix + '-review-match');
+        var $sale = $tr.find('.' + this.prefix + '-review-sale');
+        var $outcome = $tr.find('.' + this.prefix + '-review-import-outcome');
         var $input = $tr.find('.' + this.prefix + '-review-client-id');
+        if (refundCols) {
+            applyRowStatusClasses($tr, row || {});
+            if ($sale.length) $sale.html(renderSaleMatchBadge(row || {}, esc));
+            if ($outcome.length) $outcome.html(renderImportOutcomeBadge(row || {}, esc));
+        }
         if (row && row.already_imported) {
-            $tr.addClass('table-secondary').removeClass('table-warning');
+            if (!refundCols) $tr.addClass('table-secondary').removeClass('table-warning');
             $input.prop('disabled', true);
             var dupNote = row.duplicate_adjustment_id ? ' #' + row.duplicate_adjustment_id : '';
-            $m.html('<span class="text-muted">Already imported' + escapeHtml(dupNote) + ' — skipped on import</span>');
+            $m.html('<span class="text-muted">Already imported' + esc(dupNote) + '</span>');
             return;
         }
-        $tr.removeClass('table-secondary');
+        if (!refundCols) $tr.removeClass('table-secondary');
         $input.prop('disabled', false);
         var u = resolveClientLocally(clientId);
-        $tr.toggleClass('table-warning', !u && !!clientId);
+        if (!refundCols) $tr.toggleClass('table-warning', !u && !!clientId);
         if (!clientId) {
             $m.html('<span class="text-warning">Pick Client ID</span>');
             return;
@@ -161,35 +254,45 @@
             var onum = getOrderNumberFromRow(row);
             if (onum) {
                 $m.html(
-                    '<span class="text-info">Unknown — order → <strong>' +
-                        escapeHtml(clientId) +
-                        '</strong> saved. Will go to <strong>Pending imports</strong> on import until this client exists.</span>'
+                    '<span class="text-info">Unknown ID <strong>' +
+                        esc(clientId) +
+                        '</strong> — order saved for Pending imports</span>'
                 );
             } else {
-                $m.html('<span class="text-danger">Unknown client (add order # to save mapping)</span>');
+                $m.html('<span class="text-danger">Unknown client</span>');
             }
+            return;
+        }
+        if (refundCols) {
+            $m.html(
+                '<span class="text-success">' +
+                    esc(u.full_name || u.email || 'Client') +
+                    ' <span class="text-muted">(' +
+                    String(u.id).padStart(4, '0') +
+                    ')</span></span>'
+            );
             return;
         }
         if (row && row.sale_match_ok === false) {
             $m.html(
                 '<span class="text-danger">' +
-                    escapeHtml(row.sale_match_error || 'No matching sale on dashboard — import the sale first') +
+                    esc(row.sale_match_error || 'No matching sale on dashboard — import the sale first') +
                     '</span>'
             );
             return;
         }
         var saleNote =
             row && row.matched_sale_preview && row.matched_sale_preview !== '—'
-                ? ' Matched sale ' + escapeHtml(row.matched_sale_preview) + '.'
+                ? ' · sale ' + esc(row.matched_sale_preview)
                 : '';
         $m.html(
-            '<span class="text-success">Ready — ' +
-                escapeHtml(u.full_name || u.email || 'Client') +
-                ' <span class="text-muted">(ID ' +
+            '<span class="text-success">' +
+                esc(u.full_name || u.email || 'Client') +
+                ' (' +
                 String(u.id).padStart(4, '0') +
-                ')</span>.' +
+                ')' +
                 saleNote +
-                ' Shown under <strong>Ready to import</strong>.</span>'
+                '</span>'
         );
     };
 
@@ -297,6 +400,29 @@
             visible++;
             var $tr = $('<tr></tr>').addClass(self.prefix + '-review-row').attr('data-line', r.line);
             var dataHtml = self.cfg.renderDataCells ? self.cfg.renderDataCells(r, escapeHtml) : '';
+            var refundCols = !!self.cfg.refundImport;
+            var tail =
+                '<td><input type="text" class="form-control form-control-sm ' +
+                self.prefix +
+                '-review-client-id" list="' +
+                self.prefix +
+                '-client-datalist" value="' +
+                escapeHtml(r.client_id || '') +
+                '" /></td>';
+            if (refundCols) {
+                tail +=
+                    '<td class="small text-nowrap ' +
+                    self.prefix +
+                    '-review-sale"></td>' +
+                    '<td class="small text-nowrap ' +
+                    self.prefix +
+                    '-review-import-outcome"></td>' +
+                    '<td class="small ' +
+                    self.prefix +
+                    '-review-match"></td>';
+            } else {
+                tail += '<td class="small ' + self.prefix + '-review-match"></td>';
+            }
             $tr.append(
                 '<td class="text-muted">' +
                     r.line +
@@ -305,16 +431,7 @@
                     '<td class="small text-muted">' +
                     escapeHtml(clientSourceLabel(r.client_source)) +
                     '</td>' +
-                    '<td><input type="text" class="form-control form-control-sm ' +
-                    self.prefix +
-                    '-review-client-id" list="' +
-                    self.prefix +
-                    '-client-datalist" value="' +
-                    escapeHtml(r.client_id || '') +
-                    '" /></td>' +
-                    '<td class="small ' +
-                    self.prefix +
-                    '-review-match"></td>'
+                    tail
             );
             self.updateRowResolve($tr, r.client_id || '', r);
             $tb.append($tr);
@@ -331,11 +448,33 @@
         if (buckets.needClient) summary += ' · ' + buckets.needClient + ' need Client ID';
         if (buckets.imported) summary += ' · ' + buckets.imported + ' already imported';
         $(this.sel('review-summary')).removeClass('d-none').text(summary);
+        this.renderRefundLegend();
         this.updateFilterHint();
+    };
+
+    ImportClientReview.prototype.renderRefundLegend = function () {
+        var $leg = $(this.sel('review-legend'));
+        if (!$leg.length || !this.cfg.refundImport) return;
+        var b = countReviewBuckets(this.getRows());
+        $leg.removeClass('d-none').html(
+            '<span class="badge text-bg-success me-1">→ Client dashboard</span> refund applies to payout · ' +
+                '<span class="badge text-bg-danger me-1">Skipped — no sale</span> not imported · ' +
+                '<span class="badge text-bg-info me-1">→ Pending imports</span> unknown client · ' +
+                '<span class="badge text-bg-warning me-1">Need Client ID</span> · ' +
+                '<span class="badge text-bg-secondary">Already imported</span>' +
+                ' — <strong>' +
+                b.ready +
+                '</strong> will hit dashboards, <strong>' +
+                b.noSale +
+                '</strong> skipped (no sale), <strong>' +
+                b.needClient +
+                '</strong> need client.'
+        );
     };
 
     ImportClientReview.prototype.open = function (rows, opts) {
         opts = opts || {};
+        if (opts.refundImport != null) this.cfg.refundImport = !!opts.refundImport;
         this.cfg.setRows((rows || []).map(function (r) {
             return Object.assign({}, r);
         }));
@@ -346,6 +485,7 @@
         if (opts.filter) $(this.sel('review-filter')).val(opts.filter);
         this.rebuildDatalist();
         this.render();
+        this.renderRefundLegend();
         if (opts.message && this.cfg.showMessage) this.cfg.showMessage(opts.message);
     };
 
@@ -451,11 +591,21 @@
         if (!this.cfg.onImport) return alert('Import not configured.');
         var $btn = $(this.sel('import-reviewed-btn'));
         $btn.prop('disabled', true).text('Importing…');
+        var payloadRows =
+            root.ImportClientReview.rowsForImportPayload(rows);
+        if (!payloadRows.length) {
+            alert(
+                'No rows to import. Use Show → Ready to import (matching sale required for refunds), or fix Client IDs first.'
+            );
+            $btn.prop('disabled', false).text('Import reviewed rows');
+            return;
+        }
         try {
-            await this.cfg.onImport(rows, {
+            await this.cfg.onImport(payloadRows, {
                 ready: ready,
                 needs: needs,
                 total: rows.length,
+                submitted: payloadRows.length,
                 already_imported: already,
             });
         } catch (e) {
@@ -465,6 +615,15 @@
         }
     };
 
+    /** Rows sent on import: skip duplicates and no-matching-sale (still queue unknown clients). */
+    function rowsForImportPayload(rows) {
+        return (rows || []).filter(function (r) {
+            if (r.already_imported) return false;
+            if (rowNoMatchingSale(r)) return false;
+            return true;
+        });
+    }
+
     root.ImportClientReview = {
         create: function (cfg) {
             var inst = new ImportClientReview(cfg);
@@ -472,5 +631,9 @@
             return inst;
         },
         resolveClientLocally: resolveClientLocally,
+        rowsForImportPayload: rowsForImportPayload,
+        importOutcomeForRow: importOutcomeForRow,
+        renderSaleMatchBadge: renderSaleMatchBadge,
+        renderImportOutcomeBadge: renderImportOutcomeBadge,
     };
 })(typeof window !== 'undefined' ? window : globalThis);
