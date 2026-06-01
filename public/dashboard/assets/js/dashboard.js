@@ -3354,26 +3354,28 @@ const Dashboard = {
             if (!list.length) {
                 $inbox.html('<p class="text-muted text-center py-5 mb-0">No queries yet. Use the form to ask about a pending item or package.</p>');
             } else {
-                let html = '<div class="list-group list-group-flush">';
+                let html = '<div class="rp-query-inbox">';
                 list.forEach(function(q) {
                     const msgs =
                         Array.isArray(q.messages) && q.messages.length
                             ? q.messages
                             : [{ sender_role: 'client', body: q.message || '', created_at: q.created_at }];
                     const updatedLabel = q.updated_at || q.created_at;
+                    const whenLabel =
+                        updatedLabel && typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb
+                            ? RP_DATE.formatOrdinalEnGb(updatedLabel)
+                            : '';
                     html +=
-                        '<div class="list-group-item px-0 py-3 border-bottom" data-query-id="' +
+                        '<article class="rp-query-thread" data-query-id="' +
                         self.escHtml(String(q.id)) +
                         '">' +
-                        '<div class="d-flex justify-content-between flex-wrap gap-2 mb-2">' +
-                        '<span class="badge bg-light text-dark">' +
+                        '<div class="rp-query-thread-header">' +
+                        '<span class="badge bg-light text-dark border">' +
                         self.escHtml(q.context_label || q.context_type || 'General') +
                         '</span>' +
-                        '<small class="text-muted">' +
-                        (updatedLabel && typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb
-                            ? RP_DATE.formatOrdinalEnGb(updatedLabel)
-                            : '') +
-                        '</small></div>';
+                        (whenLabel ? '<small class="text-muted">' + self.escHtml(whenLabel) + '</small>' : '') +
+                        '</div>' +
+                        '<div class="rp-query-messages">';
                     msgs.forEach(function(m) {
                         const isAdmin = m.sender_role === 'admin';
                         const when =
@@ -3382,48 +3384,53 @@ const Dashboard = {
                                 : '';
                         const delBtn =
                             !isAdmin && m.can_delete && m.id != null
-                                ? '<button type="button" class="btn btn-link btn-sm text-danger p-0 query-delete-msg-btn" data-query-id="' +
+                                ? '<button type="button" class="rp-query-msg-delete query-delete-msg-btn" data-query-id="' +
                                   self.escHtml(String(q.id)) +
                                   '" data-message-id="' +
                                   self.escHtml(String(m.id)) +
-                                  '" title="Remove this message">Delete</button>'
+                                  '" title="Remove this message" aria-label="Remove this message"><i class="ri-delete-bin-line"></i></button>'
                                 : '';
                         html +=
-                            '<div class="p-2 rounded mb-2 ' +
-                            (isAdmin ? 'bg-success-subtle' : 'bg-light') +
+                            '<div class="rp-query-msg ' +
+                            (isAdmin ? 'rp-query-msg--admin' : 'rp-query-msg--client') +
                             '">' +
-                            '<div class="d-flex justify-content-between align-items-start gap-2">' +
-                            '<strong class="small">' +
+                            '<div class="rp-query-msg-head">' +
+                            '<span class="rp-query-msg-label">' +
                             (isAdmin ? 'ReturnPal' : 'You') +
-                            '</strong>' +
+                            '</span>' +
                             delBtn +
                             '</div>' +
-                            (when ? '<small class="text-muted">' + self.escHtml(when) + '</small>' : '') +
-                            '<p class="mb-0 small mt-1">' +
+                            (when ? '<span class="rp-query-msg-time">' + self.escHtml(when) + '</span>' : '') +
+                            '<p class="rp-query-msg-body">' +
                             self.escHtml(m.body || '') +
                             '</p></div>';
                     });
-                    if (q.can_delete_thread) {
-                        html +=
-                            '<div class="mt-2">' +
-                            '<button type="button" class="btn btn-link btn-sm text-danger p-0 query-delete-thread-btn" data-query-id="' +
-                            self.escHtml(String(q.id)) +
-                            '">Delete entire conversation</button></div>';
-                    }
+                    html += '</div><div class="rp-query-actions">';
                     if (q.can_client_reply) {
                         html +=
-                            '<form class="query-followup-form mt-2" data-query-id="' +
+                            '<form class="query-followup-form rp-query-followup-form" data-query-id="' +
                             self.escHtml(String(q.id)) +
                             '">' +
-                            '<label class="form-label small mb-1">Your follow-up</label>' +
+                            '<label class="form-label small mb-1 fw-semibold">Your follow-up</label>' +
                             '<textarea class="form-control form-control-sm mb-2 query-followup-input" rows="2" minlength="5" placeholder="Add more detail or ask a follow-up question…" required></textarea>' +
-                            '<button type="submit" class="btn btn-primary btn-sm">Send follow-up</button>' +
+                            '<button type="submit" class="btn btn-primary btn-sm"><i class="ri-send-plane-line me-1"></i>Send follow-up</button>' +
                             '</form>';
                     } else if (String(q.last_sender || 'client') === 'client') {
                         html +=
-                            '<span class="badge bg-warning-subtle text-warning">Awaiting reply from ReturnPal</span>';
+                            '<span class="badge bg-warning-subtle text-warning border border-warning-subtle">Awaiting reply from ReturnPal</span>';
                     }
                     html += '</div>';
+                    if (q.can_delete_thread) {
+                        html +=
+                            '<div class="rp-query-footer">' +
+                            '<button type="button" class="btn rp-query-delete-thread query-delete-thread-btn" data-query-id="' +
+                            self.escHtml(String(q.id)) +
+                            '">' +
+                            '<i class="ri-delete-bin-6-line" aria-hidden="true"></i>Delete conversation</button>' +
+                            '<p class="rp-query-footer-hint">Removes this thread from your inbox. This cannot be undone.</p>' +
+                            '</div>';
+                    }
+                    html += '</article>';
                 });
                 html += '</div>';
                 $inbox.html(html);

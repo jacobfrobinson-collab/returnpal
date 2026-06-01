@@ -1,0 +1,151 @@
+/* My queries — conversation threads */
+
+#queries-inbox .rp-query-thread {
+    border: 1px solid var(--rp-border, #e5e7eb);
+    border-radius: var(--rp-card-radius, 8px);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    background: var(--rp-card-bg, #fff);
+    transition: box-shadow 0.15s ease;
+}
+
+#queries-inbox .rp-query-thread:last-child {
+    margin-bottom: 0;
+}
+
+#queries-inbox .rp-query-thread-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--rp-divider, #f1f5f9);
+}
+
+#queries-inbox .rp-query-msg {
+    border-radius: var(--rp-card-radius, 8px);
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+#queries-inbox .rp-query-msg--client {
+    background: #f8fafc;
+    border: 1px solid var(--rp-border, #e5e7eb);
+}
+
+#queries-inbox .rp-query-msg--admin {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+}
+
+#queries-inbox .rp-query-msg-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+#queries-inbox .rp-query-msg-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #64748b;
+}
+
+#queries-inbox .rp-query-msg--admin .rp-query-msg-label {
+    color: #047857;
+}
+
+#queries-inbox .rp-query-msg-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border: 1px solid var(--rp-border, #e5e7eb);
+    border-radius: 6px;
+    background: #fff;
+    color: #94a3b8;
+    line-height: 1;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+#queries-inbox .rp-query-msg-delete:hover {
+    color: #dc2626;
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+#queries-inbox .rp-query-msg-delete i {
+    font-size: 1rem;
+}
+
+#queries-inbox .rp-query-msg-time {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    display: block;
+    margin-bottom: 0.35rem;
+}
+
+#queries-inbox .rp-query-msg-body {
+    font-size: 0.875rem;
+    margin: 0;
+    line-height: 1.5;
+    color: #334155;
+}
+
+#queries-inbox .rp-query-actions {
+    margin-top: 0.75rem;
+}
+
+#queries-inbox .rp-query-followup-form textarea {
+    font-size: 0.875rem;
+}
+
+#queries-inbox .rp-query-footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--rp-border, #e5e7eb);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+#queries-inbox .rp-query-delete-thread {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    padding: 0.4rem 0.85rem;
+    border-radius: 6px;
+    border: 1px solid #fecaca;
+    background: #fff;
+    color: #b91c1c;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+#queries-inbox .rp-query-delete-thread:hover {
+    background: #fef2f2;
+    border-color: #f87171;
+    color: #991b1b;
+}
+
+#queries-inbox .rp-query-delete-thread i {
+    font-size: 1rem;
+}
+
+#queries-inbox .rp-query-footer-hint {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin: 0;
+    flex: 1 1 12rem;
+    min-width: 0;
+}
