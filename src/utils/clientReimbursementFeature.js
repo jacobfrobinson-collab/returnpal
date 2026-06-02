@@ -1,7 +1,8 @@
-/** Client self-serve reimbursement UI/API (dashboard cockpit). Admin routes are separate. */
+/** Client self-serve reimbursement UI/API. Disabled only when CLIENT_REIMBURSEMENT_ENABLED=0|false|no */
 function isClientReimbursementEnabled() {
     const v = (process.env.CLIENT_REIMBURSEMENT_ENABLED || '').trim().toLowerCase();
-    return v === '1' || v === 'true' || v === 'yes';
+    if (v === '0' || v === 'false' || v === 'no') return false;
+    return true;
 }
 
 module.exports = { isClientReimbursementEnabled };

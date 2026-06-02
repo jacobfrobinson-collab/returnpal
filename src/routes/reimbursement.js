@@ -7,6 +7,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 const { enrichClaimRow, buildCaseText, normalizeCaseStatus, CASE_STATUSES } = require('../utils/reimbursementCase');
 const { isClientReimbursementEnabled } = require('../utils/clientReimbursementFeature');
+const { saveReimbursementClaimPhotos } = require('../utils/reimbursementPhotos');
 
 const router = express.Router();
 
@@ -153,20 +154,7 @@ router.post('/claims', reimbursementMulter.array('photos', 10), async (req, res)
         );
         const claimId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
 
-        const files = req.files || [];
-        const dir = path.join(reimbursementUploadDir, String(claimId));
-        if (files.length > 0) {
-            if (!fs.existsSync(reimbursementUploadDir)) fs.mkdirSync(reimbursementUploadDir, { recursive: true });
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            for (let i = 0; i < files.length; i++) {
-                const f = files[i];
-                const ext = path.extname(f.originalname) || '.jpg';
-                const safeName = `photo-${i + 1}${ext}`;
-                fs.writeFileSync(path.join(dir, safeName), f.buffer);
-                const relativePath = `reimbursement/${claimId}/${safeName}`;
-                db.run('INSERT INTO reimbursement_claim_photos (claim_id, file_path) VALUES (?, ?)', [claimId, relativePath]);
-            }
-        }
+        saveReimbursementClaimPhotos(db, claimId, req.files || [], uploadsBaseDir);
         saveDb();
 
         await pushActivity(

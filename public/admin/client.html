@@ -456,11 +456,16 @@
                         </select>
                     </div>
                     <div class="mb-2"><label class="form-label">Notes</label><input type="text" class="form-control" id="reimb-edit-notes" /></div>
-                    <p class="small text-muted mb-0">Photos are not changed here; add a new claim if you need different images.</p>
+                    <div class="mb-2">
+                        <label class="form-label">Add photos (client downloads for Seller Central)</label>
+                        <input type="file" class="form-control" id="reimb-edit-photos" accept="image/jpeg,image/png,image/gif,image/webp" multiple />
+                    </div>
+                    <div id="reimb-edit-existing-photos" class="small text-muted"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="btn-save-reimbursement">Save</button>
+                    <button type="button" class="btn btn-outline-info" id="btn-upload-reimb-photos">Upload photos</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-reimbursement">Save details</button>
                 </div>
             </div>
         </div>
@@ -803,6 +808,11 @@
                         $('#reimb-edit-item-description').val(c.item_description || '');
                         $('#reimb-edit-type').val(c.reimbursement_type || 'Destroyed Inventory');
                         $('#reimb-edit-notes').val(c.notes || '');
+                        document.getElementById('reimb-edit-photos').value = '';
+                        var existing = (c.photos || []).map(function(ph, i) {
+                            return '<a href="/uploads/' + escapeHtml(ph.file_path || '') + '" target="_blank" class="me-2">Photo ' + (i + 1) + '</a>';
+                        }).join('') || 'No photos yet.';
+                        $('#reimb-edit-existing-photos').html('<span class="d-block mb-1">Current photos:</span>' + existing);
                         new bootstrap.Modal(document.getElementById('modal-edit-reimbursement')).show();
                     });
                     var $rm = $('<button type="button" class="btn btn-outline-danger">Delete</button>');
@@ -1420,6 +1430,24 @@
                     refreshAll();
                 })
                 .catch(function(e) { alert(e.error || 'Failed'); });
+        });
+
+        $('#btn-upload-reimb-photos').on('click', function() {
+            var id = $('#reimb-edit-id').val();
+            if (!id) return;
+            var files = document.getElementById('reimb-edit-photos').files;
+            if (!files || !files.length) return alert('Choose one or more photos to upload');
+            var form = new FormData();
+            for (var i = 0; i < files.length; i++) form.append('photos', files[i]);
+            var $btn = $('#btn-upload-reimb-photos').prop('disabled', true);
+            API.request('/admin/reimbursement-claims/' + id + '/photos', { method: 'POST', body: form })
+                .then(function() {
+                    document.getElementById('reimb-edit-photos').value = '';
+                    bootstrap.Modal.getInstance(document.getElementById('modal-edit-reimbursement')).hide();
+                    refreshAll();
+                })
+                .catch(function(e) { alert(e.error || 'Failed'); })
+                .finally(function() { $btn.prop('disabled', false); });
         });
 
         $('#btn-save-reimbursement').on('click', function() {

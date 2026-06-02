@@ -99,8 +99,8 @@ function rpOpenInvoicePrintWindow(html) {
 }
 
 const Dashboard = {
-    /** Set true when client reimbursement cockpit is ready for production. */
-    CLIENT_REIMBURSEMENT_UI_ENABLED: false,
+    /** Client reimbursement cockpit (admin adds claims/photos; clients file in Seller Central). */
+    CLIENT_REIMBURSEMENT_UI_ENABLED: true,
 
     isClientReimbursementUiEnabled() {
         return !!this.CLIENT_REIMBURSEMENT_UI_ENABLED;

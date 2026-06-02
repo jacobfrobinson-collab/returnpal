@@ -75,6 +75,8 @@ const {
     mergeClientPreferences,
     isPrepSendbackEnabled,
 } = require('../utils/clientPreferences');
+const { enrichClaimRow, buildCaseText } = require('../utils/reimbursementCase');
+const { saveReimbursementClaimPhotos } = require('../utils/reimbursementPhotos');
 
 const PREP_SENDBACK_STATUSES = ['requested', 'queued', 'shipped', 'delivered', 'cancelled'];
 
@@ -585,7 +587,8 @@ router.get('/users/:id/reimbursement-claims', async (req, res) => {
             const photos = parseResults(
                 db.exec('SELECT id, file_path, created_at FROM reimbursement_claim_photos WHERE claim_id = ? ORDER BY id', [c.id])
             );
-            c.photos = photos;
+            c.photos = photos.map((ph) => ({ ...ph, url: '/uploads/' + ph.file_path }));
+            Object.assign(c, enrichClaimRow(c));
         }
         res.json({ claims });
     } catch (err) {
@@ -614,42 +617,73 @@ router.post('/reimbursement-claims', reimbursementMulter.array('photos', 10), as
             return res.status(400).json({ error: 'User not found' });
         }
 
+        const caseText = buildCaseText({
+            package_reference: packageReference,
+            item_description: itemDescription,
+            reimbursement_type: reimbursementType,
+            notes,
+            order_number: orderNumber,
+        });
+        const hasPhotos = (req.files || []).length > 0;
+        const caseStatus = hasPhotos ? 'ready' : 'draft';
+
         db.run(
-            'INSERT INTO reimbursement_claims (user_id, package_reference, item_description, reimbursement_type, notes, order_number) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, packageReference, itemDescription, reimbursementType, notes, orderNumber]
+            `INSERT INTO reimbursement_claims (user_id, package_reference, item_description, reimbursement_type, notes, order_number, case_status, case_text)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [userId, packageReference, itemDescription, reimbursementType, notes, orderNumber, caseStatus, caseText]
         );
         const claimIdResult = db.exec('SELECT last_insert_rowid() as id');
         const claimId = claimIdResult[0].values[0][0];
 
-        const files = req.files || [];
-        const dir = path.join(reimbursementUploadDir, String(claimId));
-        if (files.length > 0) {
-            if (!fs.existsSync(reimbursementUploadDir)) fs.mkdirSync(reimbursementUploadDir, { recursive: true });
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            for (let i = 0; i < files.length; i++) {
-                const f = files[i];
-                const ext = path.extname(f.originalname) || '.jpg';
-                const safeName = `photo-${i + 1}${ext}`;
-                const filePath = path.join(dir, safeName);
-                fs.writeFileSync(filePath, f.buffer);
-                const relativePath = `reimbursement/${claimId}/${safeName}`;
-                db.run('INSERT INTO reimbursement_claim_photos (claim_id, file_path) VALUES (?, ?)', [claimId, relativePath]);
-            }
-        }
+        saveReimbursementClaimPhotos(db, claimId, req.files || [], uploadsBaseDir);
         saveDb();
 
-        await pushActivity(
-            userId,
-            'info',
-            `Reimbursement item added: ${itemDescription} (package ${packageReference}). View in Reimbursement claims.`,
-            '/dashboard/reimbursement.html'
-        );
+        const activityMsg = hasPhotos
+            ? `Reimbursement claim ready: ${itemDescription}. Download photos and file in Seller Central.`
+            : `Reimbursement item added: ${itemDescription} (package ${packageReference}). View in Reimbursement claims.`;
+        await pushActivity(userId, 'info', activityMsg, '/dashboard/reimbursement.html');
 
-        const claim = parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0];
+        const claim = enrichClaimRow(parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0]);
         claim.photos = parseResults(db.exec('SELECT id, file_path FROM reimbursement_claim_photos WHERE claim_id = ?', [claimId]));
         res.status(201).json({ claim });
     } catch (err) {
         console.error('Admin create reimbursement claim error:', err);
+        res.status(500).json({ error: err.message || 'Server error' });
+    }
+});
+
+// POST /api/admin/reimbursement-claims/:id/photos — add evidence photos to an existing claim
+router.post('/reimbursement-claims/:id/photos', reimbursementMulter.array('photos', 10), async (req, res) => {
+    try {
+        const claimId = parseInt(req.params.id, 10);
+        if (isNaN(claimId)) return res.status(400).json({ error: 'Invalid id' });
+        const files = req.files || [];
+        if (!files.length) return res.status(400).json({ error: 'At least one photo is required' });
+
+        const db = await getDb();
+        const rows = parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]));
+        if (!rows.length) return res.status(404).json({ error: 'Claim not found' });
+
+        const saved = saveReimbursementClaimPhotos(db, claimId, files, uploadsBaseDir);
+        const cur = rows[0];
+        const st = String(cur.case_status || 'draft').toLowerCase();
+        if (st === 'draft' || !st) {
+            db.run('UPDATE reimbursement_claims SET case_status = ? WHERE id = ?', ['ready', claimId]);
+        }
+        saveDb();
+
+        await pushActivity(
+            cur.user_id,
+            'info',
+            `New photos for reimbursement claim: ${cur.item_description || 'item'}. Download from Reimbursement claims.`,
+            '/dashboard/reimbursement.html'
+        );
+
+        const claim = enrichClaimRow(parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0]);
+        claim.photos = parseResults(db.exec('SELECT id, file_path FROM reimbursement_claim_photos WHERE claim_id = ? ORDER BY id', [claimId]));
+        res.json({ claim, added: saved.length });
+    } catch (err) {
+        console.error('Admin add reimbursement photos error:', err);
         res.status(500).json({ error: err.message || 'Server error' });
     }
 });
