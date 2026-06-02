@@ -216,11 +216,10 @@ const Dashboard = {
                 .replace(/"/g, '&quot;');
             let html = '<div class="dropdown-header border-bottom">Notifications</div>';
             events.slice(0, 6).forEach((evt) => {
-                const time = evt.timestamp ? this.formatTimeAgo(evt.timestamp) : '';
                 const link = evt.link ? String(evt.link) : '';
                 const href = link ? ' href="' + esc(link).replace(/"/g, '&quot;') + '"' : '';
                 html += '<a class="dropdown-item py-2 border-bottom small"' + href + '><span class="d-block">' + esc(evt.message || '') + '</span>' +
-                    (time ? '<small class="text-muted">' + esc(time) + '</small>' : '') + '</a>';
+                    (evt.timestamp ? this._activityTimeHtml(evt.timestamp) : '') + '</a>';
             });
             html += '<a class="dropdown-item text-center small text-primary py-2" href="activity.html">View all activity</a>';
             $dd.html(html);
@@ -918,6 +917,10 @@ const Dashboard = {
         if (this._activityTimer) {
             clearTimeout(this._activityTimer);
             this._activityTimer = null;
+        }
+        if (this._relativeTimeInterval) {
+            clearInterval(this._relativeTimeInterval);
+            this._relativeTimeInterval = null;
         }
 
         // Detect which page we're on and load data (only true dashboard overview, never reimbursement/other subpages)
@@ -1826,14 +1829,8 @@ const Dashboard = {
             if (!this._overviewAgoInterval && $('#dashboard-last-updated').length) {
                 const self = this;
                 this._overviewAgoInterval = setInterval(function() {
-                    if (!self._lastOverviewUpdate) return;
-                    const sec = Math.floor((Date.now() - self._lastOverviewUpdate) / 1000);
-                    const $el = $('#dashboard-last-updated');
-                    if (!$el.length) return;
-                    if (sec < 60) $el.text('Data as of just now');
-                    else if (sec < 3600) $el.text('Data as of ' + Math.floor(sec / 60) + ' min ago');
-                    else $el.text('Data as of ' + Math.floor(sec / 3600) + ' hr ago');
-                }, 60000);
+                    self.refreshRelativeTimes();
+                }, 30000);
             }
 
             // Recent activity
@@ -1845,18 +1842,18 @@ const Dashboard = {
                 } else {
                     $feed.empty();
                     activities.slice(0, 6).forEach(evt => {
-                        const time = evt.timestamp ? this.formatTimeAgo(evt.timestamp) : '';
                         const link = evt.link ? (' href="' + evt.link + '"' ) : '';
                         const icon = evt.icon || 'ri-circle-line';
                         $feed.append(
                             '<a class="list-group-item list-group-item-action border-0 py-3 d-flex align-items-start" role="article"' + link + '>' +
                             '<i class="' + icon + ' me-2 mt-1 text-muted"></i>' +
                             '<div class="flex-grow-1"><span class="d-block">' + (evt.message || '') + '</span>' +
-                            (time ? '<small class="text-muted">' + time + '</small>' : '') + '</div>' +
+                            (evt.timestamp ? this._activityTimeHtml(evt.timestamp) : '') + '</div>' +
                             (evt.cta ? '<span class="badge bg-primary-subtle text-primary">' + evt.cta + '</span>' : '') +
                             '</a>'
                         );
                     });
+                    this.startRelativeTimeRefresh();
                 }
             }
 
@@ -1941,15 +1938,60 @@ const Dashboard = {
         });
     },
 
+    /** Relative time, e.g. "30 minutes ago", "12 hours ago". */
     formatTimeAgo(iso) {
-        const d = new Date(iso);
-        const now = new Date();
-        const sec = Math.floor((now - d) / 1000);
-        if (sec < 60) return 'Just now';
-        if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
-        if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
-        if (sec < 604800) return Math.floor(sec / 86400) + 'd ago';
+        if (iso == null || iso === '') return '';
+        const d = iso instanceof Date ? iso : new Date(typeof iso === 'number' ? iso : iso);
+        if (isNaN(d.getTime())) return '';
+        const sec = Math.floor((Date.now() - d.getTime()) / 1000);
+        if (sec < 0) return 'Just now';
+        if (sec < 45) return 'Just now';
+        if (sec < 90) return '1 minute ago';
+        if (sec < 3600) {
+            const m = Math.floor(sec / 60);
+            return m === 1 ? '1 minute ago' : m + ' minutes ago';
+        }
+        if (sec < 7200) return '1 hour ago';
+        if (sec < 86400) {
+            const h = Math.floor(sec / 3600);
+            return h === 1 ? '1 hour ago' : h + ' hours ago';
+        }
+        if (sec < 604800) {
+            const days = Math.floor(sec / 86400);
+            return days === 1 ? '1 day ago' : days + ' days ago';
+        }
         return RP_DATE.formatOrdinalEnGb(d);
+    },
+
+    /** Keep "5 minutes ago" labels current without reloading the page. */
+    startRelativeTimeRefresh() {
+        const self = this;
+        if (self._relativeTimeInterval) clearInterval(self._relativeTimeInterval);
+        self._relativeTimeInterval = setInterval(function () {
+            self.refreshRelativeTimes();
+        }, 30000);
+        self.refreshRelativeTimes();
+    },
+
+    refreshRelativeTimes() {
+        const self = this;
+        $('.rp-time-ago[data-ts]').each(function () {
+            const ts = $(this).attr('data-ts');
+            const label = self.formatTimeAgo(ts);
+            if (label) $(this).text(label);
+        });
+        if (this._lastOverviewUpdate && $('#dashboard-last-updated').length) {
+            $('#dashboard-last-updated').text(
+                'Data as of ' + (this.formatTimeAgo(this._lastOverviewUpdate) || 'just now').toLowerCase()
+            );
+        }
+    },
+
+    _activityTimeHtml(timestamp) {
+        if (!timestamp) return '';
+        const label = this.formatTimeAgo(timestamp);
+        const esc = String(timestamp).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        return '<small class="text-muted rp-time-ago" data-ts="' + esc + '">' + label + '</small>';
     },
 
     // ─── PACKAGES PAGE ───────────────────────────────────────
@@ -3981,18 +4023,18 @@ const Dashboard = {
                 $feed.html('<div class="list-group-item border-0 py-5 text-center"><p class="text-muted mb-3">No recent activity. Ship a package or connect your Amazon account to get started.</p><a href="packages.html" class="btn btn-primary btn-sm">Add Package</a></div>');
             } else {
                 list.forEach(evt => {
-                    const time = evt.timestamp ? this.formatTimeAgo(evt.timestamp) : '';
                     const link = evt.link ? ' href="' + evt.link + '"' : '';
                     const icon = evt.icon || 'ri-circle-line';
                     $feed.append(
                         '<a class="list-group-item list-group-item-action border-0 py-3 d-flex align-items-start" role="article"' + link + '>' +
                         '<i class="' + icon + ' me-2 mt-1 text-muted"></i>' +
                         '<div class="flex-grow-1"><span class="d-block">' + (evt.message || '') + '</span>' +
-                        (time ? '<small class="text-muted">' + time + '</small>' : '') + '</div>' +
+                        (evt.timestamp ? this._activityTimeHtml(evt.timestamp) : '') + '</div>' +
                         (evt.cta ? '<span class="badge bg-primary-subtle text-primary">' + evt.cta + '</span>' : '') +
                         '</a>'
                     );
                 });
+                this.startRelativeTimeRefresh();
             }
             const $live = $('#activity-live');
             if ($live.length) $live.addClass('rp-live-dot').attr('aria-label', 'Live updates on');
@@ -4744,7 +4786,13 @@ const Dashboard = {
             if ($tl.length) {
                 $tl.empty();
                 timeline.forEach(t => {
-                    $tl.append('<div class="d-flex mb-2"><small class="text-muted me-2">' + (t.timestamp ? this.formatTimeAgo(t.timestamp) : '') + '</small><span>' + (t.message || '') + '</span></div>');
+                    $tl.append(
+                        '<div class="d-flex mb-2"><span class="text-muted me-2">' +
+                            (t.timestamp ? this._activityTimeHtml(t.timestamp) : '') +
+                            '</span><span>' +
+                            (t.message || '') +
+                            '</span></div>'
+                    );
                 });
             }
         } catch (err) {
