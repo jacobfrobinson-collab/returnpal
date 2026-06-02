@@ -422,6 +422,39 @@ const Dashboard = {
             );
     },
 
+    injectAmazonConnectComingSoonModal() {
+        if ($('#amazonConnectComingSoonModal').length) return;
+        $('body').append(
+            '<div class="modal fade" id="amazonConnectComingSoonModal" tabindex="-1" aria-labelledby="amazonConnectComingSoonTitle" aria-hidden="true">' +
+            '<div class="modal-dialog modal-dialog-centered"><div class="modal-content">' +
+            '<div class="modal-header border-0 pb-0">' +
+            '<h5 class="modal-title" id="amazonConnectComingSoonTitle"><i class="ri-amazon-line me-2 text-primary"></i>Connect Amazon (coming soon)</h5>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>' +
+            '<div class="modal-body pt-2">' +
+            '<p class="text-muted mb-0">Seller Central linking is not available yet. You will be able to connect your Amazon account from here when this feature is ready.</p>' +
+            '</div>' +
+            '<div class="modal-footer border-0 pt-0">' +
+            '<button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>' +
+            '</div></div></div></div>'
+        );
+    },
+
+    showAmazonConnectComingSoonModal() {
+        this.injectAmazonConnectComingSoonModal();
+        const el = document.getElementById('amazonConnectComingSoonModal');
+        if (!el || typeof bootstrap === 'undefined') return;
+        bootstrap.Modal.getOrCreateInstance(el).show();
+    },
+
+    bindConnectAmazonNavGuard() {
+        $(document)
+            .off('click.rpAmazonSoon', '#nav-link-connect-amazon, #onboarding-2 a, a.rp-connect-amazon-trigger')
+            .on('click.rpAmazonSoon', '#nav-link-connect-amazon, #onboarding-2 a, a.rp-connect-amazon-trigger', function(e) {
+                e.preventDefault();
+                Dashboard.showAmazonConnectComingSoonModal();
+            });
+    },
+
     /** Reimbursement case cockpit — #reimbursement-list */
     loadReimbursementClaims() {
         const $list = $('#reimbursement-list');
@@ -941,6 +974,8 @@ const Dashboard = {
         this.injectReturnsSettingsLink();
         this.injectReimbursementComingSoonModal();
         this.bindReimbursementNavGuard();
+        this.injectAmazonConnectComingSoonModal();
+        this.bindConnectAmazonNavGuard();
         this.injectSupportModal();
         this.injectCommandPalette();
         this.initCommandPalette();
@@ -1140,7 +1175,11 @@ const Dashboard = {
     injectConnectAmazonLink() {
         if ($('#nav-link-connect-amazon').length) return;
         const $settings = $('#navbar-nav a[href="settings.html"]').closest('li');
-        if ($settings.length) $settings.before('<li class="nav-item"><a class="nav-link position-relative" href="settings.html" id="nav-link-connect-amazon"><span class="nav-icon"><i class="ri-amazon-line"></i></span><span class="nav-text">Connect Amazon</span></a></li>');
+        if ($settings.length) {
+            $settings.before(
+                '<li class="nav-item"><a class="nav-link position-relative" href="#" id="nav-link-connect-amazon"><span class="nav-icon"><i class="ri-amazon-line"></i></span><span class="nav-text">Connect Amazon</span></a></li>'
+            );
+        }
     },
     updateNotificationDots() {
         const unread = this.getUnreadAnnouncementsCount();
@@ -1152,11 +1191,7 @@ const Dashboard = {
                 if (!$dot.length) $ann.append('<span class="rp-nav-dot position-absolute top-0 end-0 translate-middle rounded-circle bg-danger" style="width:8px;height:8px;"></span>');
             } else $dot.remove();
         }
-        const amazonConnected = localStorage.getItem('returnpal_amazon_connected') === 'true';
-        const $amazon = $('#nav-link-connect-amazon');
-        if ($amazon.length && !amazonConnected) {
-            if (!$amazon.find('.rp-nav-dot').length) $amazon.append('<span class="rp-nav-dot position-absolute top-0 end-0 translate-middle rounded-circle bg-danger" style="width:8px;height:8px;"></span>');
-        } else if ($amazon.length) $amazon.find('.rp-nav-dot').remove();
+        $('#nav-link-connect-amazon .rp-nav-dot').remove();
     },
 
     injectViewingAsBanner() {
