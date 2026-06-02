@@ -83,7 +83,11 @@ function rpInvoicePrintDocumentCss() {
 function rpOpenInvoicePrintWindow(html) {
     const w = window.open('', '_blank');
     if (!w) {
-        alert('Please allow pop-ups to print or save as PDF.');
+        if (typeof Dashboard !== 'undefined' && Dashboard.showToast) {
+            Dashboard.showToast('Allow pop-ups for this site to print or save as PDF.', 'error');
+        } else {
+            alert('Please allow pop-ups to print or save as PDF.');
+        }
         return;
     }
     w.document.write(html);
@@ -100,6 +104,12 @@ const Dashboard = {
 
     isClientReimbursementUiEnabled() {
         return !!this.CLIENT_REIMBURSEMENT_UI_ENABLED;
+    },
+
+    /** YYYY-MM from data-period; use .attr not .data (jQuery turns "2026-03" into 2023). */
+    readStatementPeriodYm($el) {
+        const raw = String($el.attr('data-period') || $el.attr('data-statement-ym') || '').trim();
+        return /^\d{4}-\d{2}$/.test(raw) ? raw : '';
     },
 
     getClientIdFromToken() {
@@ -2956,9 +2966,16 @@ const Dashboard = {
             });
             $tbody.find('.invoice-print-opt').on('click', function (e) {
                 e.preventDefault();
-                const period = $(this).data('period');
-                const kind = $(this).data('kind');
-                if (period && kind) Dashboard.downloadInvoiceMonth.call(Dashboard, period, kind);
+                const $opt = $(this);
+                const period = Dashboard.readStatementPeriodYm($opt);
+                const kind = String($opt.attr('data-kind') || '').trim();
+                if (!period) {
+                    Dashboard.showToast('Invalid statement month. Refresh the page and try again.', 'error');
+                    return;
+                }
+                if (kind === 'invoice' || kind === 'statement') {
+                    Dashboard.downloadInvoiceMonth.call(Dashboard, period, kind);
+                }
             });
         } catch(err) {
             console.error('Load invoices error:', err);
@@ -4412,21 +4429,24 @@ const Dashboard = {
      * @param {'invoice'|'statement'} kind Invoice = consolidated by product; statement = each sale/return line
      */
     async downloadInvoiceMonth(period, kind) {
+        const periodYm = String(period || '').trim();
+        if (!/^\d{4}-\d{2}$/.test(periodYm)) {
+            this.showToast('Invalid statement month.', 'error');
+            return;
+        }
         try {
             await this.ensureClientPreferences();
             const docKind = kind === 'statement' ? 'statement' : 'invoice';
-            const data = await API.getInvoiceDetail(period);
-            const [y, m] = period.split('-').map(Number);
+            const data = await API.getInvoiceDetail(periodYm);
+            const [y, m] = periodYm.split('-').map(Number);
             const periodLabel =
                 data.period_label ||
-                (Number.isFinite(y) && Number.isFinite(m) ? y + '-' + String(m).padStart(2, '0') + '-01' : period);
+                (Number.isFinite(y) && Number.isFinite(m) ? y + '-' + String(m).padStart(2, '0') + '-01' : periodYm);
             const periodDisplay =
-                /^\d{4}-\d{2}$/.test(String(period || '').trim())
-                    ? Dashboard.formatStatementPeriodLabel(String(period).trim())
-                    : Dashboard.formatDateUK(periodLabel);
+                Dashboard.formatStatementPeriodLabel(periodYm);
 
             const today = new Date();
-            const [iy, im] = period.split('-').map(Number);
+            const [iy, im] = periodYm.split('-').map(Number);
             const invoiceDate = data.date_issued
                 ? Dashboard.formatDateUK(data.date_issued)
                 : Dashboard.formatDateUK(today);
@@ -4436,18 +4456,18 @@ const Dashboard = {
                     ? Dashboard.formatDateUK(new Date(iy, im + 1, 0))
                     : Dashboard.formatDateUK(new Date(today.getFullYear(), today.getMonth() + 1, 0));
 
-            let invoiceNum = sessionStorage.getItem('returnpal_invoice_num_' + period);
+            let invoiceNum = sessionStorage.getItem('returnpal_invoice_num_' + periodYm);
             if (!invoiceNum) {
                 const r = Math.floor(1000 + Math.random() * 9000);
                 invoiceNum = 'INV-' + (Number.isFinite(iy) ? iy : today.getFullYear()) + '-' + String(r);
-                sessionStorage.setItem('returnpal_invoice_num_' + period, invoiceNum);
+                sessionStorage.setItem('returnpal_invoice_num_' + periodYm, invoiceNum);
             }
 
-            let statementNum = sessionStorage.getItem('returnpal_statement_num_' + period);
+            let statementNum = sessionStorage.getItem('returnpal_statement_num_' + periodYm);
             if (!statementNum) {
                 const r = Math.floor(1000 + Math.random() * 9000);
                 statementNum = 'STMT-' + (Number.isFinite(iy) ? iy : today.getFullYear()) + '-' + String(r);
-                sessionStorage.setItem('returnpal_statement_num_' + period, statementNum);
+                sessionStorage.setItem('returnpal_statement_num_' + periodYm, statementNum);
             }
 
             const billing = this.getBillingDetailsForPrint();
@@ -4511,7 +4531,7 @@ const Dashboard = {
             const stmt = data.statement_lines || [];
             if (docKind === 'statement') {
                 if (!stmt.length) {
-                    alert('No statement lines for this period.');
+                    this.showToast('No statement lines for this month.', 'error');
                     return;
                 }
                 const sr = stmt.map((s) => {
@@ -4553,6 +4573,11 @@ const Dashboard = {
                 return;
             }
 
+            if (!lineItemsForTable.length) {
+                this.showToast('No invoice lines for this month.', 'error');
+                return;
+            }
+
             const styles = rpInvoicePrintDocumentCss();
             const htmlInv =
                 '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ' + invoiceNum + '</title><style>' + styles + '</style></head><body>' +
@@ -4585,7 +4610,15 @@ const Dashboard = {
             rpOpenInvoicePrintWindow(htmlInv);
         } catch (err) {
             console.error('Download invoice error:', err);
-            alert(err.error || err.message || 'Unable to load invoice.');
+            const msg =
+                err.error ||
+                err.message ||
+                (err.status === 404
+                    ? 'No sales or returns for that month.'
+                    : err.status === 400
+                      ? 'That month cannot be printed yet.'
+                      : 'Unable to load statement. Try again or contact support.');
+            this.showToast(msg, 'error');
         }
     },
     formatDateUK(d) {
