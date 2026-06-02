@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin – Prep send-back – ReturnPal</title>
+    <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
+    <style>
+        body { background: #f8f9fa; }
+        .admin-header { background: #212529; color: #fff; }
+        .admin-header a { color: rgba(255, 255, 255, 0.9); text-decoration: none; }
+        .admin-header a:hover { color: #fff; }
+        .prep-addr { font-size: 0.8125rem; white-space: pre-wrap; max-width: 220px; }
+    </style>
+</head>
+<body>
+    <header class="admin-header py-3 mb-4">
+        <div class="container-fluid d-flex justify-content-between flex-wrap gap-2">
+            <h1 class="h5 mb-0">Prep centre send-back</h1>
+            <div class="d-flex gap-3 align-items-center flex-wrap">
+                <a href="/admin/index.html" class="small">Clients</a>
+                <a href="/admin/queries.html" class="small">Open queries</a>
+                <a href="/admin/insights.html" class="small">Insights</a>
+                <a href="/login.html" class="small" id="logout">Logout</a>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <p class="text-muted small mb-3">
+            Requests from <strong>Dashboard → Prep send-back</strong>. Update status when you queue or ship to the client&apos;s prep address from Settings.
+        </p>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <label class="small text-muted mb-0" for="status-filter">Status</label>
+            <select class="form-select form-select-sm" id="status-filter" style="max-width: 180px">
+                <option value="">All</option>
+                <option value="requested" selected>Requested</option>
+                <option value="queued">Queued</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-btn">Refresh</button>
+        </div>
+        <div id="msg" class="text-muted py-4 text-center">Loading…</div>
+        <div class="d-none" id="wrap">
+            <div class="table-responsive">
+                <table class="table table-sm bg-white shadow-sm align-top">
+                    <thead class="table-light">
+                        <tr>
+                            <th>When</th>
+                            <th>Client</th>
+                            <th>Package / item</th>
+                            <th>Prep address</th>
+                            <th>Notes</th>
+                            <th style="min-width: 160px">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="/assets/js/jquery-3.7.1.min.js"></script>
+    <script src="/assets/js/api.js?v=rp-admin-prep-sendback-2026"></script>
+    <script>
+    $(function() {
+        var ao = window.location.origin || '';
+        if (!API.isLoggedIn()) {
+            window.location.assign(ao + '/admin/login.html');
+            return;
+        }
+        if (!API.isCurrentUserAdmin()) {
+            API.clearToken();
+            window.location.assign(ao + '/admin/login.html');
+            return;
+        }
+
+        $('#logout').on('click', function(e) {
+            e.preventDefault();
+            API.clearToken();
+            window.location.assign(ao + '/admin/login.html');
+        });
+
+        function esc(s) {
+            return $('<div/>')
+                .text(s == null ? '' : s)
+                .html();
+        }
+
+        function statusBadge(status) {
+            var s = String(status || 'requested');
+            var cls = 'bg-secondary';
+            if (s === 'requested') cls = 'bg-warning text-dark';
+            else if (s === 'queued') cls = 'bg-info text-dark';
+            else if (s === 'shipped') cls = 'bg-primary';
+            else if (s === 'delivered') cls = 'bg-success';
+            else if (s === 'cancelled') cls = 'bg-dark';
+            return '<span class="badge ' + cls + '">' + esc(s) + '</span>';
+        }
+
+        function loadList() {
+            var filter = $('#status-filter').val() || '';
+            $('#msg').removeClass('d-none text-danger').addClass('text-muted').text('Loading…');
+            $('#wrap').addClass('d-none');
+            $('#tbody').empty();
+
+            API.adminListPrepSendback(filter || undefined)
+                .then(function(d) {
+                    var rows = (d && d.requests) || [];
+                    if (!rows.length) {
+                        $('#msg')
+                            .removeClass('d-none')
+                            .text(filter ? 'No requests with that status.' : 'No prep send-back requests yet.');
+                        return;
+                    }
+                    $('#msg').addClass('d-none');
+                    rows.forEach(function(r) {
+                        var client =
+                            '<div><a href="/admin/client.html?id=' +
+                            encodeURIComponent(r.user_id) +
+                            '">' +
+                            esc(r.full_name || 'Client') +
+                            '</a></div><small class="text-muted">' +
+                            esc(r.email) +
+                            '</small>';
+                        var item =
+                            '<strong>' +
+                            esc(r.package_reference) +
+                            '</strong><div class="small">' +
+                            esc(r.item_description) +
+                            ' × ' +
+                            esc(String(r.quantity || 1)) +
+                            '</div>';
+                        var addr = r.prep_address_text
+                            ? '<div class="prep-addr text-muted">' + esc(r.prep_address_text) + '</div>'
+                            : '<span class="text-warning small">No prep address in Settings</span>';
+                        var notes = r.notes
+                            ? '<div class="small">' + esc(r.notes) + '</div>'
+                            : '<span class="text-muted">—</span>';
+                        var opts = (d.statuses || ['requested', 'queued', 'shipped', 'delivered', 'cancelled'])
+                            .map(function(st) {
+                                return (
+                                    '<option value="' +
+                                    esc(st) +
+                                    '"' +
+                                    (st === r.status ? ' selected' : '') +
+                                    '>' +
+                                    esc(st) +
+                                    '</option>'
+                                );
+                            })
+                            .join('');
+                        var statusCell =
+                            '<div class="mb-1">' +
+                            statusBadge(r.status) +
+                            '</div>' +
+                            '<select class="form-select form-select-sm prep-status-select" data-id="' +
+                            esc(String(r.id)) +
+                            '">' +
+                            opts +
+                            '</select>' +
+                            '<button type="button" class="btn btn-sm btn-primary mt-1 prep-status-save" data-id="' +
+                            esc(String(r.id)) +
+                            '">Update</button>' +
+                            '<div class="small text-danger mt-1 d-none prep-status-err"></div>';
+
+                        $('#tbody').append(
+                            '<tr data-request-id="' +
+                                esc(String(r.id)) +
+                                '"><td class="text-nowrap small">' +
+                                esc(r.created_at) +
+                                '</td><td>' +
+                                client +
+                                '</td><td class="small">' +
+                                item +
+                                '</td><td>' +
+                                addr +
+                                '</td><td class="small">' +
+                                notes +
+                                '</td><td>' +
+                                statusCell +
+                                '</td></tr>'
+                        );
+                    });
+                    $('#wrap').removeClass('d-none');
+                })
+                .catch(function(e) {
+                    var txt = (e && e.error) || 'Failed to load';
+                    if (e && e.status) txt += ' (HTTP ' + e.status + ')';
+                    $('#msg')
+                        .removeClass('d-none text-muted')
+                        .addClass('text-danger')
+                        .text(txt);
+                });
+        }
+
+        $(document).on('click', '.prep-status-save', function() {
+            var $btn = $(this);
+            var id = $btn.data('id');
+            var $tr = $btn.closest('tr');
+            var status = $tr.find('.prep-status-select').val();
+            var $err = $tr.find('.prep-status-err');
+            $err.addClass('d-none').text('');
+            $btn.prop('disabled', true).text('Saving…');
+            API.adminUpdatePrepSendback(id, { status: status })
+                .then(function() {
+                    loadList();
+                })
+                .catch(function(e) {
+                    $err.removeClass('d-none').text((e && e.error) || 'Update failed');
+                    $btn.prop('disabled', false).text('Update');
+                });
+        });
+
+        $('#refresh-btn').on('click', loadList);
+        $('#status-filter').on('change', loadList);
+
+        loadList();
+    });
+    </script>
+</body>
+</html>

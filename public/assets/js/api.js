@@ -1005,6 +1005,21 @@ const API = {
         });
     },
 
+    async adminListPrepSendback(status) {
+        const q =
+            status && String(status).trim()
+                ? '?status=' + encodeURIComponent(String(status).trim())
+                : '';
+        return this.request('/admin/prep-sendback' + q);
+    },
+
+    async adminUpdatePrepSendback(requestId, body) {
+        return this.request('/admin/prep-sendback/' + encodeURIComponent(requestId), {
+            method: 'PATCH',
+            body: body || {},
+        });
+    },
+
     /** Admin: bulk import rows from .xlsx / .xls / .csv for a client (see /api/admin/bulk-import-template/:kind). */
     async adminBulkImportUser(userId, kind, file) {
         if (!file || !(file instanceof Blob)) {

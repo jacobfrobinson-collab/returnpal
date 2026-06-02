@@ -644,7 +644,9 @@ const Dashboard = {
             }
             const rows = data.requests || [];
             if (!rows.length) {
-                $list.html('<p class="text-muted mb-0">No send-back requests yet.</p>');
+                $list.html(
+                    '<p class="text-muted mb-0">No send-back requests yet. Submit a request with the form — ReturnPal will pick it up and update the status here.</p>'
+                );
                 return;
             }
             let html = '<div class="list-group list-group-flush">';

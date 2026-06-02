@@ -70,6 +70,9 @@ const {
     findReturnAdjustmentDuplicate,
     enrichReturnAdjustmentReviewDuplicates,
 } = require('../utils/returnAdjustmentDuplicate');
+const { parseClientPreferences } = require('../utils/clientPreferences');
+
+const PREP_SENDBACK_STATUSES = ['requested', 'queued', 'shipped', 'delivered', 'cancelled'];
 
 const uploadsBaseDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, '../../uploads');
 const reimbursementUploadDir = path.join(uploadsBaseDir, 'reimbursement');
@@ -776,6 +779,87 @@ router.post('/impersonate/:id', async (req, res) => {
         });
     } catch (err) {
         console.error('Admin impersonate error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/prep-sendback — all client prep centre send-back requests
+router.get('/prep-sendback', async (req, res) => {
+    try {
+        const db = await dbForAdminRead();
+        const statusFilter = String(req.query.status || '').trim().toLowerCase();
+        let sql = `SELECT r.*, u.full_name, u.email, u.company_name, u.client_preferences
+             FROM prep_sendback_requests r
+             JOIN users u ON u.id = r.user_id`;
+        const params = [];
+        if (statusFilter && PREP_SENDBACK_STATUSES.includes(statusFilter)) {
+            sql += ' WHERE r.status = ?';
+            params.push(statusFilter);
+        }
+        sql += ' ORDER BY r.created_at DESC LIMIT 300';
+        const rows = parseResults(db.exec(sql, params));
+        const requests = rows.map((r) => {
+            const prefs = parseClientPreferences(r.client_preferences);
+            const prepLines = [
+                prefs.prep_name,
+                prefs.prep_address,
+                prefs.prep_contact,
+                prefs.prep_phone,
+                prefs.prep_email,
+            ].filter(Boolean);
+            const { client_preferences, ...rest } = r;
+            return {
+                ...rest,
+                prep_address: {
+                    name: prefs.prep_name || '',
+                    address: prefs.prep_address || '',
+                    contact: prefs.prep_contact || '',
+                    phone: prefs.prep_phone || '',
+                    email: prefs.prep_email || '',
+                    reference: prefs.prep_reference || '',
+                },
+                prep_address_text: prepLines.join('\n'),
+            };
+        });
+        res.json({ requests, statuses: PREP_SENDBACK_STATUSES });
+    } catch (err) {
+        console.error('Admin list prep sendback error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PATCH /api/admin/prep-sendback/:id — update fulfilment status
+router.patch('/prep-sendback/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id) || id <= 0) {
+            return res.status(400).json({ error: 'Invalid request id' });
+        }
+        const status = String(req.body.status || '').trim().toLowerCase();
+        if (!PREP_SENDBACK_STATUSES.includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+        const db = await getDb();
+        const rows = parseResults(db.exec('SELECT * FROM prep_sendback_requests WHERE id = ?', [id]));
+        if (!rows.length) return res.status(404).json({ error: 'Request not found' });
+        const cur = rows[0];
+        db.run(
+            `UPDATE prep_sendback_requests SET status = ?, updated_at = datetime('now') WHERE id = ?`,
+            [status, id]
+        );
+        saveDb();
+        if (status !== cur.status) {
+            await pushActivity(
+                cur.user_id,
+                'info',
+                `Prep send-back (${cur.package_reference}): status is now "${status}".`,
+                '/dashboard/prep-sendback.html'
+            );
+        }
+        const updated = parseResults(db.exec('SELECT * FROM prep_sendback_requests WHERE id = ?', [id]))[0];
+        res.json({ request: updated, message: 'Status updated' });
+    } catch (err) {
+        console.error('Admin patch prep sendback error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

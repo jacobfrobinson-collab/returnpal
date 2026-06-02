@@ -1,5 +1,5 @@
 const express = require('express');
-const { getDb, saveDb } = require('../database');
+const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { getPayoutForecast } = require('../utils/payoutForecast');
 const { getComputedMonthlyStatements, buildInvoicePeriodPayload, parsePeriodYm } = require('../utils/computedMonthlyStatements');
@@ -255,6 +255,12 @@ router.post('/prep-sendback', authMiddleware, async (req, res) => {
         );
         saveDb();
         const id = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        await pushActivity(
+            req.user.id,
+            'info',
+            `Prep send-back requested: ${itemDescription} (${packageReference}, qty ${quantity}).`,
+            '/dashboard/prep-sendback.html'
+        );
         res.status(201).json({ id, message: 'Send-back request submitted. ReturnPal will queue shipment to your prep centre.' });
     } catch (err) {
         console.error('Prep sendback create error:', err);
