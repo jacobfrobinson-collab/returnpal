@@ -236,10 +236,10 @@
                 <div class="card mt-3">
                     <div class="card-header bg-white py-2">Prep send-back</div>
                     <div class="card-body py-2">
-                        <p class="small text-muted mb-2">When enabled, this client sees <strong>Prep send-back</strong> on their dashboard and can submit shipment requests (listed under <a href="/admin/prep-sendback.html">Admin → Prep send-back</a>).</p>
+                        <p class="small text-muted mb-2">All clients can use <strong>Prep send-back</strong> by default. Tick below only to block this account (requests appear under <a href="/admin/prep-sendback.html">Admin → Prep send-back</a>).</p>
                         <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="prep-sendback-enabled" />
-                            <label class="form-check-label small" for="prep-sendback-enabled">Allow prep centre send-back requests</label>
+                            <input class="form-check-input" type="checkbox" id="prep-sendback-disabled" />
+                            <label class="form-check-label small" for="prep-sendback-disabled">Disable prep send-back for this client</label>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-primary w-100" id="btn-save-prep-sendback-access">Save</button>
                         <p class="small text-danger mt-2 mb-0 d-none" id="prep-sendback-access-err"></p>
@@ -1532,7 +1532,8 @@
         function loadPrepSendbackAccess() {
             API.adminGetClientFeatures(clientId)
                 .then(function(d) {
-                    $('#prep-sendback-enabled').prop('checked', !!(d && d.prep_sendback_enabled));
+                    var on = d && d.prep_sendback_enabled !== false;
+                    $('#prep-sendback-disabled').prop('checked', !on);
                 })
                 .catch(function() {
                     $('#prep-sendback-access-err')
@@ -1542,12 +1543,12 @@
         }
 
         $('#btn-save-prep-sendback-access').on('click', function() {
-            var enabled = $('#prep-sendback-enabled').is(':checked');
+            var enabled = !$('#prep-sendback-disabled').is(':checked');
             var $err = $('#prep-sendback-access-err').addClass('d-none').text('');
             var $btn = $(this).prop('disabled', true).text('Saving…');
             API.adminSetClientFeatures(clientId, { prep_sendback_enabled: enabled })
                 .then(function() {
-                    alert(enabled ? 'Prep send-back enabled for this client.' : 'Prep send-back disabled for this client.');
+                    alert(enabled ? 'Prep send-back allowed for this client.' : 'Prep send-back disabled for this client.');
                 })
                 .catch(function(e) {
                     $err.removeClass('d-none').text((e && e.error) || 'Save failed');

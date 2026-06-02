@@ -221,8 +221,11 @@ router.get('/prep-sendback', authMiddleware, async (req, res) => {
             db.exec('SELECT client_preferences FROM users WHERE id = ?', [req.user.id])
         );
         const prefs = parseClientPreferences(prefsRow[0]?.client_preferences);
-        const enabled = isPrepSendbackEnabled(prefs);
-        res.json({ enabled, requests: rows, prep_address: prefs });
+        res.json({
+            enabled: isPrepSendbackEnabled(prefs),
+            requests: rows,
+            prep_address: prefs,
+        });
     } catch (err) {
         console.error('Prep sendback list error:', err);
         res.status(500).json({ error: 'Server error' });

@@ -19,8 +19,8 @@ const DEFAULT_PREFS = {
     email_payout_sent: true,
     email_monthly_invoice: false,
     email_digest: 'off',
-    /** Admin-only: client may use Dashboard → Prep send-back */
-    prep_sendback_enabled: false,
+    /** Available to all clients unless admin sets prep_sendback_enabled to false */
+    prep_sendback_enabled: true,
 };
 
 function parseClientPreferences(raw) {
@@ -73,7 +73,8 @@ function mergeClientPreferencesFromClient(existing, patch) {
 }
 
 function isPrepSendbackEnabled(prefs) {
-    return !!(prefs && prefs.prep_sendback_enabled);
+    if (!prefs || prefs.prep_sendback_enabled === undefined) return true;
+    return prefs.prep_sendback_enabled !== false;
 }
 
 module.exports = {
