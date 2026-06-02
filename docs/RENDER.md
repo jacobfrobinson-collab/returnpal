@@ -26,7 +26,10 @@ Set env (match your disk mount + file name):
 
 ```env
 DB_PATH=/var/lib/returnpal/data/returnpal.db
+UPLOAD_DIR=/var/lib/returnpal/data/uploads
 ```
+
+`UPLOAD_DIR` must be on the **same persistent disk** as the database. Reimbursement claim photos and avatars are stored here; without it, uploads are lost on redeploy and clients cannot download evidence.
 
 After `migrate-sold-dates --apply`, redeploy. Do **not** set `RETURNPAL_SOLD_DATES_LEGACY=1` on production.
 

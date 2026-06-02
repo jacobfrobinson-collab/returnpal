@@ -472,13 +472,18 @@ const Dashboard = {
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
         }
-        function downloadOne(url, fileName) {
+        async function downloadReimbursementPhoto(claimId, photoId, fileName) {
+            const blob = await API.fetchReimbursementPhotoBlob(claimId, photoId, true);
+            const objectUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.setAttribute('download', fileName || '');
+            a.href = objectUrl;
+            a.setAttribute('download', fileName || 'photo.jpg');
             document.body.appendChild(a);
             a.click();
             a.remove();
+            setTimeout(function () {
+                URL.revokeObjectURL(objectUrl);
+            }, 2000);
         }
         function statusBadgeClass(st) {
             const m = {
@@ -547,17 +552,19 @@ const Dashboard = {
                 const st = c.case_status || 'draft';
                 let photoHtml = '';
                 (c.photos || []).forEach((ph, photoIdx) => {
-                    const url = '/uploads/' + (ph.file_path || '');
-                    const safeUrl = escHtml(url);
                     const photoName = 'claim-' + (c.id || claimIdx + 1) + '-photo-' + (photoIdx + 1) + '.jpg';
                     photoHtml +=
-                        '<div><a href="' +
-                        safeUrl +
-                        '" target="_blank" rel="noopener"><img src="' +
-                        safeUrl +
-                        '" alt="Photo" /></a>' +
-                        '<button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100 download-photo-btn" data-url="' +
-                        safeUrl +
+                        '<div class="reimb-photo-cell">' +
+                        '<div class="reimb-photo-loading small text-muted py-4 text-center">Loading…</div>' +
+                        '<img class="reimb-photo-thumb d-none" alt="Claim photo" data-claim-id="' +
+                        escHtml(String(c.id)) +
+                        '" data-photo-id="' +
+                        escHtml(String(ph.id)) +
+                        '" />' +
+                        '<button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100 download-photo-btn" data-claim-id="' +
+                        escHtml(String(c.id)) +
+                        '" data-photo-id="' +
+                        escHtml(String(ph.id)) +
                         '" data-name="' +
                         escHtml(photoName) +
                         '">Download</button></div>';
@@ -654,9 +661,42 @@ const Dashboard = {
 
         $list.find('.download-photo-btn')
             .off('click')
-            .on('click', function() {
-                downloadOne($(this).data('url'), $(this).data('name'));
+            .on('click', async function() {
+                const $btn = $(this);
+                const claimId = $btn.attr('data-claim-id');
+                const photoId = $btn.attr('data-photo-id');
+                const fileName = $btn.attr('data-name') || 'photo.jpg';
+                $btn.prop('disabled', true);
+                try {
+                    await downloadReimbursementPhoto(claimId, photoId, fileName);
+                    self.showToast('Photo downloaded');
+                } catch (e) {
+                    alert((e && e.error) || (e && e.message) || 'Download failed');
+                } finally {
+                    $btn.prop('disabled', false);
+                }
             });
+
+        self.hydrateReimbursementPhotoThumbs($list);
+    },
+
+    hydrateReimbursementPhotoThumbs($list) {
+        $list.find('img.reimb-photo-thumb').each(function () {
+            const $img = $(this);
+            const claimId = $img.attr('data-claim-id');
+            const photoId = $img.attr('data-photo-id');
+            const $cell = $img.closest('.reimb-photo-cell');
+            const $loading = $cell.find('.reimb-photo-loading');
+            if (!claimId || !photoId) return;
+            API.fetchReimbursementPhotoBlob(claimId, photoId, false)
+                .then(function (blob) {
+                    $img.attr('src', URL.createObjectURL(blob)).removeClass('d-none');
+                    $loading.addClass('d-none');
+                })
+                .catch(function () {
+                    $loading.text('Photo unavailable').addClass('text-danger');
+                });
+        });
     },
 
     bindPrepSendbackForm() {

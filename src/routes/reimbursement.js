@@ -8,6 +8,11 @@ const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClient
 const { enrichClaimRow, buildCaseText, normalizeCaseStatus, CASE_STATUSES } = require('../utils/reimbursementCase');
 const { isClientReimbursementEnabled } = require('../utils/clientReimbursementFeature');
 const { saveReimbursementClaimPhotos } = require('../utils/reimbursementPhotos');
+const {
+    resolveReimbursementPhotoAbsPath,
+    mimeForPhotoPath,
+    safeDownloadFilename,
+} = require('../utils/reimbursementPhotoFile');
 
 const router = express.Router();
 
@@ -54,13 +59,59 @@ router.get('/claims', async (req, res) => {
             const photos = parseResults(
                 db.exec('SELECT id, file_path, created_at FROM reimbursement_claim_photos WHERE claim_id = ? ORDER BY id', [c.id])
             );
-            c.photos = photos;
+            c.photos = photos.map((p) => ({
+                ...p,
+                file_url: `/api/reimbursement/claims/${c.id}/photos/${p.id}/file`,
+                download_url: `/api/reimbursement/claims/${c.id}/photos/${p.id}/file?download=1`,
+            }));
             Object.assign(c, enrichClaimRow(c));
         }
         const out = clientIsAdmin(req) ? claims : redactOrderNumberForClientRows(claims);
         res.json({ claims: out, case_statuses: CASE_STATUSES });
     } catch (err) {
         console.error('Reimbursement list error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/reimbursement/claims/:claimId/photos/:photoId/file — authenticated view or download
+router.get('/claims/:claimId/photos/:photoId/file', async (req, res) => {
+    try {
+        const claimId = parseInt(req.params.claimId, 10);
+        const photoId = parseInt(req.params.photoId, 10);
+        if (isNaN(claimId) || isNaN(photoId)) {
+            return res.status(400).json({ error: 'Invalid id' });
+        }
+        const db = await getDb();
+        const claims = parseResults(
+            db.exec('SELECT id FROM reimbursement_claims WHERE id = ? AND user_id = ?', [claimId, req.user.id])
+        );
+        if (!claims.length) return res.status(404).json({ error: 'Claim not found' });
+
+        const photos = parseResults(
+            db.exec(
+                'SELECT id, file_path FROM reimbursement_claim_photos WHERE id = ? AND claim_id = ?',
+                [photoId, claimId]
+            )
+        );
+        if (!photos.length) return res.status(404).json({ error: 'Photo not found' });
+
+        const abs = resolveReimbursementPhotoAbsPath(uploadsBaseDir, photos[0].file_path);
+        if (!abs) return res.status(404).json({ error: 'Photo file not found on server' });
+
+        const asDownload = req.query.download === '1' || req.query.download === 'true';
+        const mime = mimeForPhotoPath(abs);
+        const filename = safeDownloadFilename(abs, `claim-${claimId}-photo-${photoId}.jpg`);
+        res.setHeader('Content-Type', mime);
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        if (asDownload) {
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        } else {
+            res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        }
+        res.sendFile(abs);
+    } catch (err) {
+        console.error('Reimbursement photo file error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

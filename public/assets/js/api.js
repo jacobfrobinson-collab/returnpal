@@ -1348,6 +1348,29 @@ const API = {
         return this.request('/reimbursement/claims/' + id, { method: 'PATCH', body });
     },
 
+    /** Authenticated reimbursement evidence (view or download). */
+    async fetchReimbursementPhotoBlob(claimId, photoId, download) {
+        const token = this.getToken();
+        if (!token) throw { status: 401, error: 'Not logged in' };
+        let url =
+            this.getApiBase() +
+            '/reimbursement/claims/' +
+            encodeURIComponent(claimId) +
+            '/photos/' +
+            encodeURIComponent(photoId) +
+            '/file';
+        if (download) url += '?download=1';
+        const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            const err = new Error(data.error || res.statusText || 'Failed to load photo');
+            err.status = res.status;
+            err.error = data.error;
+            throw err;
+        }
+        return res.blob();
+    },
+
     async getHubMeta() {
         return this.request('/client/hub');
     },
