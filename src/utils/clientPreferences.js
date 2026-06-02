@@ -19,6 +19,8 @@ const DEFAULT_PREFS = {
     email_payout_sent: true,
     email_monthly_invoice: false,
     email_digest: 'off',
+    /** Admin-only: client may use Dashboard → Prep send-back */
+    prep_sendback_enabled: false,
 };
 
 function parseClientPreferences(raw) {
@@ -55,6 +57,7 @@ function mergeClientPreferences(existing, patch) {
     for (const k of ['email_package_delivered', 'email_item_sold', 'email_payout_sent', 'email_monthly_invoice']) {
         if (p[k] !== undefined) out[k] = !!p[k];
     }
+    if (p.prep_sendback_enabled !== undefined) out.prep_sendback_enabled = !!p.prep_sendback_enabled;
     if (p.email_digest !== undefined) {
         const d = String(p.email_digest).trim().toLowerCase();
         out.email_digest = d === 'weekly' || d === 'monthly' ? d : 'off';
@@ -62,8 +65,21 @@ function mergeClientPreferences(existing, patch) {
     return out;
 }
 
+/** Client settings form must not self-enable prep send-back. */
+function mergeClientPreferencesFromClient(existing, patch) {
+    const p = patch && typeof patch === 'object' ? { ...patch } : {};
+    delete p.prep_sendback_enabled;
+    return mergeClientPreferences(existing, p);
+}
+
+function isPrepSendbackEnabled(prefs) {
+    return !!(prefs && prefs.prep_sendback_enabled);
+}
+
 module.exports = {
     DEFAULT_PREFS,
     parseClientPreferences,
     mergeClientPreferences,
+    mergeClientPreferencesFromClient,
+    isPrepSendbackEnabled,
 };

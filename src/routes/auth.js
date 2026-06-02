@@ -302,7 +302,8 @@ router.get('/me', authMiddleware, async (req, res) => {
         const db = await getDb();
         const result = db.exec(
             `SELECT id, email, full_name, company_name, phone, vat_registered, discord_webhook, avatar_url, is_admin,
-                    legacy_client_id, created_at, COALESCE(account_status, 'approved') AS account_status
+                    legacy_client_id, created_at, COALESCE(account_status, 'approved') AS account_status,
+                    COALESCE(client_preferences, '') AS client_preferences
              FROM users WHERE id = ?`,
             [req.user.id]
         );
@@ -322,6 +323,11 @@ router.get('/me', authMiddleware, async (req, res) => {
         }
 
         user.is_admin = coerceIsAdmin(user.is_admin);
+
+        const { parseClientPreferences, isPrepSendbackEnabled } = require('../utils/clientPreferences');
+        const prefs = parseClientPreferences(user.client_preferences);
+        user.prep_sendback_enabled = isPrepSendbackEnabled(prefs);
+        delete user.client_preferences;
 
         const { countLinkedClients } = require('../utils/clientDelegate');
         const linkedClientsCount = countLinkedClients(db, user.id);

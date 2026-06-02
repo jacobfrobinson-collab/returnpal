@@ -1020,6 +1020,17 @@ const API = {
         });
     },
 
+    async adminGetClientFeatures(userId) {
+        return this.request('/admin/users/' + encodeURIComponent(userId) + '/client-features');
+    },
+
+    async adminSetClientFeatures(userId, body) {
+        return this.request('/admin/users/' + encodeURIComponent(userId) + '/client-features', {
+            method: 'PUT',
+            body: body || {},
+        });
+    },
+
     /** Admin: bulk import rows from .xlsx / .xls / .csv for a client (see /api/admin/bulk-import-template/:kind). */
     async adminBulkImportUser(userId, kind, file) {
         if (!file || !(file instanceof Blob)) {

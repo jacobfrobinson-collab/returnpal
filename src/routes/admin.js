@@ -70,7 +70,11 @@ const {
     findReturnAdjustmentDuplicate,
     enrichReturnAdjustmentReviewDuplicates,
 } = require('../utils/returnAdjustmentDuplicate');
-const { parseClientPreferences } = require('../utils/clientPreferences');
+const {
+    parseClientPreferences,
+    mergeClientPreferences,
+    isPrepSendbackEnabled,
+} = require('../utils/clientPreferences');
 
 const PREP_SENDBACK_STATUSES = ['requested', 'queued', 'shipped', 'delivered', 'cancelled'];
 
@@ -779,6 +783,64 @@ router.post('/impersonate/:id', async (req, res) => {
         });
     } catch (err) {
         console.error('Admin impersonate error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/users/:id/client-features
+router.get('/users/:id/client-features', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(userId) || userId <= 0) {
+            return res.status(400).json({ error: 'Invalid user id' });
+        }
+        const db = await dbForAdminRead();
+        const rows = parseResults(
+            db.exec('SELECT id, client_preferences FROM users WHERE id = ?', [userId])
+        );
+        if (!rows.length) return res.status(404).json({ error: 'User not found' });
+        const prefs = parseClientPreferences(rows[0].client_preferences);
+        res.json({ prep_sendback_enabled: isPrepSendbackEnabled(prefs) });
+    } catch (err) {
+        console.error('Admin get client features error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PUT /api/admin/users/:id/client-features
+router.put('/users/:id/client-features', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(userId) || userId <= 0) {
+            return res.status(400).json({ error: 'Invalid user id' });
+        }
+        if (req.body.prep_sendback_enabled === undefined) {
+            return res.status(400).json({ error: 'prep_sendback_enabled is required' });
+        }
+        const enabled = !!req.body.prep_sendback_enabled;
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec('SELECT id, client_preferences FROM users WHERE id = ?', [userId])
+        );
+        if (!rows.length) return res.status(404).json({ error: 'User not found' });
+        const merged = mergeClientPreferences(rows[0].client_preferences, {
+            prep_sendback_enabled: enabled,
+        });
+        db.run(
+            "UPDATE users SET client_preferences = ?, updated_at = datetime('now') WHERE id = ?",
+            [JSON.stringify(merged), userId]
+        );
+        saveDb();
+        logAdminAudit(db, req.user.id, 'update_client_features', {
+            target_user_id: userId,
+            prep_sendback_enabled: enabled,
+        });
+        res.json({
+            message: enabled ? 'Prep send-back enabled for client' : 'Prep send-back disabled for client',
+            prep_sendback_enabled: isPrepSendbackEnabled(merged),
+        });
+    } catch (err) {
+        console.error('Admin update client features error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

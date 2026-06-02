@@ -1,7 +1,10 @@
 const express = require('express');
 const { getDb, saveDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
-const { parseClientPreferences, mergeClientPreferences } = require('../utils/clientPreferences');
+const {
+    parseClientPreferences,
+    mergeClientPreferencesFromClient,
+} = require('../utils/clientPreferences');
 
 const router = express.Router();
 
@@ -56,7 +59,7 @@ router.put('/preferences', authMiddleware, async (req, res) => {
         const cur = parseResults(
             db.exec('SELECT client_preferences FROM users WHERE id = ?', [req.user.id])
         );
-        const merged = mergeClientPreferences(cur[0]?.client_preferences, req.body);
+        const merged = mergeClientPreferencesFromClient(cur[0]?.client_preferences, req.body);
         db.run(
             "UPDATE users SET client_preferences = ?, updated_at = datetime('now') WHERE id = ?",
             [JSON.stringify(merged), req.user.id]

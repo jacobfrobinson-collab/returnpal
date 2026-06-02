@@ -106,6 +106,11 @@ const Dashboard = {
         return !!this.CLIENT_REIMBURSEMENT_UI_ENABLED;
     },
 
+    isPrepSendbackEnabled() {
+        const u = API.getUser();
+        return !!(u && u.prep_sendback_enabled);
+    },
+
     /** YYYY-MM from data-period; use .attr not .data (jQuery turns "2026-03" into 2023). */
     readStatementPeriodYm($el) {
         const raw = String($el.attr('data-period') || $el.attr('data-statement-ym') || '').trim();
@@ -623,12 +628,20 @@ const Dashboard = {
     async loadPrepSendback() {
         const $list = $('#prep-sendback-list');
         const $addr = $('#prep-sendback-address');
+        const $formCard = $('#prep-sendback-form').closest('.rp-card');
         if (!$list.length) return;
         try {
             await this.ensureClientPreferences();
             const data = await API.getPrepSendback();
+            const enabled = data.enabled !== false;
+            if ($formCard.length) $formCard.toggleClass('d-none', !enabled);
+            if (!enabled) {
+                $addr.html(
+                    '<p class="text-muted small mb-0">Prep send-back is not enabled for your account. Contact ReturnPal to request access.</p>'
+                );
+            }
             const prefs = data.prep_address || {};
-            if ($addr.length) {
+            if ($addr.length && enabled) {
                 const lines = [
                     prefs.prep_name,
                     prefs.prep_address,
@@ -645,7 +658,9 @@ const Dashboard = {
             const rows = data.requests || [];
             if (!rows.length) {
                 $list.html(
-                    '<p class="text-muted mb-0">No send-back requests yet. Submit a request with the form — ReturnPal will pick it up and update the status here.</p>'
+                    enabled
+                        ? '<p class="text-muted mb-0">No send-back requests yet. Submit a request with the form — ReturnPal will pick it up and update the status here.</p>'
+                        : '<p class="text-muted mb-0">No send-back requests yet.</p>'
                 );
                 return;
             }
@@ -904,6 +919,9 @@ const Dashboard = {
         this.injectReimbursementLink();
         this.injectConnectAmazonLink();
         this.highlightSidebarActive();
+        if (!this.isPrepSendbackEnabled()) {
+            $('#navbar-nav a[href="prep-sendback.html"]').closest('li').remove();
+        }
         this.fetchAnnouncementsList()
             .finally(() => {
                 this.updateNotificationDots();
@@ -1013,7 +1031,9 @@ const Dashboard = {
             ['queries.html', 'ri-question-answer-line', 'My queries'],
             ['exports.html', 'ri-download-cloud-2-line', 'Exports hub'],
             ['scorecard.html', 'ri-pie-chart-2-line', 'Recovery scorecard'],
-            ['prep-sendback.html', 'ri-truck-line', 'Prep send-back'],
+            ...(this.isPrepSendbackEnabled()
+                ? [['prep-sendback.html', 'ri-truck-line', 'Prep send-back']]
+                : []),
             ['roi-report.html', 'ri-file-text-line', 'ROI Report'],
             ['reimbursement.html', 'ri-refund-line', 'Reimbursement / Claims'],
             ['referrals.html', 'ri-user-shared-line', 'Referrals'],
@@ -1105,6 +1125,7 @@ const Dashboard = {
         );
     },
     injectPrepSendbackLink() {
+        if (!this.isPrepSendbackEnabled()) return;
         if ($('#navbar-nav a[href="prep-sendback.html"]').length) return;
         const $sc = $('#navbar-nav a[href="scorecard.html"]').closest('li');
         const $exp = $('#navbar-nav a[href="exports.html"]').closest('li');

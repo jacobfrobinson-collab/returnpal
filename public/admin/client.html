@@ -234,6 +234,18 @@
                     </div>
                 </div>
                 <div class="card mt-3">
+                    <div class="card-header bg-white py-2">Prep send-back</div>
+                    <div class="card-body py-2">
+                        <p class="small text-muted mb-2">When enabled, this client sees <strong>Prep send-back</strong> on their dashboard and can submit shipment requests (listed under <a href="/admin/prep-sendback.html">Admin → Prep send-back</a>).</p>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="prep-sendback-enabled" />
+                            <label class="form-check-label small" for="prep-sendback-enabled">Allow prep centre send-back requests</label>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary w-100" id="btn-save-prep-sendback-access">Save</button>
+                        <p class="small text-danger mt-2 mb-0 d-none" id="prep-sendback-access-err"></p>
+                    </div>
+                </div>
+                <div class="card mt-3">
                     <div class="card-header bg-white py-2">Hub / prep centre access</div>
                     <div class="card-body py-2">
                         <p class="small text-muted mb-2">Tick which <strong>non-admin</strong> accounts (prep centre owners) may view this client via <strong>My clients</strong> on their dashboard. They do not get admin access.</p>
@@ -456,7 +468,7 @@
 
     <script src="/assets/js/jquery-3.7.1.min.js"></script>
     <script src="/assets/js/bootstrap.bundle.min.js"></script>
-    <script src="/assets/js/api.js?v=rp11"></script>
+    <script src="/assets/js/api.js?v=rp-admin-features-2026"></script>
     <script src="/assets/js/soldDateIsoDisplay.js?v=rp-sold-iso-foolproof-2026-05e"></script>
     <script src="/assets/js/dateUk.js?v=rp-sold-iso-foolproof-2026-05e"></script>
     <script>
@@ -1517,6 +1529,35 @@
             .finally(function() { $btn.prop('disabled', false).text('Save hub access'); });
         });
 
+        function loadPrepSendbackAccess() {
+            API.adminGetClientFeatures(clientId)
+                .then(function(d) {
+                    $('#prep-sendback-enabled').prop('checked', !!(d && d.prep_sendback_enabled));
+                })
+                .catch(function() {
+                    $('#prep-sendback-access-err')
+                        .removeClass('d-none')
+                        .text('Could not load prep send-back setting.');
+                });
+        }
+
+        $('#btn-save-prep-sendback-access').on('click', function() {
+            var enabled = $('#prep-sendback-enabled').is(':checked');
+            var $err = $('#prep-sendback-access-err').addClass('d-none').text('');
+            var $btn = $(this).prop('disabled', true).text('Saving…');
+            API.adminSetClientFeatures(clientId, { prep_sendback_enabled: enabled })
+                .then(function() {
+                    alert(enabled ? 'Prep send-back enabled for this client.' : 'Prep send-back disabled for this client.');
+                })
+                .catch(function(e) {
+                    $err.removeClass('d-none').text((e && e.error) || 'Save failed');
+                })
+                .finally(function() {
+                    $btn.prop('disabled', false).text('Save');
+                });
+        });
+
+        loadPrepSendbackAccess();
         loadDelegateHubs();
 
         $('#link-view-dashboard').on('click', function(e) {

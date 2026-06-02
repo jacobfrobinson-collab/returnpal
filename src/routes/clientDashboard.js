@@ -5,7 +5,7 @@ const { getPayoutForecast } = require('../utils/payoutForecast');
 const { getComputedMonthlyStatements, buildInvoicePeriodPayload, parsePeriodYm } = require('../utils/computedMonthlyStatements');
 const { getRecoveryScorecard } = require('../utils/recoveryScorecard');
 const { buildPackageJourney } = require('../utils/packageJourney');
-const { parseClientPreferences } = require('../utils/clientPreferences');
+const { parseClientPreferences, isPrepSendbackEnabled } = require('../utils/clientPreferences');
 const { clientIsAdmin, redactOrderNumberForClientRow } = require('../utils/internalFields');
 
 const router = express.Router();
@@ -221,7 +221,8 @@ router.get('/prep-sendback', authMiddleware, async (req, res) => {
             db.exec('SELECT client_preferences FROM users WHERE id = ?', [req.user.id])
         );
         const prefs = parseClientPreferences(prefsRow[0]?.client_preferences);
-        res.json({ requests: rows, prep_address: prefs });
+        const enabled = isPrepSendbackEnabled(prefs);
+        res.json({ enabled, requests: rows, prep_address: prefs });
     } catch (err) {
         console.error('Prep sendback list error:', err);
         res.status(500).json({ error: 'Server error' });
@@ -243,6 +244,11 @@ router.post('/prep-sendback', authMiddleware, async (req, res) => {
             db.exec('SELECT client_preferences FROM users WHERE id = ?', [req.user.id])
         );
         const prefs = parseClientPreferences(prefsRow[0]?.client_preferences);
+        if (!isPrepSendbackEnabled(prefs)) {
+            return res.status(403).json({
+                error: 'Prep send-back is not enabled for your account. Contact ReturnPal if you need this service.',
+            });
+        }
         if (!prefs.prep_name && !prefs.prep_address) {
             return res.status(400).json({
                 error: 'Add your prep centre details in Settings before requesting a send-back.',
