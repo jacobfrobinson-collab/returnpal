@@ -28,6 +28,33 @@
         return null;
     }
 
+    /** Prefer live local list; fall back to server preview resolution until Client ID is edited. */
+    function clientResolvedForRow(r, specOverride) {
+        var spec = specOverride != null ? specOverride : r && r.client_id;
+        var local = resolveClientLocally(spec);
+        if (local) return local;
+        if (
+            r &&
+            r.resolve_ok === true &&
+            r.resolved_user_id &&
+            (specOverride == null ||
+                String(specOverride || '')
+                    .trim()
+                    .toLowerCase() ===
+                    String(r.client_id || '')
+                        .trim()
+                        .toLowerCase())
+        ) {
+            return {
+                id: r.resolved_user_id,
+                full_name: r.resolved_label || '',
+                email: r.resolved_email || '',
+                legacy_client_id: r.client_id || '',
+            };
+        }
+        return null;
+    }
+
     function clientSourceLabel(src) {
         if (src === 'orders_map') return 'Orders sheet';
         if (src === 'custom_label') return 'SKU label';
@@ -46,15 +73,15 @@
     }
 
     function rowNeedsClient(r) {
-        return !resolveClientLocally(r.client_id);
+        return !clientResolvedForRow(r);
     }
 
     function rowNoMatchingSale(r) {
-        return !r.already_imported && resolveClientLocally(r.client_id) && r.sale_match_ok === false;
+        return !r.already_imported && clientResolvedForRow(r) && r.sale_match_ok === false;
     }
 
     function rowReadyToImport(r) {
-        return !r.already_imported && resolveClientLocally(r.client_id) && r.sale_match_ok !== false;
+        return !r.already_imported && clientResolvedForRow(r) && r.sale_match_ok !== false;
     }
 
     function countReviewBuckets(rows) {
@@ -132,7 +159,7 @@
         if (r.already_imported) {
             return '<span class="text-muted small">—</span>';
         }
-        if (!resolveClientLocally(r.client_id)) {
+        if (!clientResolvedForRow(r)) {
             return '<span class="text-muted small">Set client first</span>';
         }
         if (r.sale_match_ok === false) {
@@ -244,7 +271,7 @@
         }
         if (!refundCols) $tr.removeClass('table-secondary');
         $input.prop('disabled', false);
-        var u = resolveClientLocally(clientId);
+        var u = clientResolvedForRow(row, clientId);
         if (!refundCols) $tr.toggleClass('table-warning', !u && !!clientId);
         if (!clientId) {
             $m.html('<span class="text-warning">Pick Client ID</span>');
@@ -475,6 +502,20 @@
     ImportClientReview.prototype.open = function (rows, opts) {
         opts = opts || {};
         if (opts.refundImport != null) this.cfg.refundImport = !!opts.refundImport;
+        var refundCols = !!this.cfg.refundImport;
+        var $head = $(this.sel('review-wrap')).find('thead tr');
+        if ($head.length) {
+            if (refundCols) {
+                $head.html(
+                    '<th>#</th><th>Row</th><th>Auto</th><th style="min-width:120px">Client ID</th>' +
+                        '<th>Sale on dashboard</th><th>On import</th><th>Client</th>'
+                );
+            } else {
+                $head.html(
+                    '<th>#</th><th>Row</th><th>Auto</th><th style="min-width:120px">Client ID</th><th>Client</th>'
+                );
+            }
+        }
         this.cfg.setRows((rows || []).map(function (r) {
             return Object.assign({}, r);
         }));
@@ -501,6 +542,10 @@
             self.getRows().forEach(function (r) {
                 if (r.line === line) {
                     r.client_id = val;
+                    r.resolve_ok = undefined;
+                    r.resolved_user_id = null;
+                    r.resolved_label = '';
+                    r.resolved_email = '';
                     row = r;
                 }
             });

@@ -5,6 +5,14 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
+try {
+    const dotenv = require('dotenv');
+    const localEnv = path.join(__dirname, 'ebay-payout-bot.env');
+    if (fs.existsSync(localEnv)) dotenv.config({ path: localEnv });
+} catch {
+    /* optional */
+}
+
 function resolveChromePath() {
     const candidates = [
         path.join(process.env['PROGRAMFILES'] || 'C:\\Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe'),

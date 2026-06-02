@@ -561,7 +561,7 @@ function help() {
     console.log(`Usage: node scripts/ebay-reconcile-list-vs-main-sheet.js [options]
 
 Compares every Seller Hub order link to order numbers in a workbook/CSV, then queues missing ids to the postage-missing
-Google Sheet (RM_POSTAGE_QUEUE_SHEET_URL, or --postage-queue-url / EBAY_RECONCILE_POSTAGE_QUEUE_URL for this run only).
+queue (CSV by default: RM_POSTAGE_QUEUE_CSV_PATH / Downloads/Postage Queue.csv, or Google Sheet via RM_POSTAGE_QUEUE_SHEET_URL).
 
 Compare source (first that applies):
   (1) --compare-file or EBAY_RECONCILE_COMPARE_FILE — local .xlsx, .xls, or .csv (all rows).
@@ -588,7 +588,7 @@ Options:
   --data-start-row <n>      First row to read (default 1). Use 2 if row 1 is header-only.
   --workbook-tab <name>     Excel worksheet name (default first sheet)
   --ebay-list-url <url>     Seller Hub list URL (e.g. …timerange%3ACURRENTYEAR for current year)
-  --postage-queue-url <url> Missing-postage queue Google Sheet for this run (overrides RM_POSTAGE_QUEUE_SHEET_URL)
+  --postage-queue-url <path|url> Postage queue CSV or Google Sheet for this run (overrides RM_POSTAGE_QUEUE_*)
   --sheet-url <url>         Google Sheet (API / download; default GOOGLE_SHEET_URL)
   --max-pages <n>           Max list pagination steps (default 100)
   --sheet-csv <path>        CSV compare file (when not using --compare-file)
@@ -601,8 +601,8 @@ Env:
   GOOGLE_SHEET_URL, GOOGLE_SHEET_TAB
   GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS
   EBAY_ORDERS_LIST_URL, EBAY_SELLER_HUB_LIST_URL, EBAY_LIST_AUDIT_URL
-  RM_POSTAGE_QUEUE_SHEET_URL, RM_POSTAGE_QUEUE_ORDER_NUMBERS_ONLY
-  EBAY_RECONCILE_POSTAGE_QUEUE_URL  Same as --postage-queue-url (handy in ebay-payout-bot.env for a 2026 preset)
+  RM_POSTAGE_QUEUE_CSV_PATH, RM_POSTAGE_QUEUE_SHEET_URL, RM_POSTAGE_QUEUE_ORDER_NUMBERS_ONLY
+  EBAY_RECONCILE_POSTAGE_QUEUE_URL  Same as --postage-queue-url (CSV path or Sheet URL)
 `);
 }
 
@@ -765,20 +765,34 @@ async function main() {
 
     const queueOverride = String(args.postageQueueUrl || process.env.EBAY_RECONCILE_POSTAGE_QUEUE_URL || '').trim();
     const prevRmQueue = process.env.RM_POSTAGE_QUEUE_SHEET_URL;
+    const prevRmCsv = process.env.RM_POSTAGE_QUEUE_CSV_PATH;
+    const queueIsCsv = /\.csv$/i.test(queueOverride) && !/^https?:\/\//i.test(queueOverride);
     if (queueOverride) {
-        process.env.RM_POSTAGE_QUEUE_SHEET_URL = queueOverride;
+        if (queueIsCsv) {
+            process.env.RM_POSTAGE_QUEUE_CSV_PATH = queueOverride;
+            delete process.env.RM_POSTAGE_QUEUE_SHEET_URL;
+        } else {
+            process.env.RM_POSTAGE_QUEUE_SHEET_URL = queueOverride;
+            delete process.env.RM_POSTAGE_QUEUE_CSV_PATH;
+        }
         console.log(`Reconcile: posting missing orders to queue:\n  ${queueOverride}`);
     }
     let result;
     try {
-        result = await appendOrdersToMainSheetFallbackQueue(missingEntries, browser);
+        result = await appendOrdersToMainSheetFallbackQueue(missingEntries, browser, queueOverride || null);
     } finally {
         if (queueOverride) {
             if (prevRmQueue === undefined) delete process.env.RM_POSTAGE_QUEUE_SHEET_URL;
             else process.env.RM_POSTAGE_QUEUE_SHEET_URL = prevRmQueue;
+            if (prevRmCsv === undefined) delete process.env.RM_POSTAGE_QUEUE_CSV_PATH;
+            else process.env.RM_POSTAGE_QUEUE_CSV_PATH = prevRmCsv;
         }
     }
-    const queueLabel = queueOverride || process.env.RM_POSTAGE_QUEUE_SHEET_URL || 'RM_POSTAGE_QUEUE_SHEET_URL';
+    const queueLabel =
+        queueOverride ||
+        process.env.RM_POSTAGE_QUEUE_CSV_PATH ||
+        process.env.RM_POSTAGE_QUEUE_SHEET_URL ||
+        'RM_POSTAGE_QUEUE_CSV_PATH (default Downloads/Postage Queue.csv)';
     console.log(`Reconcile: postage queue append — ok=${result.ok}, written=${result.written} (${queueLabel}).`);
 
     await browser.disconnect().catch(() => {});

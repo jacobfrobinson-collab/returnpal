@@ -45,7 +45,7 @@ const {
 } = require('./ebay-payout-puppeteer.js');
 
 const DEFAULT_EBAY_LIST_URL =
-    'https://www.ebay.co.uk/sh/ord/?filter=status%3APAID_SHIPPED%2Ctimerange%3ACURRENTYEAR';
+    'https://www.ebay.co.uk/sh/ord/?filter=status%3APAID_SHIPPED%2Ctimerange%3APREVIOUSYEAR';
 /** Default payout tab for “missing postage” manual runs (override with --sheet-url / GOOGLE_SHEET_URL). */
 const DEFAULT_GOOGLE_SHEET_URL =
     'https://docs.google.com/spreadsheets/d/1GFeoSLXKexR7-YIbTcglozzVhtHOa2zeQNT9I8RqdJs/edit?gid=0#gid=0';
@@ -404,7 +404,7 @@ ebay-manual-postage-to-sheet.js
     --orders-xlsx-column-a-only   Only scan column A (default scans A–Z)
     --orders-xlsx-scan-ab         Only columns A–B
     --orders-xlsx-max-col-index N Last column index to scan (0=A, 25=Z; default 25)
-    --ebay-list-url URL      List to scan (default: Paid & shipped CURRENTYEAR UK)
+    --ebay-list-url URL      List to scan (default: Paid & shipped PREVIOUSYEAR UK)
     Script paginates the list, keeps only orders that appear both in the XLSX and on the list, then
     opens each real list link.
 

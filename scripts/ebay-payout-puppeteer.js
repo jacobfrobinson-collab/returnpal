@@ -8,6 +8,13 @@ const { spawnSync } = require('child_process');
 const puppeteer = require('puppeteer-core');
 const xlsx = require('xlsx');
 const { extractLegacyClientIdFromText } = require('../src/utils/ebayRefundSkuClient');
+const {
+    PAYOUT_IMPORT_CSV_HEADER,
+    payoutRowToImportCsvLine,
+    orderIdFromPayoutCsvLine,
+    extractPayoutCsvDataLines,
+    readOrderIdsFromPayoutCsv,
+} = require('./ebay-payout-import-csv');
 
 try {
     const dotenv = require('dotenv');
@@ -36,9 +43,16 @@ const DEFAULT_RM_MANIFEST_FILENAMES = [
     'ManifestedOrdersReport.2026-04-29-17-27-11.xls', // Sep–Oct
     'ManifestedOrdersReport.2026-04-29-17-27-43.xls', // Jul–Aug
 ];
-/** Same workbook as payouts by default; no `gid` so rows append to tab RM_POSTAGE_QUEUE_TAB or "Postage queue". */
+/** Legacy Google workbook; used only when RM_POSTAGE_QUEUE_SHEET_URL is a docs.google.com URL. */
 const DEFAULT_RM_POSTAGE_QUEUE_SHEET_URL =
     'https://docs.google.com/spreadsheets/d/169kYDQAF6nIsVJN0DrAoOKO_JrrTviZ693hbhFRPhMY/edit?gid=0#gid=0';
+/** Default missing-postage queue (local CSV). Override with RM_POSTAGE_QUEUE_CSV_PATH. */
+const DEFAULT_RM_POSTAGE_QUEUE_CSV_PATH = 'c:/Users/jacob/Downloads/Postage Queue.csv';
+
+const POSTAGE_QUEUE_CSV_HEADER_ORDER_ONLY = 'order_number';
+const POSTAGE_QUEUE_CSV_HEADER_MIN = 'order_number,sold_date';
+const POSTAGE_QUEUE_CSV_HEADER_FULL =
+    'queued_at,order_number,sold_date,reference_number,tracking_number,item_titles,skus,quantities,earnings,reason,notes';
 
 function urlLooksLikeEbayOrdersList(url) {
     const u = String(url || '');
@@ -176,6 +190,7 @@ function parseArgs(argv) {
         autoContinue: true,
         output: null,
         sheetUrl: null,
+        noSheet: false,
         startAfterOrder: '',
         replayJson: null,
         sheetBrowserOnly: false,
@@ -197,6 +212,7 @@ function parseArgs(argv) {
         else if (a === '--no-auto-continue') out.autoContinue = false;
         else if (a === '--output' && argv[i + 1]) out.output = argv[++i];
         else if (a === '--sheet-url' && argv[i + 1]) out.sheetUrl = argv[++i];
+        else if (a === '--no-sheet') out.noSheet = true;
         else if (a === '--start-after-order' && argv[i + 1]) out.startAfterOrder = canonicalEbayOrderId(argv[++i]);
         else if (a === '--replay-json' && argv[i + 1]) out.replayJson = argv[++i];
         else if (a === '--sheet-browser-only') out.sheetBrowserOnly = true;
@@ -208,6 +224,10 @@ function parseArgs(argv) {
     }
     const sb = String(process.env.EBAY_PAYOUT_SHEET_BROWSER_ONLY || '').trim().toLowerCase();
     if (sb === '1' || sb === 'true' || sb === 'yes') out.sheetBrowserOnly = true;
+    const noSheetEnv = String(process.env.EBAY_PAYOUT_NO_SHEET || '').trim().toLowerCase();
+    if (noSheetEnv === '1' || noSheetEnv === 'true' || noSheetEnv === 'yes') out.noSheet = true;
+    const envOut = String(process.env.EBAY_PAYOUT_OUTPUT || process.env.EBAY_PAYOUT_OUTPUT_CSV || '').trim();
+    if (envOut && !out.output) out.output = envOut;
     return out;
 }
 
@@ -252,7 +272,8 @@ Options:
   --batch-size <n>      How many order links to process per run (default ${DEFAULT_BATCH_SIZE}); then a fresh Node process continues
   --refresh-order-links Re-scan the eBay list (ignore saved links in checkpoint; use with skip-orders=0 to rebuild cache)
   --no-auto-continue    Stop after one chunk instead of spawning a new Node process for the next skip-orders step
-  --output <path>       Output json/csv base
+  --output <path>       Write JSON + CSV (base path, or exact .csv path to append across batches)
+  --no-sheet            Do not write to Google Sheets (CSV/JSON only; use with --output)
   --sheet-url <url>     Google Sheet URL override
   --start-after-order <order-id>  Resume from the first link after this order id (e.g. 06-14515-70994)
   --replay-json <path>  Skip scraping; write existing JSON rows to sheet
@@ -267,15 +288,18 @@ Env:
     If the JSON path is set, the script still uses the API to read column B (resume check, duplicate skip) even with --sheet-browser-only.
     Without credentials, those checks use only the checkpoint plus visible sheet cells (not the full column).
   EBAY_PAYOUT_SHEET_BROWSER_ONLY=1  Same as --sheet-browser-only (Puppeteer paste only).
+  EBAY_PAYOUT_NO_SHEET=1            No Google Sheet (CSV only; set EBAY_PAYOUT_OUTPUT)
+  EBAY_PAYOUT_OUTPUT                Payout CSV path when using --no-sheet / EBAY_PAYOUT_NO_SHEET
   GOOGLE_SHEET_TAB     Sheet tab name for API reads/writes (default Sheet1). Must match the tab where order numbers are in column B.
     Pasted/API columns A–H: order_date, order_number, item_name, custom_label_sku, quantity,
     net_earnings, client_payout, Client ID (add a “Quantity” header in E if your table is still 7 columns).
   RM_XLS_PATH (optional single Royal Mail XLS — overrides merged manifests)
   RM_MANIFEST_PATHS  Semicolon-separated list of Royal Mail XLS paths (overrides discovery below)
   RM_MANIFEST_DIRS  Extra folders to scan (semicolon or |); each folder gets the five default names plus every ManifestedOrdersReport*.xls(x)
-  RM_POSTAGE_QUEUE_SHEET_URL  Fallback workbook for orders that cannot go on the main sheet (default 169kYDQ…): postage-missing, extraction misses, write failures — same tab rules as postage queue
+  RM_POSTAGE_QUEUE_CSV_PATH   Local CSV for postage-missing / main-sheet fallback (default: Downloads/Postage Queue.csv)
+  RM_POSTAGE_QUEUE_SHEET_URL  Optional Google Sheet instead of CSV (must be a docs.google.com URL)
   RM_POSTAGE_QUEUE_TAB        Tab name when the queue URL has no gid (default Postage queue)
-  RM_POSTAGE_QUEUE_ORDER_NUMBERS_ONLY=1  Append only column A = eBay order id (otherwise full detail row A–J)
+  RM_POSTAGE_QUEUE_ORDER_NUMBERS_ONLY=1  CSV/Sheet: order_number (+ sold_date) only; otherwise full detail columns
   DOWNLOADS_DIR (optional, default ~/Downloads)
   EBAY_PAYOUT_CHECKPOINT_PATH  Override path for .ebay-payout-checkpoint.json (default: repo root next to package.json)
   EBAY_PAYOUT_MAX_ORDER_LINKS   When set (e.g. 1000), caps list scan if you omit --max-orders (default is no cap).
@@ -579,16 +603,223 @@ async function exportRoyalMailXls(page) {
     }
 }
 
+const PAYOUT_CSV_HEADER = PAYOUT_IMPORT_CSV_HEADER;
+
+function payoutRowToCsvLine(r) {
+    return payoutRowToImportCsvLine(r);
+}
+
+function csvCellEscape(v) {
+    const s = String(v ?? '');
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+}
+
+function resolveAbsPathMaybe(p) {
+    const s = String(p || '').trim();
+    if (!s) return '';
+    return path.isAbsolute(s) ? s : path.join(process.cwd(), s);
+}
+
+function isGoogleSheetsUrl(s) {
+    return /^https?:\/\//i.test(String(s || '')) && /docs\.google\.com\/spreadsheets/i.test(String(s || ''));
+}
+
+function looksLikePostageQueueCsvPath(s) {
+    const t = String(s || '').trim();
+    return Boolean(t && /\.csv$/i.test(t) && !isGoogleSheetsUrl(t));
+}
+
+/** @returns {{ mode: 'csv', path: string } | { mode: 'sheet', url: string }} */
+function resolvePostageQueueTarget(override) {
+    const csvEnv = String(process.env.RM_POSTAGE_QUEUE_CSV_PATH || '').trim();
+    if (csvEnv) return { mode: 'csv', path: resolveAbsPathMaybe(csvEnv) };
+
+    const rawOverride = String(override || '').trim();
+    if (looksLikePostageQueueCsvPath(rawOverride)) {
+        return { mode: 'csv', path: resolveAbsPathMaybe(rawOverride) };
+    }
+
+    const sheetEnv = String(process.env.RM_POSTAGE_QUEUE_SHEET_URL || '').trim();
+    if (looksLikePostageQueueCsvPath(sheetEnv)) {
+        return { mode: 'csv', path: resolveAbsPathMaybe(sheetEnv) };
+    }
+
+    if (isGoogleSheetsUrl(rawOverride)) return { mode: 'sheet', url: rawOverride };
+    if (isGoogleSheetsUrl(sheetEnv)) return { mode: 'sheet', url: sheetEnv };
+
+    return { mode: 'csv', path: resolveAbsPathMaybe(DEFAULT_RM_POSTAGE_QUEUE_CSV_PATH) };
+}
+
+function formatPostageQueueTargetLabel(target) {
+    const t = target || resolvePostageQueueTarget(null);
+    return t.mode === 'csv' ? t.path : t.url;
+}
+
+function postageQueueCsvHeaderRecognized(firstLine) {
+    const h = String(firstLine || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^\uFEFF/, '');
+    return /^order_number(,|$)/.test(h);
+}
+
+function isJunkPostageQueueCsvLine(line) {
+    const t = String(line || '').trim();
+    if (!t) return true;
+    const first = t.split(',')[0].replace(/^"|"$/g, '').trim();
+    if (/^column\s+\d+/i.test(first)) return true;
+    if (!first && /^,+$/.test(t.replace(/\s/g, ''))) return true;
+    return false;
+}
+
+function extractOrderIdsFromPostageQueueCsvText(text) {
+    const out = new Set();
+    for (const line of String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/)) {
+        if (isJunkPostageQueueCsvLine(line) || postageQueueCsvHeaderRecognized(line)) continue;
+        const first = line.split(',')[0].replace(/^"|"$/g, '').trim();
+        const c = canonicalEbayOrderId(first);
+        if (c) out.add(c);
+    }
+    return out;
+}
+
+/** Order ids already present in a postage-queue CSV (order_number column or first column). */
+function readOrderIdsFromPostageQueueCsv(csvPath) {
+    const out = new Set();
+    if (!csvPath || !fs.existsSync(csvPath)) return out;
+    return extractOrderIdsFromPostageQueueCsvText(fs.readFileSync(csvPath, 'utf8'));
+}
+
+/** Order ids already present in an output CSV (order_number column). */
+function readOrderIdsFromOutputCsv(csvPath) {
+    return readOrderIdsFromPayoutCsv(csvPath);
+}
+
+function isLocalFileBusyError(err) {
+    const code = err && err.code;
+    if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES') return true;
+    return /EBUSY|resource busy|locked/i.test(String(err && err.message));
+}
+
+function delayMs(ms) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        /* sync wait — keeps retry logic simple without top-level await */
+    }
+}
+
+function appendTextToFileWithRetry(filePath, text, label) {
+    let lastErr;
+    for (let i = 0; i < 12; i++) {
+        try {
+            fs.appendFileSync(filePath, text, 'utf8');
+            if (i > 0) console.log(`${label}: append succeeded after ${i + 1} attempt(s).`);
+            return;
+        } catch (e) {
+            lastErr = e;
+            if (!isLocalFileBusyError(e) || i === 11) throw e;
+            const wait = Math.min(4000, 300 + i * 350);
+            console.warn(
+                `${label}: file locked (${e.code || 'busy'}) — retry in ${wait}ms. Close "${path.basename(filePath)}" in Excel/LibreOffice.`,
+            );
+            delayMs(wait);
+        }
+    }
+    throw lastErr;
+}
+
+function writeTextToFileWithRetry(filePath, text, label) {
+    let lastErr;
+    for (let i = 0; i < 12; i++) {
+        try {
+            fs.writeFileSync(filePath, text, 'utf8');
+            if (i > 0) console.log(`${label}: write succeeded after ${i + 1} attempt(s).`);
+            return;
+        } catch (e) {
+            lastErr = e;
+            if (!isLocalFileBusyError(e) || i === 11) throw e;
+            const wait = Math.min(4000, 300 + i * 350);
+            console.warn(
+                `${label}: file locked (${e.code || 'busy'}) — retry in ${wait}ms. Close "${path.basename(filePath)}" in Excel/LibreOffice.`,
+            );
+            delayMs(wait);
+        }
+    }
+    throw lastErr;
+}
+
 function writeOutputs(rows, outputBase) {
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    const base = outputBase ? (path.isAbsolute(outputBase) ? outputBase : path.join(process.cwd(), outputBase)) : path.join(__dirname, `ebay-payout-${ts}`);
-    const jsonPath = base.endsWith('.json') ? base : `${base}.json`;
-    const csvPath = jsonPath.replace(/\.json$/i, '.csv');
-    fs.writeFileSync(jsonPath, JSON.stringify({ generatedAt: new Date().toISOString(), rows }, null, 2), 'utf8');
-    const header = 'order_number,item_title,custom_sku,client_id,quantity,sold_date,gross_earnings,postage_cost,packaging_cost,net_earnings,payout_rate,client_payout';
-    const body = rows.map((r) => [r.orderNumber, `"${String(r.itemTitle || '').replace(/"/g, '""')}"`, r.customSku, r.clientId || '', r.quantity, r.soldDate || '', r.grossEarnings, r.postageCost, r.packagingCost, r.netEarnings, r.payoutRate, r.clientPayout].join(','));
-    fs.writeFileSync(csvPath, [header, ...body].join('\n'), 'utf8');
-    return { jsonPath, csvPath };
+    let jsonPath;
+    let csvPath;
+    if (outputBase && /\.csv$/i.test(String(outputBase))) {
+        csvPath = path.isAbsolute(outputBase) ? outputBase : path.join(process.cwd(), outputBase);
+        jsonPath = csvPath.replace(/\.csv$/i, '.json');
+    } else {
+        const base = outputBase ? (path.isAbsolute(outputBase) ? outputBase : path.join(process.cwd(), outputBase)) : path.join(__dirname, `ebay-payout-${ts}`);
+        jsonPath = base.endsWith('.json') ? base : `${base}.json`;
+        csvPath = jsonPath.replace(/\.json$/i, '.csv');
+    }
+
+    const existingCsvIds = readOrderIdsFromOutputCsv(csvPath);
+    const rowsForCsv = rows.filter((r) => !existingCsvIds.has(canonicalEbayOrderId(r.orderNumber)));
+    const csvDupSkipped = rows.length - rowsForCsv.length;
+    if (csvDupSkipped > 0) {
+        console.log(`CSV output: skipped ${csvDupSkipped} row(s) already in ${path.basename(csvPath)} (order_number).`);
+    }
+
+    const csvLines = rowsForCsv.map((r) => payoutRowToCsvLine(r));
+    if (csvLines.length) {
+        fs.mkdirSync(path.dirname(csvPath), { recursive: true });
+        const bom = '\uFEFF';
+        const existingLines = fs.existsSync(csvPath) ? extractPayoutCsvDataLines(fs.readFileSync(csvPath, 'utf8')) : [];
+        const seenLineIds = new Set();
+        const mergedLines = [];
+        for (const line of [...existingLines, ...csvLines]) {
+            const id = orderIdFromPayoutCsvLine(line);
+            if (!id || seenLineIds.has(id)) continue;
+            seenLineIds.add(id);
+            mergedLines.push(line);
+        }
+        writeTextToFileWithRetry(
+            csvPath,
+            bom + [PAYOUT_CSV_HEADER, ...mergedLines].join('\n') + '\n',
+            'CSV output',
+        );
+        const totalIds = readOrderIdsFromOutputCsv(csvPath).size;
+        const bytes = fs.statSync(csvPath).size;
+        if (bytes < 20) {
+            throw new Error(`CSV write failed — file is nearly empty after write: ${csvPath}`);
+        }
+        console.log(
+            `CSV output saved: ${csvPath} — ${totalIds} order row(s) in file now (${bytes.toLocaleString()} bytes). Close and reopen the file in Excel if it still looks empty.`,
+        );
+    } else if (rows.length > 0) {
+        console.warn(
+            `CSV output: 0 new row(s) written to ${csvPath} — all ${rows.length} row(s) from this chunk were already in the file (order_number).`,
+        );
+    }
+
+    let jsonRows = rows;
+    if (fs.existsSync(jsonPath)) {
+        try {
+            const prev = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+            const prevRows = Array.isArray(prev.rows) ? prev.rows : [];
+            const seen = new Set(prevRows.map((r) => canonicalEbayOrderId(r.orderNumber)).filter(Boolean));
+            const add = rows.filter((r) => !seen.has(canonicalEbayOrderId(r.orderNumber)));
+            jsonRows = [...prevRows, ...add];
+        } catch {
+            /* overwrite below */
+        }
+    }
+    fs.writeFileSync(
+        jsonPath,
+        JSON.stringify({ generatedAt: new Date().toISOString(), rows: jsonRows }, null, 2),
+        'utf8',
+    );
+
+    return { jsonPath, csvPath, writtenCsvRows: rowsForCsv.length, skippedCsvDuplicates: csvDupSkipped };
 }
 
 function findNewestXls(downloadDir, afterMs) {
@@ -846,13 +1077,118 @@ function cellsForPostageMissingQueue(order, reason) {
     ];
 }
 
+function postageMissingQueueCsvLine(m, orderNumbersOnly, useSoldCol) {
+    if (orderNumbersOnly) {
+        const id =
+            canonicalEbayOrderId(m.order.orderNumber) || String(m.order.orderNumber || '').trim();
+        const d = String(m.order.soldDate || '').trim();
+        return useSoldCol ? [id, d].map(csvCellEscape).join(',') : csvCellEscape(id);
+    }
+    return cellsForPostageMissingQueue(m.order, m.reason).map(csvCellEscape).join(',');
+}
+
 /**
- * Append orders with no postage match to the queue sheet: Google Sheets API when credentials exist,
- * else browser paste (same Chrome session as payout flow) when `browser` is passed.
+ * Append to local postage queue CSV (RM_POSTAGE_QUEUE_CSV_PATH or default Downloads/Postage Queue.csv).
+ */
+function appendPostageMissingQueueCsv(csvPath, missing) {
+    if (!missing.length) return { ok: true, written: 0 };
+
+    const orderNumbersOnly = ['1', 'true', 'yes'].includes(
+        String(process.env.RM_POSTAGE_QUEUE_ORDER_NUMBERS_ONLY || '').trim().toLowerCase(),
+    );
+    const useSoldCol = orderNumbersOnly && missing.some((m) => String(m.order.soldDate || '').trim());
+    const header = orderNumbersOnly
+        ? useSoldCol
+            ? POSTAGE_QUEUE_CSV_HEADER_MIN
+            : POSTAGE_QUEUE_CSV_HEADER_ORDER_ONLY
+        : POSTAGE_QUEUE_CSV_HEADER_FULL;
+
+    const existing = readOrderIdsFromPostageQueueCsv(csvPath);
+    const beforeCount = existing.size;
+    const toWrite = missing.filter((m) => {
+        const id = canonicalEbayOrderId(m.order.orderNumber) || String(m.order.orderNumber || '').trim();
+        const key = canonicalEbayOrderId(id) || id;
+        return key && !existing.has(key);
+    });
+    const skippedDup = missing.length - toWrite.length;
+    if (skippedDup > 0) {
+        console.log(`Postage queue (CSV): skipped ${skippedDup} duplicate(s) already in ${path.basename(csvPath)}.`);
+    }
+    if (!toWrite.length) {
+        console.log('Postage queue (CSV): nothing to append (all order id(s) already in file or empty).');
+        return { ok: true, written: 0 };
+    }
+
+    for (const m of toWrite) {
+        const id = canonicalEbayOrderId(m.order.orderNumber) || String(m.order.orderNumber || '').trim();
+        const key = canonicalEbayOrderId(id) || id;
+        if (key) existing.add(key);
+    }
+
+    fs.mkdirSync(path.dirname(csvPath), { recursive: true });
+    const bom = '\uFEFF';
+    let bodyLines;
+    if (orderNumbersOnly && !useSoldCol) {
+        bodyLines = [...existing].map((id) => csvCellEscape(id));
+    } else {
+        const soldById = new Map();
+        if (fs.existsSync(csvPath)) {
+            for (const line of fs.readFileSync(csvPath, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/)) {
+                if (isJunkPostageQueueCsvLine(line) || postageQueueCsvHeaderRecognized(line)) continue;
+                const parts = line.split(',');
+                const id = canonicalEbayOrderId((parts[0] || '').replace(/^"|"$/g, '').trim());
+                const sold = (parts[1] || '').replace(/^"|"$/g, '').trim();
+                if (id && sold && !soldById.has(id)) soldById.set(id, sold);
+            }
+        }
+        for (const m of toWrite) {
+            const id = canonicalEbayOrderId(m.order.orderNumber) || String(m.order.orderNumber || '').trim();
+            const key = canonicalEbayOrderId(id) || id;
+            const d = String(m.order.soldDate || '').trim();
+            if (key && d) soldById.set(key, d);
+        }
+        bodyLines = [...existing].map((id) => {
+            const d = soldById.get(id) || '';
+            return useSoldCol ? [id, d].map(csvCellEscape).join(',') : csvCellEscape(id);
+        });
+    }
+
+    writeTextToFileWithRetry(csvPath, bom + [header, ...bodyLines].join('\n') + '\n', 'Postage queue (CSV)');
+    const bytes = fs.statSync(csvPath).size;
+    const added = existing.size - beforeCount;
+
+    console.log(
+        `Postage queue (CSV): ${added} new order id(s); ${existing.size} total in ${csvPath} (${bytes.toLocaleString()} bytes).${
+            orderNumbersOnly
+                ? useSoldCol
+                    ? ' Columns: order_number + sold_date.'
+                    : ' Column: order_number only.'
+                : ' Full detail columns.'
+        } Close and reopen in Excel if the file looks blank.`,
+    );
+    return { ok: true, written: added };
+}
+
+/**
+ * Append orders with no postage match to the postage queue (CSV by default, or Google Sheet when configured).
+ * Sheet path: Google Sheets API when credentials exist, else browser paste when `browser` is passed.
  * Tab: RM_POSTAGE_QUEUE_TAB env, else gid in URL (resolved via API), else default "Postage queue" on that workbook.
  */
 async function appendPostageMissingQueue(queueSheetUrl, missing, browser = null) {
     if (!missing.length) return { ok: true, written: 0 };
+
+    const target = resolvePostageQueueTarget(queueSheetUrl);
+    if (target.mode === 'csv') {
+        try {
+            return appendPostageMissingQueueCsv(target.path, missing);
+        } catch (e) {
+            console.warn(`Postage queue (CSV) append failed (${e.message || e}).`);
+            for (const m of missing) console.warn(`  ${m.order.orderNumber}: ${m.reason}`);
+            return { ok: false, written: 0 };
+        }
+    }
+    queueSheetUrl = target.url;
+
     const rawPath = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_APPLICATION_CREDENTIALS || '';
     const keyPath = rawPath ? (path.isAbsolute(rawPath) ? rawPath : path.join(process.cwd(), rawPath)) : '';
     const hasKey = Boolean(keyPath && fs.existsSync(keyPath));
@@ -947,9 +1283,8 @@ async function appendPostageMissingQueue(queueSheetUrl, missing, browser = null)
  * @param {Array<{ orderNumber: string, reason?: string, soldDate?: string }>} entries
  * @param {import('puppeteer').Browser | null} [browser]
  */
-async function appendOrdersToMainSheetFallbackQueue(entries, browser = null) {
+async function appendOrdersToMainSheetFallbackQueue(entries, browser = null, queueOverride = null) {
     if (!entries || !entries.length) return { ok: true, written: 0 };
-    const queueUrl = process.env.RM_POSTAGE_QUEUE_SHEET_URL || DEFAULT_RM_POSTAGE_QUEUE_SHEET_URL;
     const missing = entries
         .map((e) => ({
             order: {
@@ -963,7 +1298,7 @@ async function appendOrdersToMainSheetFallbackQueue(entries, browser = null) {
         }))
         .filter((m) => m.order.orderNumber);
     if (!missing.length) return { ok: true, written: 0 };
-    return appendPostageMissingQueue(queueUrl, missing, browser);
+    return appendPostageMissingQueue(queueOverride, missing, browser);
 }
 
 function safeFileToken(v) {
@@ -2488,9 +2823,8 @@ async function payoutRowsFromOrdersWithRoyalMail(browser, orders) {
                 );
             }
         }
-        const queueUrl = process.env.RM_POSTAGE_QUEUE_SHEET_URL || DEFAULT_RM_POSTAGE_QUEUE_SHEET_URL;
         if (missing.length) {
-            await appendPostageMissingQueue(queueUrl, missing, browser);
+            await appendPostageMissingQueue(null, missing, browser);
         }
         for (const m of missing) {
             console.warn(`Skipping order: ${m.reason}`);
@@ -2505,8 +2839,10 @@ async function main() {
     const args = parseArgs(process.argv);
     if (args.help) return help();
     console.log(`Puppeteer CDP protocolTimeout=${resolveProtocolTimeoutMs(args)}ms`);
-    const sheetUrl = args.sheetUrl || process.env.GOOGLE_SHEET_URL || DEFAULT_GOOGLE_SHEET_URL || '';
-    let checkpoint = reconcileCheckpointWithGoogleSheet(readCheckpoint(), sheetUrl);
+    const sheetUrl = args.noSheet
+        ? String(args.sheetUrl || '').trim()
+        : String(args.sheetUrl || process.env.GOOGLE_SHEET_URL || DEFAULT_GOOGLE_SHEET_URL || '').trim();
+    let checkpoint = reconcileCheckpointWithGoogleSheet(readCheckpoint(), sheetUrl || null);
 
     if (args.replayJson) {
         const replayPath = path.isAbsolute(args.replayJson) ? args.replayJson : path.join(process.cwd(), args.replayJson);
@@ -2526,12 +2862,33 @@ async function main() {
 
     const ebayOrdersListUrl = (args.ebayListUrl && String(args.ebayListUrl).trim()) || EBAY_ORDERS_URL;
     console.log(`eBay orders list URL:\n  ${ebayOrdersListUrl}`);
+    if (args.noSheet) {
+        const outLabel = args.output || process.env.EBAY_PAYOUT_OUTPUT || process.env.EBAY_PAYOUT_OUTPUT_CSV || '';
+        console.log(
+            `Payout output: CSV only (no Google Sheet)${outLabel ? `\n  ${outLabel}` : '\n  (set EBAY_PAYOUT_OUTPUT in ebay-payout-bot.env)'}`,
+        );
+    }
 
     /** Order ids already present in the sheet — eBay list links matching these skip the order-details page. */
     let sheetOrderIdsToSkip = new Set();
     const explicitResumeAfterOrderId = canonicalEbayOrderId(args.startAfterOrder || process.env.EBAY_RESUME_AFTER_ORDER || '');
     const checkpointResumeAfterOrderId = canonicalEbayOrderId(checkpoint?.lastProcessedOrderNumber || '');
     let resumeAfterOrderId = explicitResumeAfterOrderId || checkpointResumeAfterOrderId;
+    const outputCsvPath =
+        args.output && /\.csv$/i.test(String(args.output))
+            ? path.isAbsolute(args.output)
+                ? args.output
+                : path.join(process.cwd(), args.output)
+            : '';
+    if (outputCsvPath) {
+        const fromCsv = readOrderIdsFromOutputCsv(outputCsvPath);
+        for (const id of fromCsv) sheetOrderIdsToSkip.add(id);
+        if (fromCsv.size) {
+            console.log(
+                `CSV preflight: ${fromCsv.size} order id(s) in ${path.basename(outputCsvPath)} — those links are skipped before opening order details.`,
+            );
+        }
+    }
     if (sheetUrl) {
         console.log('Prefetch — Google Sheet: reading column B so we can skip eBay orders already exported.');
         const apiStats = await readColumnBStatsFromApi(sheetUrl);
@@ -2539,9 +2896,10 @@ async function main() {
             resumeAfterOrderId = apiStats.lastOrderId;
             console.log(`Sheet preflight: last order id in column B is ${apiStats.lastOrderId}.`);
         }
-        sheetOrderIdsToSkip = await buildAlreadyOnSheetOrderSet(browser, sheetUrl);
+        const fromSheet = await buildAlreadyOnSheetOrderSet(browser, sheetUrl);
+        for (const id of fromSheet) sheetOrderIdsToSkip.add(id);
         console.log(
-            `Sheet preflight: ${sheetOrderIdsToSkip.size} order id(s) on record — matching Seller Hub links are skipped before opening order details.`,
+            `Sheet preflight: ${fromSheet.size} order id(s) on record — matching Seller Hub links are skipped before opening order details.`,
         );
     }
 
@@ -2741,7 +3099,9 @@ async function main() {
         const link = orderLinks[oi];
         const oid = orderIdFromEbayDetailsLink(link);
         if (oid && sheetOrderIdsToSkip.has(oid)) {
-            console.log(`Order ${oi + 1}/${orderLinks.length}: ${oid} — skipped (already in Google Sheet)`);
+            console.log(
+                `Order ${oi + 1}/${orderLinks.length}: ${oid} — skipped (already exported to sheet or CSV)`,
+            );
             continue;
         }
         const idHint = oid || (link.match(/orderid=([^&]+)/i) || [])[1] || `link-${oi + 1}`;
@@ -3005,121 +3365,16 @@ async function main() {
             .filter((x) => x.orderNumber);
         if (fb.length) {
             await appendOrdersToMainSheetFallbackQueue(fb, browser);
-            console.log(`Main sheet fallback queue: queued ${fb.length} order(s) with no extracted line items → ${DEFAULT_RM_POSTAGE_QUEUE_SHEET_URL}`);
-        }
-    }
-
-    const rmPage = await browser.newPage();
-    const rmXlsPath = process.env.RM_XLS_PATH;
-    const downloadDir = process.env.DOWNLOADS_DIR || path.join(os.homedir(), 'Downloads');
-    const forceRmRefresh =
-        String(process.env.FORCE_RM_DOWNLOAD || '').toLowerCase() === '1' ||
-        String(process.env.FORCE_RM_DOWNLOAD || '').toLowerCase() === 'true';
-
-    let manifestPaths = [];
-    if (rmXlsPath) {
-        const single = path.isAbsolute(rmXlsPath) ? rmXlsPath : path.join(process.cwd(), rmXlsPath);
-        if (!fs.existsSync(single)) throw new Error(`RM_XLS_PATH not found: ${single}`);
-        manifestPaths = [single];
-        console.log(`Royal Mail: single file (RM_XLS_PATH): ${single}`);
-    } else {
-        manifestPaths = resolveRoyalMailManifestPaths(downloadDir);
-        if (manifestPaths.length) {
             console.log(
-                `Royal Mail: merging ${manifestPaths.length} manifest XLS file(s) for postage lookup:\n${manifestPaths.map((p) => `  - ${p}`).join('\n')}`,
+                `Main sheet fallback queue: queued ${fb.length} order(s) with no extracted line items → ${formatPostageQueueTargetLabel(resolvePostageQueueTarget(null))}`,
             );
-        }
-        if (!manifestPaths.length && !forceRmRefresh) {
-            const latestExistingXls = findNewestSpreadsheetInManifestDirs(downloadDir);
-            if (latestExistingXls) {
-                manifestPaths = [latestExistingXls];
-                console.log(`Royal Mail: no ManifestedOrdersReport match — using newest spreadsheet in search dirs: ${latestExistingXls}`);
-            }
-        }
-        if (!manifestPaths.length) {
-            const downloaded = await downloadRoyalMailXlsViaPortal(rmPage, downloadDir);
-            manifestPaths = [downloaded];
-            console.log(`Royal Mail: downloaded manifest: ${downloaded}`);
         }
     }
 
-    const rows = [];
-    const skippedOrders = [];
-    const buildRowsFromOrders = (ordersToPrice, postageMap) => {
-        const missing = [];
-        for (const order of ordersToPrice) {
-            const postageLookup = orderPostage(postageMap, order.orderNumber, [order.referenceNumber, order.trackingNumber]);
-            const p = postageLookup.postage;
-            if (p <= 0) {
-                const reason = `No Royal Mail postage match for order ${order.orderNumber}. Tried tokens: ${
-                    postageLookup.triedTokens.join(', ') || '(none)'
-                }`;
-                missing.push({ order, reason });
-                continue;
-            }
-            console.log(`Postage matched for ${order.orderNumber}: £${p} (token: ${postageLookup.matchedToken})`);
-            const earningRows = order.rows.map((r) => ({ ...r, earnings: money(parseMoney(r.earningsText)) }));
-            const totalEarnings = money(earningRows.reduce((s, r) => s + r.earnings, 0));
-            const count = earningRows.length || 1;
-            for (const r of earningRows) {
-                const weight = totalEarnings > 0 ? r.earnings / totalEarnings : 1 / count;
-                const postageCost = money(p * weight);
-                const adjustedNet = money(r.earnings - postageCost - FIXED_PACKAGING_COST);
-                const rate = clientShareRate(adjustedNet, r.soldDate || '');
-                const clientPayout = money(adjustedNet * rate);
-                rows.push({
-                    orderNumber: order.orderNumber,
-                    itemTitle: r.itemTitle,
-                    customSku: r.customSku,
-                    clientId: extractClientId(r.customSku),
-                    quantity: r.quantity,
-                    soldDate: r.soldDate || '',
-                    grossEarnings: r.earnings,
-                    postageCost,
-                    packagingCost: FIXED_PACKAGING_COST,
-                    netEarnings: adjustedNet,
-                    payoutRate: rate,
-                    clientPayout,
-                });
-            }
-        }
-        return missing;
-    };
-
-    let postage = mergeRoyalMailPostageMaps(manifestPaths);
-    console.log(`Royal Mail: merged postage lookup has ${postage.size} token(s).`);
-    logRoyalMailDefaultFilesMissing(manifestPaths, rmXlsPath);
-    let missing = buildRowsFromOrders(orders, postage);
-    if (missing.length) {
-        console.warn(
-            `Postage missing for ${missing.length} order(s). Downloading a fresh Royal Mail XLS and merging into lookup.`,
-        );
-        try {
-            const refreshedXlsPath = await downloadRoyalMailXlsViaPortal(rmPage, downloadDir);
-            if (refreshedXlsPath) {
-                console.log(`Royal Mail XLS refreshed: ${refreshedXlsPath}`);
-                const mergedPaths = [...new Set([...manifestPaths, refreshedXlsPath])];
-                manifestPaths = mergedPaths;
-                postage = mergeRoyalMailPostageMaps(manifestPaths);
-            }
-            missing = buildRowsFromOrders(
-                missing.map((m) => m.order),
-                postage,
-            );
-        } catch (e) {
-            console.warn(
-                `Royal Mail refresh failed (${e.message || e}). Continuing — unmatched orders will be queued to the postage-missing sheet, run will not stop.`,
-            );
-        }
-    }
-    const queueUrl = process.env.RM_POSTAGE_QUEUE_SHEET_URL || DEFAULT_RM_POSTAGE_QUEUE_SHEET_URL;
-    if (missing.length) {
-        await appendPostageMissingQueue(queueUrl, missing, browser);
-    }
-    for (const m of missing) {
-        skippedOrders.push({ orderNumber: m.order.orderNumber, reason: m.reason });
-        console.warn(`Skipping order: ${m.reason}`);
-    }
+    const priced = await payoutRowsFromOrdersWithRoyalMail(browser, orders);
+    const rows = priced.rows;
+    const missing = priced.missing;
+    const skippedOrders = missing.map((m) => ({ orderNumber: m.order.orderNumber, reason: m.reason }));
 
     let sheetWrite = { writtenRows: 0, skippedDuplicates: 0, lastSheetNextAppendRow: null };
     if (sheetUrl && rows.length) {
@@ -3141,9 +3396,13 @@ async function main() {
         }
     }
     if (rows.length) {
-        console.log(
-            `Sheet: ${rows.length} payout row(s) from this run; wrote ${sheetWrite.writtenRows}, skipped ${sheetWrite.skippedDuplicates} duplicate(s).`,
-        );
+        if (sheetUrl) {
+            console.log(
+                `Sheet: ${rows.length} payout row(s) from this run; wrote ${sheetWrite.writtenRows}, skipped ${sheetWrite.skippedDuplicates} duplicate(s).`,
+            );
+        } else if (args.output) {
+            console.log(`Payout: ${rows.length} row(s) computed this chunk — writing to CSV/JSON next.`);
+        }
     }
 
     if (!rows.length) {
@@ -3169,7 +3428,12 @@ async function main() {
         console.log(`Skipped ${skippedOrders.length} order(s) due to missing Royal Mail postage match.`);
     }
 
-    const output = writeOutputs(rows, args.output);
+    if (!args.output && !sheetUrl) {
+        throw new Error('No output destination: use --output PATH.csv (or EBAY_PAYOUT_OUTPUT) and/or --sheet-url / GOOGLE_SHEET_URL.');
+    }
+    const output = args.output
+        ? writeOutputs(rows, args.output)
+        : { jsonPath: '', csvPath: '', writtenCsvRows: 0, skippedCsvDuplicates: 0 };
     const nextSkipOrders = skip + orderLinks.length;
     const processedOrderIds = rows.map((r) => canonicalEbayOrderId(r.orderNumber)).filter(Boolean);
     const lastProcessedOrderNumber = processedOrderIds.length ? processedOrderIds[processedOrderIds.length - 1] : '';
@@ -3183,20 +3447,26 @@ async function main() {
     writeCheckpoint({
         nextSkipOrders,
         batchIndex: Math.floor(skip / batchSize) + 1,
-        lastOutputJson: output.jsonPath,
-        lastOutputCsv: output.csvPath,
+        ...(output.jsonPath ? { lastOutputJson: output.jsonPath } : {}),
+        ...(output.csvPath ? { lastOutputCsv: output.csvPath } : {}),
         ...(lastProcessedOrderNumber ? { lastProcessedOrderNumber } : {}),
         ...sheetCp,
         ...(sheetUrl ? { googleSheetSpreadsheetId: spreadsheetIdFromUrl(sheetUrl) } : {}),
     });
 
-    console.log(`Done. JSON: ${output.jsonPath}`);
-    console.log(`Done. CSV: ${output.csvPath}`);
+    if (output.jsonPath) console.log(`Done. JSON: ${output.jsonPath}`);
+    if (output.csvPath) {
+        const totalInCsv = fs.existsSync(output.csvPath) ? readOrderIdsFromOutputCsv(output.csvPath).size : 0;
+        console.log(
+            `Done. CSV: ${output.csvPath}` +
+                (output.writtenCsvRows != null ? ` (+${output.writtenCsvRows} row(s) this chunk` : '') +
+                (output.skippedCsvDuplicates ? `, ${output.skippedCsvDuplicates} duplicate(s) skipped in chunk` : '') +
+                `; ${totalInCsv} order row(s) in file total)`,
+        );
+    }
     const shouldRestartChunk =
         !!args.autoContinue && orderLinks.length === batchSize && skip + batchSize < collectedLinks.length;
     const nextSkip = nextSkipOrders;
-    await rmPage.close().catch(() => {});
-
     if (shouldRestartChunk) {
         console.log(
             `Starting a new Node process for the next ${batchSize} order link(s) (skip-orders=${nextSkip}). Disconnecting Puppeteer first so the next run can attach cleanly.`,
@@ -3209,7 +3479,9 @@ async function main() {
         } else if (Number.isFinite(maxOrders) && maxOrders > 0) {
             nextArgs.push('--max-orders', String(Math.floor(maxOrders)));
         }
+        if (args.ebayListUrl) nextArgs.push('--ebay-list-url', args.ebayListUrl);
         if (args.sheetUrl) nextArgs.push('--sheet-url', args.sheetUrl);
+        if (args.noSheet) nextArgs.push('--no-sheet');
         if (args.output) nextArgs.push('--output', args.output);
         if (args.sheetBrowserOnly) nextArgs.push('--sheet-browser-only');
         const chained = spawnSync(process.execPath, nextArgs, {

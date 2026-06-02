@@ -13,11 +13,14 @@ scripts/.ebay-refunds-sync-state.json
 
 # Local env inside script subfolders
 scripts/auction-valuation/.env
+scripts/ebay-payout-bot.env
 
 # IDE / local browser profiles
 .cursor/
 .ebay-chrome-profile/
+.ebay-chrome-profile-account2/
 .ebay-payout-checkpoint.json
+.ebay-payout-checkpoint-account2.json
 
 # Local logs and one-off dumps at repo root
 debug*.log

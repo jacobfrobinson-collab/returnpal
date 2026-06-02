@@ -37,6 +37,7 @@ function parseResults(result) {
 
 function normalizeHeaderKey(s) {
     return String(s || '')
+        .replace(/^\uFEFF/, '')
         .trim()
         .toLowerCase()
         .replace(/\s+/g, '_')
@@ -80,6 +81,17 @@ function aliasKey(k) {
         amount: 'amount',
         item_name: 'product',
         item_nam: 'product',
+        item_title: 'product',
+        title: 'product',
+        custom_sku: 'custom_label',
+        sku: 'custom_label',
+        client_payout: 'earnings',
+        payout: 'earnings',
+        net_earnings: 'net_earnings',
+        gross_earnings: 'gross_earnings',
+        postage_cost: 'postage_cost',
+        packaging_cost: 'packaging_cost',
+        payout_rate: 'payout_rate',
         order_no: 'order_number',
         order_num: 'order_number',
         orderid: 'order_number',
@@ -226,32 +238,22 @@ function rowToCsvLine(cells) {
  * @param {Array<Record<string, unknown>>} parsedRows
  */
 function buildMultiImportReviewRows(db, kind, parsedRows) {
-    const orderMap = loadOrderClientMap(db);
     const reviewRows = [];
     for (let i = 0; i < parsedRows.length; i++) {
         const line = i + 2;
         const row = parsedRows[i];
-        const dataRow = rowWithoutClientSpecifier(row);
-        let spec = extractClientSpecifier(row);
-        let clientId = spec != null && spec !== '' ? String(spec).trim() : '';
-        let client_source = clientId ? 'column' : 'none';
-        if (!clientId) {
-            const onum = canonicalOrderNumber(dataRow.order_number);
-            if (onum && orderMap[onum]) {
-                clientId = orderMap[onum];
-                client_source = 'saved_order';
-            }
-        }
+        const { clientId, client_source, dataRow, res } = resolveMultiImportClient(db, row);
         let resolve_ok = false;
         let resolve_error = clientId ? '' : 'No Client ID — pick one below';
         let resolved_label = '';
         let resolved_email = '';
+        let resolved_user_id = null;
         if (clientId) {
-            const res = resolveUserIdFromClientSpecifier(db, clientId);
             if (res.error) {
                 resolve_error = res.error;
             } else {
                 resolve_ok = true;
+                resolved_user_id = res.userId;
                 const brief = lookupUserBrief(db, res.userId);
                 if (brief) {
                     resolved_label = brief.name || '';
@@ -260,7 +262,12 @@ function buildMultiImportReviewRows(db, kind, parsedRows) {
             }
         }
         const custom_label =
-            str(row.custom_label) || str(row.sku) || str(row.seller_sku) || str(row.customlabel) || '';
+            str(row.custom_label) ||
+            str(row.custom_sku) ||
+            str(row.sku) ||
+            str(row.seller_sku) ||
+            str(row.customlabel) ||
+            '';
         reviewRows.push({
             line,
             client_id: clientId,
@@ -268,7 +275,7 @@ function buildMultiImportReviewRows(db, kind, parsedRows) {
             summary: summarizeRow(kind, dataRow),
             row_data: dataRow,
             order_number: str(dataRow.order_number),
-            product: str(dataRow.product) || str(dataRow.item_name),
+            product: str(dataRow.product) || str(dataRow.item_name) || str(dataRow.item_title),
             amount: dataRow.amount,
             refund_date: dataRow.refund_date,
             custom_label,
@@ -277,6 +284,7 @@ function buildMultiImportReviewRows(db, kind, parsedRows) {
             resolve_error,
             resolved_label,
             resolved_email,
+            resolved_user_id,
         });
     }
     if (kind === 'return_adjustment' || kind === 'refunds') {
@@ -581,6 +589,8 @@ function normalizeSoldDateForDb(v) {
     return null;
 }
 
+const { extractLegacyClientIdFromText } = require('./ebayRefundSkuClient');
+
 const {
     stripSoldDateToIsoHead,
     tryRepairMonthDaySwap,
@@ -588,6 +598,54 @@ const {
     repairNovemberIsoMisimportForDisplay,
     repairDecemberIsoMisimportForDisplay,
 } = require('./soldDateDisplayRepair');
+
+/** Haystack for SKU / title client-id detection on import rows. */
+function importRowClientHaystack(row, dataRow) {
+    return [
+        str(row.custom_label),
+        str(row.custom_sku),
+        str(row.sku),
+        str(dataRow.product),
+        str(dataRow.item_name),
+        str(dataRow.item_title),
+        str(dataRow.order_number),
+    ]
+        .filter(Boolean)
+        .join(' ');
+}
+
+/**
+ * Resolve client for a multi-import row (column, saved order map, then SKU detect).
+ * @returns {{ clientId: string, client_source: string, dataRow: Record<string, unknown>, res: { userId: number } | { error: string } }}
+ */
+function resolveMultiImportClient(db, row) {
+    const orderMap = loadOrderClientMap(db);
+    const dataRow = rowWithoutClientSpecifier(row);
+    let spec = extractClientSpecifier(row);
+    let clientId = spec != null && spec !== '' ? String(spec).trim() : '';
+    let client_source = clientId ? 'column' : 'none';
+    if (!clientId) {
+        const onum = canonicalOrderNumber(dataRow.order_number);
+        if (onum && orderMap[onum]) {
+            clientId = orderMap[onum];
+            client_source = 'saved_order';
+        }
+    }
+    let res = clientId ? resolveUserIdFromClientSpecifier(db, clientId) : { error: 'Missing Client ID' };
+    if (res.error) {
+        const detected = extractLegacyClientIdFromText(importRowClientHaystack(row, dataRow));
+        if (detected && detected.toUpperCase() !== clientId.toUpperCase()) {
+            const res2 = resolveUserIdFromClientSpecifier(db, detected);
+            if (!res2.error) {
+                clientId = detected;
+                client_source = 'sku_detect';
+                res = res2;
+            }
+        }
+    }
+    return { clientId, client_source, dataRow, res };
+}
+
 /**
  * Label for admin preview “Sold date” column (Record sales).
  * @param {Record<string, unknown>} dataRow
@@ -633,15 +691,18 @@ function returnAdjustmentPreviewExtras(db, kind, userId, dataRow) {
 
 /** @returns {{ reference: string, product: string, qty: number, soldDateParam: string|null, unit: number, total: number, profit: number, margin: number, orderNumber: string }} */
 function parseSoldRowFields(row) {
-    const product = str(row.product);
+    const product = str(row.product) || str(row.item_name) || str(row.item_title);
     if (!product) throw new Error('item name (product) is required');
     const reference = str(row.reference);
     const qty = Math.max(1, parseInt(row.quantity, 10) || 1);
     const soldDateParam = normalizeSoldDateForDb(row.sold_date);
 
-    const hasEarningsCol = Object.prototype.hasOwnProperty.call(row, 'earnings');
-    const earningsStr = hasEarningsCol ? str(row.earnings) : '';
-    const earningsNum = hasEarningsCol && earningsStr !== '' ? parseMoney(row.earnings) : NaN;
+    const hasEarningsCol =
+        Object.prototype.hasOwnProperty.call(row, 'earnings') ||
+        Object.prototype.hasOwnProperty.call(row, 'client_payout');
+    const earningsRaw = hasEarningsCol ? row.earnings ?? row.client_payout : null;
+    const earningsStr = hasEarningsCol ? str(earningsRaw) : '';
+    const earningsNum = hasEarningsCol && earningsStr !== '' ? parseMoney(earningsRaw) : NaN;
 
     let unit;
     let total;
@@ -1061,8 +1122,9 @@ function previewBulkImport(db, opts) {
         let resolved = null;
         let dataRow = rows[i];
         if (multi) {
-            const spec = extractClientSpecifier(rows[i]);
-            if (spec == null || spec === '') {
+            const multiResolved = resolveMultiImportClient(db, rows[i]);
+            const spec = multiResolved.clientId;
+            if (!spec) {
                 out.push({
                     line,
                     ok: false,
@@ -1074,7 +1136,7 @@ function previewBulkImport(db, opts) {
                 bad++;
                 continue;
             }
-            const res = resolveUserIdFromClientSpecifier(db, spec);
+            const res = multiResolved.res;
             if (res.error) {
                 const queueable = shouldQueueClientResolutionError(res.error);
                 out.push({
@@ -1093,7 +1155,7 @@ function previewBulkImport(db, opts) {
             }
             effUser = res.userId;
             resolved = lookupUserBrief(db, effUser);
-            dataRow = rowWithoutClientSpecifier(rows[i]);
+            dataRow = multiResolved.dataRow;
         } else {
             resolved = lookupUserBrief(db, userId);
         }
@@ -1105,10 +1167,6 @@ function previewBulkImport(db, opts) {
                 warnings.push(
                     'sold_date not recognised (use UK DD/MM/YYYY or DD/MM/YY, DD-MM-YYYY, YYYY-MM-DD, or e.g. 5 Feb 2026); if imported, today’s date will be used' +
                         (rawShow ? ` — cell was: ${rawShow}` : '')
-                );
-            } else if (!rawSoldDateCellLooksIsoYmd(dataRow.sold_date)) {
-                warnings.push(
-                    `sold_date will be stored as ${normSold} (YYYY-MM-DD in the sheet is recommended so invoice months match exports)`
                 );
             }
         }

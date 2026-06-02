@@ -171,7 +171,7 @@
                     <summary class="fw-semibold mb-2">Marketplace / eBay — column help</summary>
                     <p class="mb-2 mt-2">Upload a <strong>.csv</strong> or <strong>.xlsx</strong> where each row is one sale. The <strong>Client ID</strong> column must match the client’s dashboard ID (e.g. <code>0014</code>) or <strong>Old Client ID</strong> (e.g. <code>AC</code>).</p>
                     <p class="mb-2 text-muted">Unknown Client IDs can go to <strong>Pending import rows</strong> when the queue option is on.</p>
-                    <p class="mb-2 text-muted">Columns: <code>Client ID</code>, <code>sold_date</code>, <code>item_name</code>, <code>quantity</code>, <code>earnings</code>. Optional: <code>order_number</code>.</p>
+                    <p class="mb-2 text-muted">Columns: <code>Client ID</code> (or <code>client_id</code> / Old Client ID), <code>sold_date</code>, <code>item_name</code> (or <code>item_title</code>), <code>quantity</code>, <code>earnings</code> (or <code>client_payout</code> from the payout bot). Optional: <code>order_number</code>, <code>custom_sku</code>.</p>
                     <button type="button" class="btn btn-sm btn-primary" id="btn-marketplace-sales-setup">Use marketplace sales upload</button>
                 </details>
                 <p class="small alert alert-warning border-0 py-2 px-3 mb-3" id="bulk-import-refund-sale-match-note">
@@ -179,32 +179,44 @@
                     Cancelled orders that were never imported as sales are <strong>skipped</strong> so they do not reduce payout.
                 </p>
                 <details class="mb-3 small border border-success rounded p-2 bg-success-subtle" open>
-                    <summary class="fw-semibold mb-2">eBay refunds file → client dashboards &amp; payouts</summary>
-                    <p class="mb-2 mt-2">Upload your <strong>eBay Refunds report</strong> plus your <strong>EVERY EBAY ORDER SHEET</strong>. Client IDs are filled automatically; review and edit any row before importing. Payouts use each row’s <strong>refund date</strong>.</p>
+                    <summary class="fw-semibold mb-2">Payout CSV &amp; eBay marketplace imports</summary>
+                    <div class="border border-primary rounded p-2 mb-3 bg-white">
+                        <div class="small fw-semibold mb-1">Previous year payout CSV → Record sales</div>
+                        <p class="mb-2 mt-1 text-muted">Upload <strong>Previous Year Payout.csv</strong> from the eBay payout bot here. Columns: <code>Client ID</code>, <code>sold_date</code>, <code>order_number</code>, <code>item_name</code>, <code>SKU</code>, <code>quantity</code>, <code>earnings</code>.</p>
+                        <div class="row g-2 align-items-end mb-0">
+                            <div class="col-md-8">
+                                <label class="form-label small mb-0" for="ebay-refunds-orders-map">Payout CSV / orders sheet</label>
+                                <input type="file" class="form-control form-control-sm" id="ebay-refunds-orders-map" accept=".csv,.xlsx,.xls" />
+                            </div>
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-sm btn-primary w-100" id="ebay-payout-sales-preview-btn">Preview as sales</button>
+                            </div>
+                        </div>
+                    </div>
                     <details class="small mb-2">
-                        <summary class="fw-semibold">Where do rows go?</summary>
-                        <ul class="mb-0 ps-3">
-                            <li><strong>Ready to import</strong> — Client ID matches a ReturnPal account → refund goes on their dashboard when you click <em>Import reviewed rows</em>.</li>
-                            <li><strong>Unknown client</strong> (blue message) — Order is remembered; refund goes to <a href="#bulk-import-pending-section" class="admin-jump-link">Pending import rows</a> until that Old Client ID exists, then you apply them.</li>
-                            <li><strong>Already imported</strong> — Same order/amount/date as before → skipped (filter <em>Already imported</em>).</li>
-                            <li>While <em>Show → Needs Client ID</em> is on, rows disappear from the list when you fix them — switch to <em>Ready to import</em> or <em>All rows</em> to see them.</li>
-                        </ul>
+                        <summary class="fw-semibold">eBay Refunds CSV → client dashboards &amp; payouts</summary>
+                        <p class="mb-2 mt-2">Upload your <strong>eBay Refunds report</strong>. Optionally attach the same payout/orders sheet above as a Client ID map. Payouts use each row’s <strong>refund date</strong>.</p>
+                        <details class="small mb-2">
+                            <summary class="fw-semibold">Where do rows go?</summary>
+                            <ul class="mb-0 ps-3">
+                                <li><strong>Ready to import</strong> — Client ID matches a ReturnPal account → refund goes on their dashboard when you click <em>Import reviewed rows</em>.</li>
+                                <li><strong>Unknown client</strong> (blue message) — Order is remembered; refund goes to <a href="#bulk-import-pending-section" class="admin-jump-link">Pending import rows</a> until that Old Client ID exists, then you apply them.</li>
+                                <li><strong>Already imported</strong> — Same order/amount/date as before → skipped (filter <em>Already imported</em>).</li>
+                                <li>While <em>Show → Needs Client ID</em> is on, rows disappear from the list when you fix them — switch to <em>Ready to import</em> or <em>All rows</em> to see them.</li>
+                            </ul>
+                        </details>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-12">
+                                <label class="form-label small mb-0">eBay Refunds CSV</label>
+                                <input type="file" class="form-control form-control-sm" id="ebay-refunds-file" accept=".csv,.xlsx,.xls" />
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="ebay-refunds-load-review-btn">Load refunds for review</button>
+                            <button type="button" class="btn btn-sm btn-success d-none" id="ebay-refunds-import-reviewed-btn">Import reviewed rows</button>
+                            <span class="small text-muted d-none" id="ebay-refunds-review-summary"></span>
+                        </div>
                     </details>
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-6">
-                            <label class="form-label small mb-0">eBay Refunds CSV</label>
-                            <input type="file" class="form-control form-control-sm" id="ebay-refunds-file" accept=".csv,.xlsx,.xls" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small mb-0">Orders sheet (Client ID map)</label>
-                            <input type="file" class="form-control form-control-sm" id="ebay-refunds-orders-map" accept=".csv,.xlsx,.xls" />
-                        </div>
-                    </div>
-                    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="ebay-refunds-load-review-btn">Load for review</button>
-                        <button type="button" class="btn btn-sm btn-success d-none" id="ebay-refunds-import-reviewed-btn">Import reviewed rows</button>
-                        <span class="small text-muted d-none" id="ebay-refunds-review-summary"></span>
-                    </div>
                     <div id="ebay-refunds-review-wrap" class="d-none border rounded bg-white mb-2">
                         <div class="p-2 border-bottom bg-light">
                             <div class="small fw-semibold mb-1">Bulk change Client ID</div>
@@ -1393,7 +1405,10 @@
                 r.order_number,
                 r.notes,
                 d.sku,
+                d.custom_sku,
                 d.item_name,
+                d.item_title,
+                d.product,
                 d.items_description,
                 d.item_description,
                 d.reference,
@@ -1516,11 +1531,18 @@
                 return API.adminCheckReturnAdjustmentDuplicate(row);
             },
             renderDataCells: function(r, esc) {
+                var d = r.row_data || {};
                 var bits = esc(r.summary || '');
                 if (r.order_number) bits += ' <code class="small">' + esc(r.order_number) + '</code>';
                 if (r.product) bits += ' <span class="text-muted">' + esc(r.product) + '</span>';
-                if (r.amount != null && r.amount !== '' && !isNaN(Number(r.amount))) {
-                    bits += ' <span class="text-danger">£' + Number(r.amount).toFixed(2) + '</span>';
+                var amtRaw =
+                    r.amount != null && r.amount !== ''
+                        ? r.amount
+                        : d.earnings != null && d.earnings !== ''
+                          ? d.earnings
+                          : d.client_payout;
+                if (amtRaw != null && amtRaw !== '' && !isNaN(Number(amtRaw))) {
+                    bits += ' <span class="text-success">£' + Number(amtRaw).toFixed(2) + '</span>';
                 }
                 if (r.custom_label) bits += ' <span class="text-muted" title="SKU">· ' + esc(r.custom_label) + '</span>';
                 return '<td class="small">' + bits + '</td>';
@@ -1566,7 +1588,8 @@
                     txt += '\nJobs: #' + data.job_ids.join(', #');
                 }
                 if (data.error_count) txt += '\nRow errors: ' + data.error_count;
-                txt += '\n\nCheck each client dashboard → Returns/refunds for imported rows.';
+                txt += '\n\nCheck each client dashboard' +
+                    (kindMeta.kind === 'sold' ? ' → Sold items for imported sales.' : ' → Returns/refunds for imported rows.');
                 $('#bulk-import-result').removeClass('d-none').text(txt);
                 loadBulkImportJobs();
                 loadUsers();
@@ -1636,6 +1659,158 @@
             }
         });
 
+        function renderBulkImportPreviewResult(prev, f, kind, multi) {
+            $('#bulk-import-preview-wrap').removeClass('d-none');
+            var isSold = kind === 'sold';
+            var isRefund = kind === 'return_adjustment' || kind === 'refunds';
+            $('#bulk-import-refund-sale-match-note').toggleClass('d-none', !isRefund);
+            function refundPreviewImportCell(r) {
+                if (!r.ok) return '<span class="badge text-bg-danger">Error</span>';
+                if (r.sale_match_ok === false) {
+                    return '<span class="badge text-bg-danger">Skipped — no sale</span>';
+                }
+                return '<span class="badge text-bg-success">→ Client dashboard</span>';
+            }
+            function refundPreviewSaleCell(r) {
+                if (r.sale_match_ok === false) {
+                    return '<span class="badge text-bg-danger">No match</span>';
+                }
+                var ms = r.matched_sale_preview;
+                if (ms && ms !== '—') {
+                    return '<span class="badge text-bg-success">Sale ' + escapeHtml(ms) + '</span>';
+                }
+                return '<span class="badge text-bg-success">Matched</span>';
+            }
+            $('#bulk-import-preview-thead').html(
+                '<tr><th>Line</th><th>OK</th><th>Client</th>' +
+                    (isSold ? '<th>Sold date</th><th>Invoice month</th>' : '') +
+                    (isRefund ? '<th>Sale on dashboard</th><th>On import</th>' : '') +
+                    '<th>Warnings / error</th><th>Row</th></tr>'
+            );
+            var $tb = $('#bulk-import-preview-tbody').empty();
+            var prevReady = 0;
+            var prevNoSale = 0;
+            (prev.rows || []).forEach(function(r) {
+                if (isRefund && r.ok && r.sale_match_ok !== false) prevReady++;
+                if (isRefund && r.sale_match_ok === false) prevNoSale++;
+                var ok = r.ok
+                    ? r.sale_match_ok === false
+                        ? '<span class="text-warning">Yes*</span>'
+                        : 'Yes'
+                    : 'No';
+                var client = r.resolved_email
+                    ? escapeHtml((r.resolved_name || '').trim()) + ' · ' + escapeHtml(r.resolved_email)
+                    : r.user_id
+                      ? 'ID ' + String(r.user_id).padStart(4, '0')
+                      : '—';
+                var soldCell = '';
+                if (isSold) {
+                    var sd = r.sold_date_preview != null && r.sold_date_preview !== '' ? r.sold_date_preview : '—';
+                    var invMo =
+                        r.invoice_month != null && String(r.invoice_month).trim() !== ''
+                            ? String(r.invoice_month)
+                            : '—';
+                    soldCell =
+                        '</td><td class="small text-nowrap">' +
+                        escapeHtml(sd) +
+                        '</td><td class="small text-nowrap"><strong>' +
+                        escapeHtml(invMo) +
+                        '</strong>';
+                }
+                var refundCells = '';
+                if (isRefund) {
+                    refundCells =
+                        '</td><td class="small text-nowrap">' +
+                        refundPreviewSaleCell(r) +
+                        '</td><td class="small text-nowrap">' +
+                        refundPreviewImportCell(r);
+                }
+                var issue =
+                    r.warnings && r.warnings.length
+                        ? escapeHtml(r.warnings.join('; '))
+                        : r.error
+                          ? escapeHtml(r.error)
+                          : '<span class="text-muted">No issues</span>';
+                var trCls = '';
+                if (r.will_queue_as_pending) trCls = 'table-warning';
+                else if (isRefund && r.sale_match_ok === false) trCls = 'table-danger';
+                else if (isRefund && r.ok && r.sale_match_ok !== false) trCls = 'table-success';
+                $tb.append(
+                    '<tr' + (trCls ? ' class="' + trCls + '"' : '') + '><td>' +
+                        r.line +
+                        '</td><td>' +
+                        ok +
+                        '</td><td class="small">' +
+                        client +
+                        soldCell +
+                        refundCells +
+                        '</td><td class="small">' +
+                        issue +
+                        '</td><td class="small">' +
+                        escapeHtml(r.summary || '') +
+                        '</td></tr>'
+                );
+            });
+            var $prevLeg = $('#bulk-import-preview-refund-legend');
+            if (isRefund) {
+                $prevLeg
+                    .removeClass('d-none')
+                    .html(
+                        '<strong>Refunds:</strong> green rows will go on the client dashboard (sale matched). Red = <strong>no matching sale</strong> — skipped on import. ' +
+                            'Preview ready: <strong>' +
+                            prevReady +
+                            '</strong>, no sale: <strong>' +
+                            prevNoSale +
+                            '</strong>. Use Client ID review below for per-row badges before importing.'
+                    );
+            } else {
+                $prevLeg.addClass('d-none');
+            }
+            if (multi && prev.review_rows && prev.review_rows.length && window.bulkImportClientReview) {
+                window._bulkImportReviewMeta = { kind: kind, filename: f.name || 'import' };
+                var needsReview = (prev.summary && prev.summary.review_needs_client) > 0;
+                var hasDup = (prev.summary && prev.summary.review_already_imported) > 0;
+                window.bulkImportClientReview.open(prev.review_rows, {
+                    refundImport: isRefund,
+                    filter: needsReview ? 'needs' : hasDup ? 'imported' : 'ready',
+                    message:
+                        'Client ID review: ' +
+                        prev.review_rows.length +
+                        ' rows' +
+                        (hasDup ? ' (' + prev.summary.review_already_imported + ' already imported).' : '.') +
+                        (isSold
+                            ? ' Fix unknown Client IDs (Fill from SKU), then Import reviewed rows.'
+                            : ' Check <strong>Sale on dashboard</strong> and <strong>On import</strong> columns, then Import reviewed rows.'),
+                });
+                var el = document.getElementById('bulk-import-review-wrap');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        async function runBulkImportPreview(file, kind, multi) {
+            var prev = await API.adminBulkImportPreview(kind, file, { multi: multi });
+            renderBulkImportPreviewResult(prev, file, kind, multi);
+            return prev;
+        }
+
+        $('#ebay-payout-sales-preview-btn').on('click', async function() {
+            var f =
+                document.getElementById('ebay-refunds-orders-map') &&
+                document.getElementById('ebay-refunds-orders-map').files[0];
+            if (!f) return alert('Choose Previous Year Payout.csv in the Payout CSV box first.');
+            $('#bulk-import-kind').val('sold');
+            document.getElementById('bulk-import-multi').checked = true;
+            syncBulkImportMultiUi();
+            var $btn = $(this).prop('disabled', true).text('Loading…');
+            try {
+                await runBulkImportPreview(f, 'sold', true);
+            } catch (e) {
+                alert((e && e.error) || e.message || 'Preview failed');
+            } finally {
+                $btn.prop('disabled', false).text('Preview as sales');
+            }
+        });
+
         $('#bulk-import-preview-btn').on('click', async function() {
             var f = document.getElementById('bulk-import-file').files[0];
             if (!f) return alert('Choose a spreadsheet file');
@@ -1647,130 +1822,7 @@
             }
             var $btn = $(this).prop('disabled', true);
             try {
-                var prev = await API.adminBulkImportPreview(kind, f, { multi: multi, userId: targetId });
-                $('#bulk-import-preview-wrap').removeClass('d-none');
-                var isSold = kind === 'sold';
-                var isRefund = kind === 'return_adjustment' || kind === 'refunds';
-                $('#bulk-import-refund-sale-match-note').toggleClass('d-none', !isRefund);
-                function refundPreviewImportCell(r) {
-                    if (!r.ok) return '<span class="badge text-bg-danger">Error</span>';
-                    if (r.sale_match_ok === false) {
-                        return '<span class="badge text-bg-danger">Skipped — no sale</span>';
-                    }
-                    return '<span class="badge text-bg-success">→ Client dashboard</span>';
-                }
-                function refundPreviewSaleCell(r) {
-                    if (r.sale_match_ok === false) {
-                        return '<span class="badge text-bg-danger">No match</span>';
-                    }
-                    var ms = r.matched_sale_preview;
-                    if (ms && ms !== '—') {
-                        return '<span class="badge text-bg-success">Sale ' + escapeHtml(ms) + '</span>';
-                    }
-                    return '<span class="badge text-bg-success">Matched</span>';
-                }
-                $('#bulk-import-preview-thead').html(
-                    '<tr><th>Line</th><th>OK</th><th>Client</th>' +
-                        (isSold ? '<th>Sold date</th><th>Invoice month</th>' : '') +
-                        (isRefund ? '<th>Sale on dashboard</th><th>On import</th>' : '') +
-                        '<th>Warnings / error</th><th>Row</th></tr>'
-                );
-                var $tb = $('#bulk-import-preview-tbody').empty();
-                var prevReady = 0;
-                var prevNoSale = 0;
-                (prev.rows || []).forEach(function(r) {
-                    if (isRefund && r.ok && r.sale_match_ok !== false) prevReady++;
-                    if (isRefund && r.sale_match_ok === false) prevNoSale++;
-                    var ok = r.ok
-                        ? r.sale_match_ok === false
-                            ? '<span class="text-warning">Yes*</span>'
-                            : 'Yes'
-                        : 'No';
-                    var client = r.resolved_email
-                        ? escapeHtml((r.resolved_name || '').trim()) + ' · ' + escapeHtml(r.resolved_email)
-                        : r.user_id
-                          ? 'ID ' + String(r.user_id).padStart(4, '0')
-                          : '—';
-                    var soldCell = '';
-                    if (isSold) {
-                        var sd = r.sold_date_preview != null && r.sold_date_preview !== '' ? r.sold_date_preview : '—';
-                        var invMo =
-                            r.invoice_month != null && String(r.invoice_month).trim() !== ''
-                                ? String(r.invoice_month)
-                                : '—';
-                        soldCell =
-                            '</td><td class="small text-nowrap">' +
-                            escapeHtml(sd) +
-                            '</td><td class="small text-nowrap"><strong>' +
-                            escapeHtml(invMo) +
-                            '</strong>';
-                    }
-                    var refundCells = '';
-                    if (isRefund) {
-                        refundCells =
-                            '</td><td class="small text-nowrap">' +
-                            refundPreviewSaleCell(r) +
-                            '</td><td class="small text-nowrap">' +
-                            refundPreviewImportCell(r);
-                    }
-                    var issue =
-                        r.warnings && r.warnings.length
-                            ? escapeHtml(r.warnings.join('; '))
-                            : r.error
-                              ? escapeHtml(r.error)
-                              : '<span class="text-muted">No issues</span>';
-                    var trCls = '';
-                    if (r.will_queue_as_pending) trCls = 'table-warning';
-                    else if (isRefund && r.sale_match_ok === false) trCls = 'table-danger';
-                    else if (isRefund && r.ok && r.sale_match_ok !== false) trCls = 'table-success';
-                    $tb.append(
-                        '<tr' + (trCls ? ' class="' + trCls + '"' : '') + '><td>' +
-                            r.line +
-                            '</td><td>' +
-                            ok +
-                            '</td><td class="small">' +
-                            client +
-                            soldCell +
-                            refundCells +
-                            '</td><td class="small">' +
-                            issue +
-                            '</td><td class="small">' +
-                            escapeHtml(r.summary || '') +
-                            '</td></tr>'
-                    );
-                });
-                var $prevLeg = $('#bulk-import-preview-refund-legend');
-                if (isRefund) {
-                    $prevLeg
-                        .removeClass('d-none')
-                        .html(
-                            '<strong>Refunds:</strong> green rows will go on the client dashboard (sale matched). Red = <strong>no matching sale</strong> — skipped on import. ' +
-                                'Preview ready: <strong>' +
-                                prevReady +
-                                '</strong>, no sale: <strong>' +
-                                prevNoSale +
-                                '</strong>. Use Client ID review below for per-row badges before importing.'
-                        );
-                } else {
-                    $prevLeg.addClass('d-none');
-                }
-                if (multi && prev.review_rows && prev.review_rows.length && window.bulkImportClientReview) {
-                    window._bulkImportReviewMeta = { kind: kind, filename: f.name || 'import' };
-                    var needsReview = (prev.summary && prev.summary.review_needs_client) > 0;
-                    var hasDup = (prev.summary && prev.summary.review_already_imported) > 0;
-                    window.bulkImportClientReview.open(prev.review_rows, {
-                        refundImport: isRefund,
-                        filter: needsReview ? 'needs' : hasDup ? 'imported' : 'ready',
-                        message:
-                            'Client ID review: ' +
-                            prev.review_rows.length +
-                            ' rows' +
-                            (hasDup ? ' (' + prev.summary.review_already_imported + ' already imported).' : '.') +
-                            ' Check <strong>Sale on dashboard</strong> and <strong>On import</strong> columns, then Import reviewed rows.',
-                    });
-                    var el = document.getElementById('bulk-import-review-wrap');
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
+                await runBulkImportPreview(f, kind, multi);
             } catch (e) {
                 alert((e && e.error) || e.message || 'Preview failed');
             } finally {
