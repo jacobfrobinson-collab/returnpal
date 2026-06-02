@@ -176,8 +176,13 @@ router.patch('/claims/:id', async (req, res) => {
     }
 });
 
-// POST /api/reimbursement/claims — client submits claim with photos
+// POST /api/reimbursement/claims — disabled for clients (admins use /api/admin/reimbursement-claims)
 router.post('/claims', reimbursementMulter.array('photos', 10), async (req, res) => {
+    if (!clientIsAdmin(req)) {
+        return res.status(403).json({
+            error: 'New reimbursement claims are added by ReturnPal. You will see them here when ready.',
+        });
+    }
     try {
         const userId = req.user.id;
         const packageReference = (req.body.package_reference || '').toString().trim();

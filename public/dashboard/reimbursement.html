@@ -89,7 +89,7 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <div>
                                 <h4 class="fw-semibold mb-1"><i class="ri-refund-line me-2"></i>Reimbursement case cockpit</h4>
-                                <p class="mb-0 text-muted rp-label">Track each Amazon claim: copy case text, attach photos, mark submitted, and record recovered amounts.</p>
+                                <p class="mb-0 text-muted rp-label">ReturnPal adds each claim for you. Copy case text, download photos, and file in Amazon Seller Central.</p>
                             </div>
                             <a href="https://sellercentral.amazon.co.uk/help/hub/reference/G202130860" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
                                 <i class="ri-external-link-line me-1"></i>Open Amazon Seller Central
@@ -98,56 +98,13 @@
                     </div>
                 </div>
 
-                <div class="rp-card card border-0 mb-3" id="reimbursement-submit-card">
-                    <div class="card-header bg-white border-0">
-                        <h6 class="mb-0"><i class="ri-add-circle-line me-1"></i>Submit a new claim</h6>
-                    </div>
-                    <div class="card-body">
-                        <p class="small text-muted mb-3">Send package reference, item details, and photos. ReturnPal may add claims on your behalf; use this when you want to submit directly.</p>
-                        <form id="reimbursement-submit-form">
-                            <div class="row g-2">
-                                <div class="col-md-6">
-                                    <label class="form-label small">Package reference</label>
-                                    <input type="text" class="form-control form-control-sm" name="package_reference" required placeholder="e.g. TRACK-RP001" />
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label small">Reimbursement type</label>
-                                    <select class="form-select form-select-sm" name="reimbursement_type">
-                                        <option>Damaged Inventory</option>
-                                        <option>Customer Return</option>
-                                        <option>Lost Inbound</option>
-                                        <option>Other</option>
-                                    </select>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label small">Item description</label>
-                                    <input type="text" class="form-control form-control-sm" name="item_description" required placeholder="Product title or SKU" />
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label small">Order number <span class="text-muted">(optional)</span></label>
-                                    <input type="text" class="form-control form-control-sm" name="order_number" placeholder="Amazon order ID" />
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label small">Photos</label>
-                                    <input type="file" class="form-control form-control-sm" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple />
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label small">Notes</label>
-                                    <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Damage details, quantity, etc."></textarea>
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-sm mt-2" id="reimbursement-submit-btn">Submit claim</button>
-                        </form>
-                    </div>
-                </div>
-
                 <div class="rp-card card border-0 mb-3">
                     <div class="card-body">
                         <h6 class="mb-2">How to use these claims</h6>
                         <ol class="mb-0 small text-muted ps-3">
-                            <li>Open each flagged item and review package reference, reimbursement type, and notes.</li>
+                            <li>When ReturnPal adds a claim, it appears below with package reference, type, and notes.</li>
                             <li>Download photo evidence and attach it to your Amazon reimbursement case.</li>
-                            <li>Copy claim details and paste into your Seller Central case text for faster submission.</li>
+                            <li>Copy the case text and paste it into Seller Central, then mark the claim submitted here.</li>
                         </ol>
                     </div>
                 </div>
@@ -178,7 +135,7 @@
     <script src="/assets/js/api.js?v=rp-api-2026"></script>
         <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
     <script src="assets/js/custom.js"></script>
-    <script src="assets/js/dashboard.js?v=rp-reimb-photo-download-2026"></script>
+    <script src="assets/js/dashboard.js?v=rp-reimb-admin-only-2026"></script>
 </body>
 </html>
 

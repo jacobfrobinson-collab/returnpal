@@ -363,7 +363,6 @@ const Dashboard = {
                     self.showReimbursementComingSoonModal({ redirectOnClose: true });
                     return;
                 }
-                self.initReimbursementSubmit();
                 self.loadReimbursementClaims();
             });
     },
@@ -541,7 +540,7 @@ const Dashboard = {
         if (!claims.length) {
             $list.html(
                 filterHtml +
-                    '<div class="text-muted text-center py-5"><p class="mb-2">No reimbursement cases yet.</p><p class="small">Submit a claim above or wait for ReturnPal to add evidence for Amazon.</p></div>'
+                    '<div class="text-muted text-center py-5"><p class="mb-2">No reimbursement cases yet.</p><p class="small">ReturnPal will add claims here when evidence is ready for Amazon.</p></div>'
             );
         } else if (!filtered.length) {
             $list.html(filterHtml + '<p class="text-muted small">No claims in this status.</p>');
@@ -1278,8 +1277,6 @@ const Dashboard = {
         document.body.classList.add('rp-delegate-readonly');
 
         const hideSel = [
-            '#reimbursement-submit-card',
-            '#reimbursement-submit-form',
             '#prep-sendback-form',
             '#prep-sendback-address',
             '#support-submit-btn',
@@ -3836,28 +3833,6 @@ const Dashboard = {
         a.click();
         URL.revokeObjectURL(a.href);
         this.showToast('Downloaded ' + period);
-    },
-
-    initReimbursementSubmit() {
-        const $form = $('#reimbursement-submit-form');
-        if (!$form.length || $form.data('rp-bound')) return;
-        $form.data('rp-bound', 1);
-        $form.on('submit', async function(e) {
-            e.preventDefault();
-            const $btn = $('#reimbursement-submit-btn');
-            const fd = new FormData($form[0]);
-            try {
-                $btn.prop('disabled', true).text('Submitting…');
-                await API.submitReimbursementClaim(fd);
-                $form[0].reset();
-                Dashboard.showToast('Claim submitted');
-                Dashboard.loadReimbursementClaims();
-            } catch (err) {
-                alert((err && err.error) || err.message || 'Submit failed');
-            } finally {
-                $btn.prop('disabled', false).text('Submit claim');
-            }
-        });
     },
 
     applyClientPreferencesToForm(prefs) {
