@@ -5,6 +5,7 @@
 const { normalizeSoldDateForDb } = require('./adminBulkImport');
 const { mapSoldItemDatesForApi } = require('./soldDateDisplayRepair');
 const { inferRefundCategory } = require('./refundInsights');
+const { sortSoldItemsByDateDesc } = require('./sortSoldItemsByDateDesc');
 
 const INSPECTION_STAGES = new Set(['Initial Inspection', 'Quality Check', 'Return Verification']);
 
@@ -147,13 +148,12 @@ function buildInventorySummaryPayload(db, userId) {
     const soldRows = parseResults(
         db.exec(
             `SELECT id, product, sold_date, profit, status
-             FROM sold_items WHERE user_id = ?
-             ORDER BY id DESC
-             LIMIT 8`,
+             FROM sold_items WHERE user_id = ?`,
             [userId]
         )
     );
-    const recent_sold = soldRows.map((r) => {
+    const recentSoldRows = sortSoldItemsByDateDesc(soldRows).slice(0, 8);
+    const recent_sold = recentSoldRows.map((r) => {
         const dates = mapSoldItemDatesForApi(r.sold_date, normalizeSoldDateForDb);
         return {
             id: r.id,

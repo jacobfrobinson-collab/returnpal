@@ -114,6 +114,25 @@ async function testPipelineAndAttention() {
     assert(data.recovered_profit === 10, 'recovered_profit sum');
 }
 
+async function testRecentSoldSortedBySoldDate() {
+    const db = await createDb();
+    const uid = 4;
+    db.run(
+        `INSERT INTO sold_items (user_id, reference, product, profit, total_revenue, sold_date)
+         VALUES (?, 'OLD-HIGH-ID', 'Older sale', 1, 10, '2026-03-08')`,
+        [uid]
+    );
+    db.run(
+        `INSERT INTO sold_items (user_id, reference, product, profit, total_revenue, sold_date)
+         VALUES (?, 'NEW-LOW-ID', 'Latest sale', 2, 20, '2026-04-09')`,
+        [uid]
+    );
+    const data = buildInventorySummaryPayload(db, uid);
+    assert(data.recent_sold.length === 2, 'two recent sold rows');
+    assert(data.recent_sold[0].product === 'Latest sale', 'newest sold_date first, not highest id');
+    assert(data.recent_sold[1].product === 'Older sale', 'older sold_date second');
+}
+
 async function testPotentialRemainingNonNegative() {
     const db = await createDb();
     const uid = 3;
@@ -138,6 +157,7 @@ async function testPotentialRemainingNonNegative() {
 async function run() {
     await testSoldOnlyNoMisleadingRemaining();
     await testPipelineAndAttention();
+    await testRecentSoldSortedBySoldDate();
     await testPotentialRemainingNonNegative();
     console.log('inventory-summary.test.js: all passed');
 }
