@@ -626,11 +626,39 @@ const Dashboard = {
             });
     },
 
+    bindPrepSendbackForm() {
+        const $form = $('#prep-sendback-form');
+        if (!$form.length) return;
+        const self = this;
+        $form.off('submit.prepSendback').on('submit.prepSendback', async function(e) {
+            e.preventDefault();
+            const $btn = $form.find('button[type="submit"]');
+            try {
+                $btn.prop('disabled', true);
+                await API.submitPrepSendback({
+                    package_reference: $('#prep-ref').val().trim(),
+                    item_description: $('#prep-item').val().trim(),
+                    quantity: $('#prep-qty').val(),
+                    notes: $('#prep-notes').val().trim(),
+                });
+                self.showToast('Request submitted');
+                $form[0].reset();
+                $('#prep-qty').val('1');
+                await self.loadPrepSendback();
+            } catch (err2) {
+                self.showToast((err2 && err2.error) || 'Submit failed', 'error');
+            } finally {
+                $btn.prop('disabled', false);
+            }
+        });
+    },
+
     async loadPrepSendback() {
         const $list = $('#prep-sendback-list');
         const $addr = $('#prep-sendback-address');
         const $formCard = $('#prep-sendback-form').closest('.rp-card');
         if (!$list.length) return;
+        this.bindPrepSendbackForm();
         try {
             await this.ensureClientPreferences();
             const data = await API.getPrepSendback();
@@ -687,24 +715,6 @@ const Dashboard = {
         } catch (err) {
             $list.html('<p class="text-danger">' + this.escHtml(err.error || 'Failed to load') + '</p>');
         }
-        $('#prep-sendback-form')
-            .off('submit')
-            .on('submit', async (e) => {
-                e.preventDefault();
-                try {
-                    await API.submitPrepSendback({
-                        package_reference: $('#prep-ref').val().trim(),
-                        item_description: $('#prep-item').val().trim(),
-                        quantity: $('#prep-qty').val(),
-                        notes: $('#prep-notes').val().trim(),
-                    });
-                    this.showToast('Request submitted');
-                    $('#prep-sendback-form')[0].reset();
-                    this.loadPrepSendback();
-                } catch (err2) {
-                    alert((err2 && err2.error) || 'Submit failed');
-                }
-            });
     },
 
     async loadScorecard() {
