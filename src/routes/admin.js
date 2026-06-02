@@ -77,12 +77,31 @@ const {
 } = require('../utils/clientPreferences');
 const { enrichClaimRow, buildCaseText } = require('../utils/reimbursementCase');
 const { saveReimbursementClaimPhotos } = require('../utils/reimbursementPhotos');
+const {
+    MAX_BATCH_PHOTOS,
+    createBatch,
+    addPhotosToBatch,
+    listOpenBatches,
+    listBatch,
+    assignStagingPhotos,
+    deleteStagingPhoto,
+    discardBatch,
+} = require('../utils/reimbursementPhotoStaging');
 
 const PREP_SENDBACK_STATUSES = ['requested', 'queued', 'shipped', 'delivered', 'cancelled'];
 
 const uploadsBaseDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, '../../uploads');
 const reimbursementUploadDir = path.join(uploadsBaseDir, 'reimbursement');
 const reimbursementMulter = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowed = /^image\/(jpeg|png|gif|webp)$/i.test(file.mimetype);
+        cb(null, !!allowed);
+    }
+});
+
+const reimbursementStagingMulter = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
@@ -774,6 +793,127 @@ router.delete('/reimbursement-claims/:id', async (req, res) => {
     } catch (err) {
         console.error('Admin delete reimbursement claim error:', err);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ─── Reimbursement photo staging (bulk upload, manual assign per client) ───
+
+// GET /api/admin/reimbursement-photo-batches?status=open
+router.get('/reimbursement-photo-batches', async (req, res) => {
+    try {
+        const status = String(req.query.status || 'open').trim();
+        const db = await getDb();
+        if (status === 'open') {
+            const batches = listOpenBatches(db, req.user.id);
+            return res.json({ batches, max_batch_photos: MAX_BATCH_PHOTOS });
+        }
+        return res.status(400).json({ error: 'Only status=open is supported' });
+    } catch (err) {
+        console.error('Admin list reimbursement photo batches error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/reimbursement-photo-batches — create batch; optional photos (up to 200)
+router.post(
+    '/reimbursement-photo-batches',
+    reimbursementStagingMulter.array('photos', MAX_BATCH_PHOTOS),
+    async (req, res) => {
+        try {
+            const db = await getDb();
+            const label = (req.body.label || '').toString().trim();
+            const batchId = createBatch(db, req.user.id, label);
+            const files = req.files || [];
+            let added = [];
+            if (files.length) {
+                added = addPhotosToBatch(db, batchId, files, uploadsBaseDir);
+            }
+            const detail = listBatch(db, batchId);
+            res.status(201).json({ batch_id: batchId, added: added.length, ...detail });
+        } catch (err) {
+            console.error('Admin create reimbursement photo batch error:', err);
+            res.status(400).json({ error: err.message || 'Server error' });
+        }
+    }
+);
+
+// GET /api/admin/reimbursement-photo-batches/:id
+router.get('/reimbursement-photo-batches/:id', async (req, res) => {
+    try {
+        const batchId = parseInt(req.params.id, 10);
+        if (isNaN(batchId)) return res.status(400).json({ error: 'Invalid batch id' });
+        const db = await getDb();
+        const detail = listBatch(db, batchId);
+        if (!detail) return res.status(404).json({ error: 'Batch not found' });
+        res.json({ ...detail, max_batch_photos: MAX_BATCH_PHOTOS });
+    } catch (err) {
+        console.error('Admin get reimbursement photo batch error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/reimbursement-photo-batches/:id/photos
+router.post(
+    '/reimbursement-photo-batches/:id/photos',
+    reimbursementStagingMulter.array('photos', MAX_BATCH_PHOTOS),
+    async (req, res) => {
+        try {
+            const batchId = parseInt(req.params.id, 10);
+            if (isNaN(batchId)) return res.status(400).json({ error: 'Invalid batch id' });
+            const files = req.files || [];
+            if (!files.length) return res.status(400).json({ error: 'At least one photo is required' });
+            const db = await getDb();
+            const added = addPhotosToBatch(db, batchId, files, uploadsBaseDir);
+            const detail = listBatch(db, batchId);
+            res.json({ added: added.length, ...detail });
+        } catch (err) {
+            console.error('Admin add reimbursement staging photos error:', err);
+            res.status(400).json({ error: err.message || 'Server error' });
+        }
+    }
+);
+
+// POST /api/admin/reimbursement-photo-batches/:id/assign
+router.post('/reimbursement-photo-batches/:id/assign', async (req, res) => {
+    try {
+        const batchId = parseInt(req.params.id, 10);
+        if (isNaN(batchId)) return res.status(400).json({ error: 'Invalid batch id' });
+        const db = await getDb();
+        const result = await assignStagingPhotos(db, uploadsBaseDir, batchId, req.body || {});
+        const detail = listBatch(db, batchId);
+        res.json({ ...result, batch: detail ? detail.batch : null, unassigned_count: detail ? detail.unassigned_count : 0 });
+    } catch (err) {
+        console.error('Admin assign reimbursement staging photos error:', err);
+        res.status(400).json({ error: err.message || 'Server error' });
+    }
+});
+
+// DELETE /api/admin/reimbursement-photo-staging/:photoId
+router.delete('/reimbursement-photo-staging/:photoId', async (req, res) => {
+    try {
+        const photoId = parseInt(req.params.photoId, 10);
+        if (isNaN(photoId)) return res.status(400).json({ error: 'Invalid photo id' });
+        const db = await getDb();
+        const result = deleteStagingPhoto(db, photoId, uploadsBaseDir);
+        const detail = listBatch(db, result.batch_id);
+        res.json({ ...result, ...detail });
+    } catch (err) {
+        console.error('Admin delete reimbursement staging photo error:', err);
+        res.status(400).json({ error: err.message || 'Server error' });
+    }
+});
+
+// DELETE /api/admin/reimbursement-photo-batches/:id — discard unassigned, close batch
+router.delete('/reimbursement-photo-batches/:id', async (req, res) => {
+    try {
+        const batchId = parseInt(req.params.id, 10);
+        if (isNaN(batchId)) return res.status(400).json({ error: 'Invalid batch id' });
+        const db = await getDb();
+        const result = discardBatch(db, batchId, uploadsBaseDir);
+        res.json(result);
+    } catch (err) {
+        console.error('Admin discard reimbursement photo batch error:', err);
+        res.status(400).json({ error: err.message || 'Server error' });
     }
 });
 

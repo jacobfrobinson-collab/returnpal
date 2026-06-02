@@ -295,6 +295,31 @@ async function getDb() {
     `);
 
     db.run(`
+        CREATE TABLE IF NOT EXISTS reimbursement_photo_batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_user_id INTEGER NOT NULL,
+            status TEXT DEFAULT 'open' CHECK(status IN ('open', 'committed', 'discarded')),
+            label TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (admin_user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS reimbursement_photo_staging (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id INTEGER NOT NULL,
+            file_path TEXT NOT NULL,
+            original_filename TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            assigned_claim_id INTEGER,
+            assigned_at TEXT,
+            FOREIGN KEY (batch_id) REFERENCES reimbursement_photo_batches(id) ON DELETE CASCADE,
+            FOREIGN KEY (assigned_claim_id) REFERENCES reimbursement_claims(id) ON DELETE SET NULL
+        )
+    `);
+
+    db.run(`
         CREATE TABLE IF NOT EXISTS return_adjustments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -375,6 +400,9 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_activities_user ON activities(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_reimbursement_claims_user ON reimbursement_claims(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_reimbursement_claim_photos_claim ON reimbursement_claim_photos(claim_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_reimbursement_photo_batches_admin ON reimbursement_photo_batches(admin_user_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_reimbursement_photo_staging_batch ON reimbursement_photo_staging(batch_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_reimbursement_photo_staging_claim ON reimbursement_photo_staging(assigned_claim_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_return_adjustments_user ON return_adjustments(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_item_queries_user ON item_queries(user_id)');
 

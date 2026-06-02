@@ -1409,6 +1409,47 @@ const API = {
         return data;
     },
 
+    // ─── Admin reimbursement photo staging ───────────────────
+    async listReimbursementPhotoBatches(status) {
+        const q = status ? '?status=' + encodeURIComponent(status) : '';
+        return this.request('/admin/reimbursement-photo-batches' + q);
+    },
+
+    async createReimbursementPhotoBatch(files, label) {
+        const form = new FormData();
+        if (label) form.append('label', label);
+        (files || []).forEach(function(f) { form.append('photos', f); });
+        return this.request('/admin/reimbursement-photo-batches', { method: 'POST', body: form });
+    },
+
+    async getReimbursementPhotoBatch(batchId) {
+        return this.request('/admin/reimbursement-photo-batches/' + encodeURIComponent(batchId));
+    },
+
+    async addReimbursementPhotoBatchPhotos(batchId, files) {
+        const form = new FormData();
+        (files || []).forEach(function(f) { form.append('photos', f); });
+        return this.request('/admin/reimbursement-photo-batches/' + encodeURIComponent(batchId) + '/photos', {
+            method: 'POST',
+            body: form,
+        });
+    },
+
+    async assignReimbursementStagingPhotos(batchId, body) {
+        return this.request('/admin/reimbursement-photo-batches/' + encodeURIComponent(batchId) + '/assign', {
+            method: 'POST',
+            body: body,
+        });
+    },
+
+    async deleteReimbursementStagingPhoto(photoId) {
+        return this.request('/admin/reimbursement-photo-staging/' + encodeURIComponent(photoId), { method: 'DELETE' });
+    },
+
+    async discardReimbursementPhotoBatch(batchId) {
+        return this.request('/admin/reimbursement-photo-batches/' + encodeURIComponent(batchId), { method: 'DELETE' });
+    },
+
     // ─── Contact ─────────────────────────────────────────────
     async sendContact(data) {
         return this.request('/contact', { method: 'POST', body: data });

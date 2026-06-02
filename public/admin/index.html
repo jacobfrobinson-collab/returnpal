@@ -161,6 +161,10 @@
                 <button type="button" class="btn btn-sm btn-outline-primary" id="bulk-import-template-btn" onclick="event.stopPropagation()">Download template</button>
             </div>
             <div class="card-body collapse" id="bulk-import-body">
+                <p class="small mb-3">
+                    <strong>Reimbursement photos:</strong> Spreadsheet import below adds claim text only (no images).
+                    Use the <a href="/admin/reimbursement-photos.html">Reimbursement photo inbox</a> to upload many photos, sort them into groups, and assign each group to a client.
+                </p>
                 <details class="mb-3 small">
                     <summary class="fw-semibold mb-2">Marketplace / eBay — column help</summary>
                     <p class="mb-2 mt-2">Upload a <strong>.csv</strong> or <strong>.xlsx</strong> where each row is one sale. The <strong>Client ID</strong> column must match the client’s dashboard ID (e.g. <code>0014</code>) or <strong>Old Client ID</strong> (e.g. <code>AC</code>).</p>

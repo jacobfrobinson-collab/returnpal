@@ -195,7 +195,8 @@
                             <span>Reimbursement items (Amazon claims)</span>
                             <span class="badge bg-secondary" id="reimbursement-count">0</span>
                         </div>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a class="btn btn-sm btn-outline-info" id="link-reimb-photo-inbox" href="/admin/reimbursement-photos.html">Bulk photo inbox</a>
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="export-reimb-csv">Export CSV</button>
                             <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#modal-add-reimbursement">+ Add item + photos</button>
                         </div>
@@ -488,6 +489,10 @@
         $('#link-bulk-upload-home').attr(
             'href',
             '/admin/index.html?bulk_client=' + encodeURIComponent(clientId) + '#bulk-import-spreadsheet'
+        );
+        $('#link-reimb-photo-inbox').attr(
+            'href',
+            '/admin/reimbursement-photos.html?client_id=' + encodeURIComponent(String(parseInt(clientId, 10) || clientId))
         );
         $('#admin-client-id-badge').text('ID ' + String(parseInt(clientId, 10) || 0).padStart(4, '0'));
         $('#link-view-dashboard').attr('href', '#');

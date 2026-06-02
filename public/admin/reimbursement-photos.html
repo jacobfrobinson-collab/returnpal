@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reimbursement photo inbox – ReturnPal Admin</title>
+    <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/assets/css/style.css" />
+    <style>
+        body { background: var(--bs-light, #f8f9fa); }
+        .admin-header { background: var(--bs-dark); color: #fff; }
+        .admin-header a { color: rgba(255,255,255,.9); }
+        .staging-thumb {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .staging-cell {
+            position: relative;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            padding: 2px;
+        }
+        .staging-cell.selected { border-color: var(--bs-primary); background: rgba(13,110,253,.08); }
+        .staging-cell input { position: absolute; top: 6px; left: 6px; z-index: 2; }
+        .drop-zone {
+            border: 2px dashed #adb5bd;
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            background: #fff;
+        }
+        .drop-zone.dragover { border-color: var(--bs-primary); background: rgba(13,110,253,.06); }
+        @media (min-width: 992px) {
+            .assign-panel { position: sticky; top: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <header class="admin-header py-3 mb-4">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h1 class="h5 mb-0"><a href="/admin/index.html" class="text-decoration-none text-white">← Clients</a> – Reimbursement photo inbox</h1>
+                <span class="small text-white-50">Upload photos, assign groups to clients for Amazon claims</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="container-fluid">
+        <div id="status-alert" class="alert d-none" role="alert"></div>
+        <div class="row g-3">
+            <div class="col-lg-3">
+                <div class="card">
+                    <div class="card-header bg-white py-2"><strong>Batch</strong></div>
+                    <div class="card-body">
+                        <div class="drop-zone mb-3" id="drop-zone">
+                            <p class="small mb-2">Drop images here or choose files (up to 200 per batch)</p>
+                            <input type="file" class="form-control form-control-sm" id="file-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple />
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm w-100 mb-2" id="btn-new-batch-upload">Upload as new batch</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-3" id="btn-add-to-batch" disabled>Add to current batch</button>
+                        <label class="form-label small mb-1">Open batches</label>
+                        <div class="list-group list-group-flush small" id="batch-list"></div>
+                        <hr />
+                        <p class="small text-muted mb-1" id="batch-summary">No batch selected</p>
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100" id="btn-discard-batch" disabled>Discard unassigned &amp; close batch</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+                        <strong>Staging <span class="text-muted fw-normal" id="unassigned-label"></span></strong>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-select-all">Select all</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-clear-selection">Clear</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-selected" disabled>Delete selected</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2" id="staging-grid">
+                            <div class="col-12 text-muted small">Select or create a batch and upload photos.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3">
+                <div class="card assign-panel">
+                    <div class="card-header bg-white py-2"><strong>Assign <span id="selected-count" class="text-muted fw-normal">(0)</span></strong></div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Client ID</label>
+                            <input type="text" class="form-control form-control-sm" id="client-specifier" list="client-datalist" placeholder="e.g. 0014 or PPF081" />
+                            <datalist id="client-datalist"></datalist>
+                            <div class="small text-muted mt-1" id="client-resolved"></div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Mode</label>
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                <input type="radio" class="btn-check" name="assign-mode" id="mode-new" value="new_claim" checked />
+                                <label class="btn btn-outline-primary" for="mode-new">New claim</label>
+                                <input type="radio" class="btn-check" name="assign-mode" id="mode-existing" value="existing_claim" />
+                                <label class="btn btn-outline-primary" for="mode-existing">Existing</label>
+                            </div>
+                        </div>
+                        <div id="panel-new-claim">
+                            <div class="mb-2">
+                                <label class="form-label small mb-0">Package reference</label>
+                                <select class="form-select form-select-sm mb-1" id="pkg-select"><option value="">— optional pick —</option></select>
+                                <input type="text" class="form-control form-control-sm" id="package-reference" placeholder="TRACK-123 or LPN" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small mb-0">Item description</label>
+                                <input type="text" class="form-control form-control-sm" id="item-description" placeholder="SKU or product title" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small mb-0">Reimbursement type</label>
+                                <select class="form-select form-select-sm" id="reimb-type">
+                                    <option value="Destroyed Inventory">Destroyed Inventory</option>
+                                    <option value="Damaged Inventory">Damaged Inventory</option>
+                                    <option value="Misplaced and Lost Inventory">Misplaced and Lost Inventory</option>
+                                    <option value="Customer Returned Orders">Customer Returned Orders</option>
+                                    <option value="Missing FBA Shipment Units">Missing FBA Shipment Units</option>
+                                </select>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small mb-0">Order # (optional)</label>
+                                <input type="text" class="form-control form-control-sm" id="order-number" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small mb-0">Notes</label>
+                                <input type="text" class="form-control form-control-sm" id="notes" />
+                            </div>
+                        </div>
+                        <div id="panel-existing-claim" class="d-none">
+                            <div class="mb-2">
+                                <label class="form-label small mb-0">Existing claim</label>
+                                <select class="form-select form-select-sm" id="existing-claim-select">
+                                    <option value="">Resolve client first</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-success btn-sm w-100" id="btn-assign" disabled>Assign selected</button>
+                        <p class="small text-muted mt-2 mb-0">Max 50 photos per assignment. Clients see photos on Reimbursement / Claims.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/js/jquery-3.7.1.min.js"></script>
+    <script src="/assets/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/js/api.js?v=rp-reimb-staging-2026"></script>
+    <script>
+    $(function() {
+        var ao = window.location.origin || '';
+        if (!API.isLoggedIn()) { window.location.assign(ao + '/admin/login.html'); return; }
+        if (!API.isCurrentUserAdmin()) { API.clearToken(); window.location.assign(ao + '/admin/login.html'); return; }
+
+        var state = {
+            batchId: null,
+            unassigned: [],
+            selected: new Set(),
+            resolvedUserId: null,
+            users: []
+        };
+
+        function showStatus(msg, type) {
+            var $a = $('#status-alert');
+            if (!msg) { $a.addClass('d-none'); return; }
+            $a.removeClass('d-none alert-success alert-danger alert-info').addClass('alert-' + (type || 'info')).text(msg);
+        }
+
+        function padClientId(id) {
+            var n = parseInt(id, 10);
+            if (isNaN(n)) return String(id);
+            return String(n).padStart(4, '0');
+        }
+
+        function loadUsers() {
+            return API.request('/admin/users').then(function(data) {
+                state.users = data.users || [];
+                var $dl = $('#client-datalist');
+                $dl.empty();
+                state.users.forEach(function(u) {
+                    if (u.is_admin) return;
+                    var label = padClientId(u.id) + (u.legacy_client_id ? ' (' + u.legacy_client_id + ')' : '') + ' – ' + (u.full_name || u.email || '');
+                    $dl.append('<option value="' + (u.legacy_client_id || padClientId(u.id)) + '">' + label + '</option>');
+                    $dl.append('<option value="' + padClientId(u.id) + '">' + label + '</option>');
+                });
+            });
+        }
+
+        function loadOpenBatches() {
+            return API.listReimbursementPhotoBatches('open').then(function(data) {
+                var $list = $('#batch-list');
+                $list.empty();
+                var batches = data.batches || [];
+                if (!batches.length) {
+                    $list.append('<div class="list-group-item text-muted">No open batches</div>');
+                    return;
+                }
+                batches.forEach(function(b) {
+                    var active = state.batchId === b.id ? ' active' : '';
+                    var label = 'Batch #' + b.id + ' · ' + (b.unassigned_count || 0) + ' unassigned';
+                    if (b.label) label = b.label + ' (' + label + ')';
+                    var $btn = $('<button type="button" class="list-group-item list-group-item-action' + active + '"></button>').text(label);
+                    $btn.on('click', function() { selectBatch(b.id); });
+                    $list.append($btn);
+                });
+            });
+        }
+
+        function selectBatch(id) {
+            state.batchId = id;
+            state.selected.clear();
+            updateSelectionUi();
+            $('#btn-add-to-batch').prop('disabled', !id);
+            $('#btn-discard-batch').prop('disabled', !id);
+            return API.getReimbursementPhotoBatch(id).then(function(data) {
+                state.unassigned = data.unassigned || [];
+                renderGrid();
+                $('#batch-summary').text(
+                    'Batch #' + id + ': ' + (data.unassigned_count || 0) + ' unassigned, ' + (data.total_count || 0) + ' total'
+                );
+                $('#unassigned-label').text('(' + (data.unassigned_count || 0) + ' unassigned)');
+                loadOpenBatches();
+            }).catch(function(e) {
+                showStatus(e.error || 'Failed to load batch', 'danger');
+            });
+        }
+
+        function renderGrid() {
+            var $grid = $('#staging-grid');
+            $grid.empty();
+            if (!state.batchId) {
+                $grid.append('<div class="col-12 text-muted small">Select or create a batch.</div>');
+                return;
+            }
+            if (!state.unassigned.length) {
+                $grid.append('<div class="col-12 text-muted small">No unassigned photos in this batch.</div>');
+                return;
+            }
+            state.unassigned.forEach(function(ph) {
+                var sel = state.selected.has(ph.id);
+                var $col = $('<div class="col-4 col-sm-3 col-md-2"></div>');
+                var $cell = $('<div class="staging-cell"></div>');
+                if (sel) $cell.addClass('selected');
+                var $chk = $('<input type="checkbox" class="form-check-input" />').prop('checked', sel);
+                $chk.on('click', function(e) { e.stopPropagation(); toggleSelect(ph.id); });
+                var $img = $('<img class="staging-thumb" alt="" />').attr('src', ph.url || ('/uploads/' + ph.file_path));
+                $img.on('click', function() { toggleSelect(ph.id); });
+                $cell.append($chk).append($img);
+                $col.append($cell);
+                $grid.append($col);
+            });
+        }
+
+        function toggleSelect(id) {
+            if (state.selected.has(id)) state.selected.delete(id);
+            else state.selected.add(id);
+            updateSelectionUi();
+            renderGrid();
+        }
+
+        function updateSelectionUi() {
+            var n = state.selected.size;
+            $('#selected-count').text('(' + n + ')');
+            $('#btn-assign').prop('disabled', n === 0 || !state.batchId);
+            $('#btn-delete-selected').prop('disabled', n === 0);
+        }
+
+        function getFilesFromInput() {
+            var input = document.getElementById('file-input');
+            return input.files && input.files.length ? Array.from(input.files) : [];
+        }
+
+        function uploadToBatch(batchId, files) {
+            if (!files.length) return alert('Choose at least one image');
+            showStatus('Uploading…', 'info');
+            return API.addReimbursementPhotoBatchPhotos(batchId, files)
+                .then(function(data) {
+                    document.getElementById('file-input').value = '';
+                    showStatus('Added ' + (data.added || files.length) + ' photo(s)', 'success');
+                    return selectBatch(batchId);
+                })
+                .catch(function(e) { showStatus(e.error || 'Upload failed', 'danger'); });
+        }
+
+        function loadClientExtras(userId) {
+            $('#pkg-select').find('option:not(:first)').remove();
+            $('#existing-claim-select').html('<option value="">Loading…</option>');
+            return Promise.all([
+                API.request('/admin/users/' + userId + '/packages'),
+                API.request('/admin/users/' + userId + '/reimbursement-claims')
+            ]).then(function(results) {
+                var pkgs = results[0].packages || [];
+                pkgs.forEach(function(p) {
+                    var ref = p.reference || '';
+                    if (ref) $('#pkg-select').append('<option value="' + ref.replace(/"/g, '&quot;') + '">' + ref + '</option>');
+                });
+                var claims = results[1].claims || [];
+                var $sel = $('#existing-claim-select');
+                $sel.empty();
+                if (!claims.length) $sel.append('<option value="">No claims yet</option>');
+                claims.forEach(function(c) {
+                    $sel.append(
+                        '<option value="' + c.id + '">#' + c.id + ' ' + (c.package_reference || '') + ' – ' + (c.item_description || '') + '</option>'
+                    );
+                });
+            });
+        }
+
+        $('#client-specifier').on('change blur', function() {
+            resolveClientSmart();
+        });
+
+        function resolveClientSmart() {
+            var spec = $('#client-specifier').val().trim();
+            if (!spec) {
+                state.resolvedUserId = null;
+                $('#client-resolved').text('');
+                $('#existing-claim-select').html('<option value="">Enter Client ID</option>');
+                return;
+            }
+            var found = null;
+            state.users.forEach(function(u) {
+                if (u.is_admin || found) return;
+                var pad = padClientId(u.id);
+                var leg = (u.legacy_client_id || '').trim();
+                if (spec === pad || spec === String(u.id) || (leg && leg.toLowerCase() === spec.toLowerCase())) found = u;
+                if (/^\d+$/.test(spec) && parseInt(spec, 10) === u.id) found = u;
+            });
+            if (found) {
+                state.resolvedUserId = found.id;
+                $('#client-resolved').text((found.full_name || found.email) + ' (ID ' + padClientId(found.id) + ')');
+                loadClientExtras(found.id);
+            } else {
+                state.resolvedUserId = null;
+                $('#client-resolved').text('Client not found in list — try numeric ID or Old Client ID');
+            }
+        }
+
+        $('#pkg-select').on('change', function() {
+            var v = $(this).val();
+            if (v) $('#package-reference').val(v);
+        });
+
+        $('input[name="assign-mode"]').on('change', function() {
+            var m = $('input[name="assign-mode"]:checked').val();
+            if (m === 'existing_claim') {
+                $('#panel-new-claim').addClass('d-none');
+                $('#panel-existing-claim').removeClass('d-none');
+            } else {
+                $('#panel-existing-claim').addClass('d-none');
+                $('#panel-new-claim').removeClass('d-none');
+            }
+        });
+
+        $('#btn-new-batch-upload').on('click', function() {
+            var files = getFilesFromInput();
+            if (!files.length) return alert('Choose images first');
+            showStatus('Creating batch…', 'info');
+            API.createReimbursementPhotoBatch(files)
+                .then(function(data) {
+                    document.getElementById('file-input').value = '';
+                    showStatus('Batch #' + data.batch_id + ' created', 'success');
+                    return selectBatch(data.batch_id);
+                })
+                .then(loadOpenBatches)
+                .catch(function(e) { showStatus(e.error || 'Failed', 'danger'); });
+        });
+
+        $('#btn-add-to-batch').on('click', function() {
+            if (!state.batchId) return;
+            uploadToBatch(state.batchId, getFilesFromInput());
+        });
+
+        $('#btn-select-all').on('click', function() {
+            state.unassigned.forEach(function(ph) { state.selected.add(ph.id); });
+            updateSelectionUi();
+            renderGrid();
+        });
+
+        $('#btn-clear-selection').on('click', function() {
+            state.selected.clear();
+            updateSelectionUi();
+            renderGrid();
+        });
+
+        $('#btn-delete-selected').on('click', function() {
+            if (!state.selected.size || !confirm('Delete ' + state.selected.size + ' staged photo(s)?')) return;
+            var ids = Array.from(state.selected);
+            var chain = Promise.resolve();
+            ids.forEach(function(id) {
+                chain = chain.then(function() { return API.deleteReimbursementStagingPhoto(id); });
+            });
+            chain.then(function() {
+                state.selected.clear();
+                showStatus('Deleted selected photos', 'success');
+                return selectBatch(state.batchId);
+            }).catch(function(e) { showStatus(e.error || 'Delete failed', 'danger'); });
+        });
+
+        $('#btn-discard-batch').on('click', function() {
+            if (!state.batchId || !confirm('Discard all unassigned photos and close this batch?')) return;
+            API.discardReimbursementPhotoBatch(state.batchId)
+                .then(function() {
+                    showStatus('Batch discarded', 'success');
+                    state.batchId = null;
+                    state.unassigned = [];
+                    state.selected.clear();
+                    renderGrid();
+                    $('#batch-summary').text('No batch selected');
+                    loadOpenBatches();
+                })
+                .catch(function(e) { showStatus(e.error || 'Failed', 'danger'); });
+        });
+
+        $('#btn-assign').on('click', function() {
+            if (!state.batchId || !state.selected.size) return;
+            var mode = $('input[name="assign-mode"]:checked').val();
+            var body = {
+                mode: mode,
+                client_specifier: $('#client-specifier').val().trim(),
+                staging_photo_ids: Array.from(state.selected)
+            };
+            if (state.resolvedUserId) body.user_id = state.resolvedUserId;
+            if (mode === 'new_claim') {
+                body.package_reference = $('#package-reference').val().trim();
+                body.item_description = $('#item-description').val().trim();
+                body.reimbursement_type = $('#reimb-type').val();
+                body.order_number = $('#order-number').val().trim();
+                body.notes = $('#notes').val().trim();
+            } else {
+                body.claim_id = $('#existing-claim-select').val();
+            }
+            $('#btn-assign').prop('disabled', true);
+            API.assignReimbursementStagingPhotos(state.batchId, body)
+                .then(function(data) {
+                    showStatus('Assigned ' + (data.photos_moved || 0) + ' photo(s) to claim #' + (data.claim && data.claim.id), 'success');
+                    state.selected.clear();
+                    var bid = state.batchId;
+                    if (data.unassigned_count === 0) {
+                        state.batchId = null;
+                        state.unassigned = [];
+                        renderGrid();
+                        $('#batch-summary').text('Batch complete — no unassigned photos left');
+                        return loadOpenBatches();
+                    }
+                    return selectBatch(bid);
+                })
+                .catch(function(e) { showStatus(e.error || 'Assign failed', 'danger'); })
+                .finally(function() { updateSelectionUi(); });
+        });
+
+        var $dz = $('#drop-zone');
+        $dz.on('dragover', function(e) { e.preventDefault(); $dz.addClass('dragover'); });
+        $dz.on('dragleave drop', function(e) {
+            e.preventDefault();
+            $dz.removeClass('dragover');
+            if (e.type === 'drop' && e.originalEvent.dataTransfer.files.length) {
+                document.getElementById('file-input').files = e.originalEvent.dataTransfer.files;
+            }
+        });
+
+        var qs = new URLSearchParams(window.location.search);
+        var preClient = qs.get('client_id') || qs.get('client_specifier') || '';
+        if (preClient) $('#client-specifier').val(preClient);
+
+        loadUsers().then(loadOpenBatches).then(function() {
+            if (preClient) resolveClientSmart();
+        });
+    });
+    </script>
+</body>
+</html>
