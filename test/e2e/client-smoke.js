@@ -112,7 +112,6 @@ async function main() {
             'inventory.html',
             'analytics.html',
             'invoices.html',
-            'roi-report.html',
             'reimbursement.html',
             'referrals.html',
             'settings.html',

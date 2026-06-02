@@ -64,6 +64,12 @@ app.get('/dashboard/exports.html', (req, res) => {
 app.get('/dashboard/prep-sendback.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/dashboard/prep-sendback.html'));
 });
+app.get('/dashboard/roi-report.html', (req, res) => {
+    res.redirect(302, '/dashboard/index.html');
+});
+app.get('/dashboard/roi-report', (req, res) => {
+    res.redirect(302, '/dashboard/index.html');
+});
 app.get('/dashboard/scorecard.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/dashboard/scorecard.html'));
 });

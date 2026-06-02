@@ -875,8 +875,6 @@ const Dashboard = {
             this.loadInvoices();
         } else if (page.includes('referrals')) {
             this.loadReferrals();
-        } else if (page.includes('roi-report')) {
-            this.loadRoiReport();
         } else if (page.includes('settings')) {
             this.loadSettings();
         } else if (page.includes('announcements')) {
@@ -929,6 +927,7 @@ const Dashboard = {
         this.injectReimbursementLink();
         this.injectConnectAmazonLink();
         this.highlightSidebarActive();
+        $('#navbar-nav a[href="roi-report.html"]').closest('li').remove();
         this.fetchAnnouncementsList()
             .finally(() => {
                 this.updateNotificationDots();
@@ -1039,7 +1038,6 @@ const Dashboard = {
             ['exports.html', 'ri-download-cloud-2-line', 'Exports hub'],
             ['scorecard.html', 'ri-pie-chart-2-line', 'Recovery scorecard'],
             ['prep-sendback.html', 'ri-truck-line', 'Prep send-back'],
-            ['roi-report.html', 'ri-file-text-line', 'ROI Report'],
             ['reimbursement.html', 'ri-refund-line', 'Reimbursement / Claims'],
             ['referrals.html', 'ri-user-shared-line', 'Referrals'],
             ['settings.html', 'ri-settings-3-line', 'Settings'],
@@ -3647,7 +3645,6 @@ const Dashboard = {
                 { title: 'Print statement', desc: 'Full line-by-line statement for selected month.', action: 'period-statement' },
                 { title: 'Print invoice', desc: 'Consolidated invoice PDF for selected month.', action: 'period-invoice' },
                 { title: 'Analytics CSV', desc: 'Recovery over time from Analytics.', href: 'analytics.html', action: 'link' },
-                { title: 'ROI report', desc: 'Printable ROI summary.', href: 'roi-report.html', action: 'link' },
                 { title: 'All invoices CSV', desc: 'Every statement month in one spreadsheet.', href: 'invoices.html', action: 'link' },
             ];
             $grid.html(
