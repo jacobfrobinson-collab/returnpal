@@ -28,6 +28,12 @@ if (process.env.NODE_ENV === 'production' && process.env.SIGNUP_REQUIRE_ADMIN_AP
     );
 }
 
+if (process.env.NODE_ENV === 'production' && String(process.env.RETURNPAL_SOLD_DATES_LEGACY || '').trim() === '1') {
+    console.error(
+        '[ReturnPal] RETURNPAL_SOLD_DATES_LEGACY=1 must not be set on production — sold dates and invoices will disagree. Remove it on Render and redeploy. See docs/INVOICE_AND_SOLD_DATES.md'
+    );
+}
+
 // ─── Middleware ───────────────────────────────────────────────
 app.use(cors({
     origin: process.env.FRONTEND_URL || '*',

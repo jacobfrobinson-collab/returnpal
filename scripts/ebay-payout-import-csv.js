@@ -12,6 +12,7 @@ function csvCellEscape(v) {
     return s;
 }
 
+/** Calendar UK sold_date for CSV (YYYY-MM-DD). */
 function formatSoldDateForImportCsv(soldDateStr) {
     return normalizeSoldDateForDb(soldDateStr) || String(soldDateStr || '').trim();
 }

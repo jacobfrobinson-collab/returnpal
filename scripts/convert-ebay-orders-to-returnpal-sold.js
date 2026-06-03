@@ -2,15 +2,17 @@
  * One-off / reusable: map EVERY EBAY ORDER SHEET layout → ReturnPal multi-client sold import.
  *
  * ReturnPal template row: Client ID, sold_date, order_number, item_name, quantity, earnings.
- * eBay order sheet row: A=sold date (any format accepted by bulk import → column B as YYYY-MM-DD), B=order id, C=title,
+ * eBay order sheet row: A=sold date (any format accepted by bulk import), B=order id, C=title,
  *   D=sku line, E=qty, F=?, G=earnings, H=client id (maps to template column A).
+ *
+ * sold_date in the export uses UK calendar YYYY-MM-DD (see formatSoldDateForImportCsv).
  *
  * Ambiguous numeric dates (both parts ≤12, e.g. 04/12/2026): server default is UK DMY unless
  * process.env.RETURNPAL_AMBIGUOUS_DATE_ORDER=MDY (US MM/DD). Set before running if your sheet is US-style.
  */
 const XLSX = require('xlsx');
 const fs = require('fs');
-const { normalizeSoldDateForDb } = require('../src/utils/adminBulkImport');
+const { formatSoldDateForImportCsv } = require('./ebay-payout-import-csv');
 
 function parseMoney(v) {
     if (v == null || v === '') return 0;
@@ -28,7 +30,7 @@ function sanitizeCell(v) {
 
 /**
  * Emit sold_date as quoted YYYY-MM-DD so Excel “Save As CSV” and the importer
- * always see an unambiguous literal (matches normalizeSoldDateForDb on upload).
+ * store UK calendar dates (matches sold list and invoices).
  */
 function rowToCsvLine(cells) {
     return cells
@@ -74,7 +76,7 @@ function main() {
         const clientId = String(row[7] == null ? '' : row[7])
             .replace(/^\uFEFF/, '')
             .trim();
-        const soldDate = normalizeSoldDateForDb(row[0]);
+        const soldDate = formatSoldDateForImportCsv(row[0]);
         const orderNumber = String(row[1] == null ? '' : row[1]).trim();
         const product = String(row[2] == null ? '' : row[2]).trim();
         const qtyRaw = row[4];

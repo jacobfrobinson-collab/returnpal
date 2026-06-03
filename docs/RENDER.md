@@ -33,6 +33,14 @@ UPLOAD_DIR=/var/lib/returnpal/data/uploads
 
 After `migrate-sold-dates --apply`, redeploy. Do **not** set `RETURNPAL_SOLD_DATES_LEGACY=1` on production.
 
+### Sold dates on production (required)
+
+1. **Delete** `RETURNPAL_SOLD_DATES_LEGACY` from Environment if it exists (do not set it to `1`).
+2. Redeploy / restart the service.
+3. Verify: open a client sold list, DevTools → Network → sold-items API → response must include `"sold_date_display_version":"calendar-api-label-2026-06d"`. If you see `legacy-ydm-2026-06b`, the env flag is still on.
+4. Hard-refresh the dashboard (`Ctrl+F5`). Job #38-style imports should show Oct–Dec 2025, not mis-labelled Jan/Mar 2025.
+5. Only if dates are still wrong after step 3: Render Shell → `npm run migrate-sold-dates` (dry run first; see [INVOICE_AND_SOLD_DATES.md](INVOICE_AND_SOLD_DATES.md)).
+
 ## 3. Environment variables (Production)
 
 Dashboard → **Environment**.

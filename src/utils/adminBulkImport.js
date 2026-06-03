@@ -593,6 +593,7 @@ const { extractLegacyClientIdFromText } = require('./ebayRefundSkuClient');
 
 const {
     stripSoldDateToIsoHead,
+    mapSoldItemDatesForApi,
     tryRepairMonthDaySwap,
     repairAllMonthDaySwapIsoMisimportForDisplay,
     repairNovemberIsoMisimportForDisplay,
@@ -652,8 +653,9 @@ function resolveMultiImportClient(db, row) {
  * @returns {string}
  */
 function soldDatePreviewLabel(dataRow) {
-    const n = normalizeSoldDateForDb(dataRow.sold_date);
-    if (n) return n;
+    const mapped = mapSoldItemDatesForApi(dataRow.sold_date, normalizeSoldDateForDb);
+    if (mapped.label) return mapped.label;
+    if (mapped.iso) return mapped.iso;
     const raws = str(dataRow.sold_date);
     if (!raws) return 'empty → today on import';
     return raws.length > 44 ? raws.slice(0, 44) + '…' : raws;
@@ -661,8 +663,9 @@ function soldDatePreviewLabel(dataRow) {
 
 /** Payout / invoice month (YYYY-MM) for sold import preview. */
 function invoiceMonthForImportPreview(dataRow) {
-    const norm = normalizeSoldDateForDb(dataRow.sold_date);
-    if (norm && /^\d{4}-\d{2}-\d{2}$/.test(norm)) return norm.slice(0, 7);
+    const mapped = mapSoldItemDatesForApi(dataRow.sold_date, normalizeSoldDateForDb);
+    const iso = mapped.iso;
+    if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso.slice(0, 7);
     return null;
 }
 

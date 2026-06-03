@@ -66,6 +66,18 @@ function storedSoldYmdToCalendarIso(iso) {
     );
 }
 
+/**
+ * Calendar sale date → legacy dashboard storage wire (YYYY-DD-MM: year, day, month).
+ * Use in payout / bulk-import CSV when production still reads sold_date in legacy mode.
+ * @param {unknown} iso calendar YYYY-MM-DD
+ */
+function calendarIsoToLegacyStoredIso(iso) {
+    const s = stripSoldDateToIsoHead(iso);
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return s || String(iso == null ? '' : iso);
+    return m[1] + '-' + m[3] + '-' + m[2];
+}
+
 function monthDaySwapRepairEnabled() {
     return String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL || '').trim() === '1';
 }
@@ -221,6 +233,7 @@ module.exports = {
     stripSoldDateToIsoHead,
     parseStoredSoldYmd,
     storedSoldYmdToCalendarIso,
+    calendarIsoToLegacyStoredIso,
     storedSoldYmdToOrdinalLabel,
     calendarIsoToOrdinalLabel,
     repairIsoFirstOfMonthToJanuary,
