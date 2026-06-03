@@ -42,14 +42,16 @@ After `migrate-sold-dates --apply`, redeploy. Do **not** set `RETURNPAL_SOLD_DAT
 4. Hard-refresh the dashboard (`Ctrl+F5`). Job #38-style imports should show Oct–Dec 2025, not mis-labelled Jan/Mar 2025.
 5. If sold months are still wrong (Jan/Mar on screen for Oct–Dec sales): payout CSV repair — see [INVOICE_AND_SOLD_DATES.md](INVOICE_AND_SOLD_DATES.md). **Render Shell** (this service uses **Root Directory = `src`**, so there is no `package.json` in `~/project` — use `node`, not `npm run`):
    ```bash
-   cd ~/project
+   cd ~/project/src
    export DB_PATH=/var/lib/returnpal/data/returnpal.db
-   ls -la /var/lib/returnpal/data/Previous-Year-Payout.csv   # must exist on the disk
-   node scripts/audit-sold-dates-by-client.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv"
-   node scripts/repair-sold-dates-from-payout-csv.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv"
+   ls -la /var/lib/returnpal/data/Previous-Year-Payout.csv   # must exist on the disk (upload if missing)
+   node audit-sold-dates-by-client.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv"
+   node repair-sold-dates-from-payout-csv.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv"
    # after backup + stop app, then:
-   node scripts/repair-sold-dates-from-payout-csv.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv" --apply
+   node repair-sold-dates-from-payout-csv.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv" --apply
    ```
+   If `~/project/src` is missing, try `node src/scripts/audit-sold-dates-by-client.js` from `~/project` after the latest deploy.
+
    Optional long-term: set **Root Directory** to empty (repo root) so `npm run` works; redeploy.
 6. Only for **unmigrated** legacy storage: `npm run migrate-sold-dates` (dry run first). Do **not** use migration to fix Job #38 wire-as-calendar rows.
 
