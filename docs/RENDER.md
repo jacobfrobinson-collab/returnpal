@@ -40,12 +40,17 @@ After `migrate-sold-dates --apply`, redeploy. Do **not** set `RETURNPAL_SOLD_DAT
 3. Redeploy / restart the service.
 4. Verify: open a client sold list, DevTools → Network → sold-items API → response must include `"sold_date_display_version":"calendar-api-label-2026-06d"`. If you see `legacy-ydm-2026-06b`, legacy mode is still on.
 4. Hard-refresh the dashboard (`Ctrl+F5`). Job #38-style imports should show Oct–Dec 2025, not mis-labelled Jan/Mar 2025.
-5. If sold months are still wrong (Jan/Mar on screen for Oct–Dec sales): use **payout CSV repair for all clients**, not Chi-only — see [INVOICE_AND_SOLD_DATES.md](INVOICE_AND_SOLD_DATES.md) (“Wrong dates after payout CSV import”). On Render Shell:
+5. If sold months are still wrong (Jan/Mar on screen for Oct–Dec sales): payout CSV repair — see [INVOICE_AND_SOLD_DATES.md](INVOICE_AND_SOLD_DATES.md). **Render Shell** (this service uses **Root Directory = `src`**, so there is no `package.json` in `~/project` — use `node`, not `npm run`):
    ```bash
-   npm run audit:sold-dates-by-client -- --csv "/path/to/Previous Year Payout.csv"
-   npm run repair:sold-dates-from-csv -- --csv "/path/to/Previous Year Payout.csv"
-   # then --apply after backup
+   cd ~/project
+   export DB_PATH=/var/lib/returnpal/data/returnpal.db
+   ls -la /var/lib/returnpal/data/Previous-Year-Payout.csv   # must exist on the disk
+   node scripts/audit-sold-dates-by-client.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv"
+   node scripts/repair-sold-dates-from-payout-csv.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv"
+   # after backup + stop app, then:
+   node scripts/repair-sold-dates-from-payout-csv.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv" --apply
    ```
+   Optional long-term: set **Root Directory** to empty (repo root) so `npm run` works; redeploy.
 6. Only for **unmigrated** legacy storage: `npm run migrate-sold-dates` (dry run first). Do **not** use migration to fix Job #38 wire-as-calendar rows.
 
 ## 3. Environment variables (Production)

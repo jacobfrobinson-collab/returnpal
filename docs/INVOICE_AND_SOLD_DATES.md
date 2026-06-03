@@ -23,18 +23,18 @@ Job #38-style imports can store **wire-shaped** values as calendar (e.g. `2025-0
 **Do not** run `migrate-sold-dates:apply` on production calendar rows to “fix” this; use the payout CSV as source of truth.
 
 1. **Back up** `DB_PATH`; **stop** the app.
-2. Audit every client:
+2. Audit every client (local repo root: `npm run …`; Render Shell with Root Directory `src`: `node scripts/…` from `~/project`):
    ```bash
-   npm run audit:sold-dates-by-client -- --csv "/path/Previous Year Payout.csv"
+   node scripts/audit-sold-dates-by-client.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv"
    ```
 3. Dry-run repair (default = **all clients**, all order matches in CSV):
    ```bash
-   npm run repair:sold-dates-from-csv -- --csv "/path/Previous Year Payout.csv"
+   node scripts/repair-sold-dates-from-payout-csv.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv"
    ```
    Optional: `--job-id 38` or `--import-jobs-only` to limit to bulk-import rows only.
 4. Apply after review:
    ```bash
-   npm run repair:sold-dates-from-csv -- --csv "/path/Previous Year Payout.csv" --apply
+   node scripts/repair-sold-dates-from-payout-csv.js --csv "/var/lib/returnpal/data/Previous-Year-Payout.csv" --apply
    ```
 5. Restart the app; clients and admin **hard-refresh** sold lists and invoice views (`Ctrl+F5`). No per-client command is required — statements are built from `sold_date` on each request.
 6. Optional (operator QA only): `npm run reconcile-invoice-months -- --user-id <id>` compares month counts; it does **not** write or cache invoice data.
