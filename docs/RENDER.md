@@ -40,7 +40,13 @@ After `migrate-sold-dates --apply`, redeploy. Do **not** set `RETURNPAL_SOLD_DAT
 3. Redeploy / restart the service.
 4. Verify: open a client sold list, DevTools → Network → sold-items API → response must include `"sold_date_display_version":"calendar-api-label-2026-06d"`. If you see `legacy-ydm-2026-06b`, legacy mode is still on.
 4. Hard-refresh the dashboard (`Ctrl+F5`). Job #38-style imports should show Oct–Dec 2025, not mis-labelled Jan/Mar 2025.
-5. Only if dates are still wrong after step 3: Render Shell → `npm run migrate-sold-dates` (dry run first; see [INVOICE_AND_SOLD_DATES.md](INVOICE_AND_SOLD_DATES.md)).
+5. If sold months are still wrong (Jan/Mar on screen for Oct–Dec sales): use **payout CSV repair for all clients**, not Chi-only — see [INVOICE_AND_SOLD_DATES.md](INVOICE_AND_SOLD_DATES.md) (“Wrong dates after payout CSV import”). On Render Shell:
+   ```bash
+   npm run audit:sold-dates-by-client -- --csv "/path/to/Previous Year Payout.csv"
+   npm run repair:sold-dates-from-csv -- --csv "/path/to/Previous Year Payout.csv"
+   # then --apply after backup
+   ```
+6. Only for **unmigrated** legacy storage: `npm run migrate-sold-dates` (dry run first). Do **not** use migration to fix Job #38 wire-as-calendar rows.
 
 ## 3. Environment variables (Production)
 

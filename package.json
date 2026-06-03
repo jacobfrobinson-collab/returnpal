@@ -16,6 +16,8 @@
     "migrate-sold-dates:apply": "node scripts/migrate-sold-dates-to-calendar.js --apply",
     "reconcile-invoice-months": "node scripts/reconcile-invoice-months.js",
     "diagnose:sold-dates": "node scripts/diagnose-sold-dates.js",
+    "repair:sold-dates-from-csv": "node scripts/repair-sold-dates-from-payout-csv.js",
+    "audit:sold-dates-by-client": "node scripts/audit-sold-dates-by-client.js",
     "fix:sold-dates-got": "node scripts/diagnose-sold-dates.js --fix-got",
     "test:e2e": "node test/e2e/client-smoke.js",
     "test:e2e:admin": "node test/e2e/admin-bulk-import.js",

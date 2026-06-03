@@ -16,7 +16,32 @@ Only set `RETURNPAL_SOLD_DATES_LEGACY=1` on a machine that still has the **unmig
 
 The sold dashboard shows **`sold_date_label` from the API** — the browser must not re-parse dates client-side.
 
-## Operator runbook
+## Wrong dates after payout CSV import (all clients)
+
+Job #38-style imports can store **wire-shaped** values as calendar (e.g. `2025-06-12` in DB for a **December** sale). That affects **every client** in the file — not one account. Display and invoices follow the bad stored month until the DB is corrected.
+
+**Do not** run `migrate-sold-dates:apply` on production calendar rows to “fix” this; use the payout CSV as source of truth.
+
+1. **Back up** `DB_PATH`; **stop** the app.
+2. Audit every client:
+   ```bash
+   npm run audit:sold-dates-by-client -- --csv "/path/Previous Year Payout.csv"
+   ```
+3. Dry-run repair (default = **all clients**, all order matches in CSV):
+   ```bash
+   npm run repair:sold-dates-from-csv -- --csv "/path/Previous Year Payout.csv"
+   ```
+   Optional: `--job-id 38` or `--import-jobs-only` to limit to bulk-import rows only.
+4. Apply after review:
+   ```bash
+   npm run repair:sold-dates-from-csv -- --csv "/path/Previous Year Payout.csv" --apply
+   ```
+5. Restart the app; clients and admin **hard-refresh** sold lists and invoice views (`Ctrl+F5`). No per-client command is required — statements are built from `sold_date` on each request.
+6. Optional (operator QA only): `npm run reconcile-invoice-months -- --user-id <id>` compares month counts; it does **not** write or cache invoice data.
+
+New imports after deploy use **calendar** dates in CSV/templates only (`sold-import-roundtrip` test).
+
+## Operator runbook (legacy DB migration)
 
 1. **Back up** the database (`DB_PATH`).
 2. **Stop** the Node app on production.
