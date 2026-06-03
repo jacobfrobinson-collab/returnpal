@@ -209,7 +209,8 @@ function mapSoldItemDatesForApi(rawSoldDate, normalizeSoldDateForDb) {
         return { iso: '', label: '', stored: rawSoldDate };
     }
     let isoFinal = iso;
-    if (monthDaySwapRepairEnabled()) {
+    // Month/day swap repair is for unmigrated legacy storage only — it breaks calendar DB (e.g. 2025-12-03 → March 12th).
+    if (monthDaySwapRepairEnabled() && !soldDatesCanonicalStorage()) {
         isoFinal = repairAllMonthDaySwapIsoMisimportForDisplay(iso);
     }
     return {

@@ -34,6 +34,15 @@ if (process.env.NODE_ENV === 'production' && String(process.env.RETURNPAL_SOLD_D
     );
 }
 
+if (
+    process.env.NODE_ENV === 'production' &&
+    String(process.env.RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL || '').trim() === '1'
+) {
+    console.error(
+        '[ReturnPal] RETURNPAL_SOLD_DISPLAY_REPAIR_MONTH_DAY_SWAP_ALL=1 must not be set on production with calendar sold dates — December sales show as March/January. Remove it on Render and redeploy.'
+    );
+}
+
 // ─── Middleware ───────────────────────────────────────────────
 app.use(cors({
     origin: process.env.FRONTEND_URL || '*',
