@@ -5,6 +5,12 @@ const { feesDeductedForCalendarMonth } = require('../utils/monthlyFreeProcessing
 const { getInvoiceCapTz } = require('../utils/computedMonthlyStatements');
 const { calendarYearMonthFromDbDate } = require('../utils/soldDateCalendar');
 const { effectiveDateForReturnAdjustment } = require('../utils/returnAdjustmentDates');
+const {
+    buildClawbackContext,
+    clientClawbackMapForAdjustments,
+    clientClawbackFromContext,
+    roundMoney,
+} = require('../utils/returnAdjustmentClawback');
 
 const router = express.Router();
 
@@ -58,28 +64,37 @@ router.get('/summary', authMiddleware, async (req, res) => {
             else sales_this_month += p;
         }
 
+        const clawbackContext = buildClawbackContext(db, userId, allSold);
+
         const appliedAdj = parseResults(
             db.exec(
-                `SELECT amount, created_at, refund_date FROM return_adjustments 
+                `SELECT id, amount, created_at, refund_date, linked_sold_item_id FROM return_adjustments 
                  WHERE user_id = ? AND status = 'applied'`,
                 [userId]
             )
         );
+        const appliedClawMap = clientClawbackMapForAdjustments(appliedAdj, clawbackContext);
         let returns_from_adjustments_mtd = 0;
         for (const r of appliedAdj) {
             if (calendarYearMonthFromDbDate(effectiveDateForReturnAdjustment(r)) === ym) {
-                returns_from_adjustments_mtd += Number(r.amount) || 0;
+                returns_from_adjustments_mtd += appliedClawMap.get(r.id) || clientClawbackFromContext(r, clawbackContext, appliedClawMap);
             }
         }
+        returns_from_adjustments_mtd = roundMoney(returns_from_adjustments_mtd);
 
         const adjPending = parseResults(
             db.exec(
-                `SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as cnt
+                `SELECT id, amount, linked_sold_item_id, created_at, refund_date
                  FROM return_adjustments WHERE user_id = ? AND status = 'pending'`,
                 [userId]
             )
         );
-        const pending_returns_amount = Number(adjPending[0]?.total) || 0;
+        const pendingClawMap = clientClawbackMapForAdjustments(adjPending, clawbackContext);
+        let pending_returns_amount = 0;
+        for (const r of adjPending) {
+            pending_returns_amount += pendingClawMap.get(r.id) || clientClawbackFromContext(r, clawbackContext, pendingClawMap);
+        }
+        pending_returns_amount = roundMoney(pending_returns_amount);
 
         const fees_deducted = feesDeductedForCalendarMonth(allSold, ym);
 
@@ -97,7 +112,7 @@ router.get('/summary', authMiddleware, async (req, res) => {
             currency: 'GBP',
             current_balance,
             pending_returns: pending_returns_amount,
-            pending_returns_count: Number(adjPending[0]?.cnt) || 0,
+            pending_returns_count: adjPending.length,
             available_for_payout,
             payout_forecast: {
                 if_no_more_returns: estimated_if_no_more_returns,
@@ -133,14 +148,20 @@ router.get('/ledger', authMiddleware, async (req, res) => {
             )
         );
 
+        const allSold = parseResults(
+            db.exec('SELECT * FROM sold_items WHERE user_id = ?', [userId])
+        );
+        const clawbackContext = buildClawbackContext(db, userId, allSold);
+
         const adj = parseResults(
             db.exec(
-                `SELECT id, reference, product, amount, status, created_at as at, linked_sold_item_id, notes
+                `SELECT id, reference, product, amount, status, created_at as at, linked_sold_item_id, notes, refund_date
                  FROM return_adjustments WHERE user_id = ? 
                  ORDER BY created_at DESC LIMIT ?`,
                 [userId, limit * 2]
             )
         );
+        const adjClawMap = clientClawbackMapForAdjustments(adj, clawbackContext);
 
         const lines = [];
         sold.forEach((r) => {
@@ -156,12 +177,13 @@ router.get('/ledger', authMiddleware, async (req, res) => {
             });
         });
         adj.forEach((r) => {
-            const amt = Number(r.amount) || 0;
+            const claw = adjClawMap.get(r.id) || clientClawbackFromContext(r, clawbackContext, adjClawMap);
             lines.push({
                 kind: 'return_adjustment',
                 label: (r.product || 'Item') + ' — Return / clawback' + (r.status === 'pending' ? ' (pending)' : ''),
                 reference: r.reference || '',
-                amount: -Math.abs(amt),
+                amount: -Math.abs(claw),
+                gross_refund: Number(r.amount) || 0,
                 at: r.at,
                 status: r.status,
                 linked_sold_item_id: r.linked_sold_item_id,

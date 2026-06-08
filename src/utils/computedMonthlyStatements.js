@@ -16,6 +16,11 @@ const {
     payoutEtaFields,
 } = require('./payoutEvents');
 const { getPendingReferralCreditsForPeriod, applyPendingReferralCredits } = require('./referralCredits');
+const {
+    buildClawbackContext,
+    clientClawbackMapForAdjustments,
+    clientClawbackFromContext,
+} = require('./returnAdjustmentClawback');
 
 function parseResults(result) {
     if (!result || !result.length) return [];
@@ -224,8 +229,12 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
             status: r.status,
             notes: r.notes,
             created_at: r.created_at,
+            refund_date: r.refund_date,
             linked_sold_item_id: r.linked_sold_item_id
         }));
+
+    const clawbackContext = buildClawbackContext(db, userId, allSold);
+    const clawbackMap = clientClawbackMapForAdjustments(returnRows, clawbackContext);
 
     /** Invoice / payout lines: sales (positive), refunds and clawbacks (negative). No separate fee rows. */
     const line_items = [];
@@ -245,13 +254,13 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
         });
     });
     returnRows.forEach((r) => {
-        const amt = Number(r.amount) || 0;
-        if (amt <= 0) return;
+        const claw = clientClawbackFromContext(r, clawbackContext, clawbackMap);
+        if (claw <= 0) return;
         line_items.push({
             description: (r.product || 'Item') + ' (return / clawback)',
             quantity: 1,
             unit_price: 0,
-            amount: -Math.abs(amt),
+            amount: -Math.abs(claw),
             status: r.status || 'applied',
             sold_item_id: r.linked_sold_item_id,
             reference: r.reference || ''
@@ -272,12 +281,13 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
         });
     });
     returnRows.forEach((r) => {
-        const amt = Number(r.amount) || 0;
+        const claw = clientClawbackFromContext(r, clawbackContext, clawbackMap);
+        if (claw <= 0) return;
         statement_lines.push({
             kind: 'return_adjustment',
             label: (r.product || 'Item') + ' → Return / clawback' + (r.status === 'pending' ? ' (pending)' : ''),
             reference: r.reference || '',
-            amount: -Math.abs(amt),
+            amount: -Math.abs(claw),
             date: effectiveDateForReturnAdjustment(r) || r.created_at,
             status: r.status
         });
@@ -286,7 +296,9 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
 
     const salesProfit = items.filter((i) => i.status !== 'Refunded').reduce((s, i) => s + (Number(i.profit) || 0), 0);
     const refundedProfit = items.filter((i) => i.status === 'Refunded').reduce((s, i) => s + (Number(i.profit) || 0), 0);
-    const adjustmentsApplied = returnRows.filter((r) => r.status === 'applied').reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const adjustmentsApplied = returnRows
+        .filter((r) => r.status === 'applied')
+        .reduce((s, r) => s + clientClawbackFromContext(r, clawbackContext, clawbackMap), 0);
     const subtotal = Math.round(line_items.reduce((s, i) => s + i.amount * i.quantity, 0) * 100) / 100;
     const net_after_returns = Math.round((salesProfit - refundedProfit - adjustmentsApplied) * 100) / 100;
     /** Client payout: sales/returns only (fees already reflected in per-line profit). */

@@ -137,5 +137,7 @@ module.exports = {
     feesDeductedForCalendarMonth,
     grossSale,
     isEligibleForPromo,
-    monthKey
+    monthKey,
+    parseFeePercent,
+    revenueIsNet,
 };

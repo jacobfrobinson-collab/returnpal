@@ -3086,12 +3086,23 @@ const Dashboard = {
                 const ret = Number(item.returns_deducted != null ? item.returns_deducted : 0);
                 const net = Number(item.net_after_returns != null ? item.net_after_returns : gross - ret);
                 let retTitle = '';
-                if (item.returns_exceed_sale && Array.isArray(item.linked_return_adjustments) && item.linked_return_adjustments.length) {
+                if (ret > 0 && Array.isArray(item.linked_return_adjustments) && item.linked_return_adjustments.length) {
                     const parts = item.linked_return_adjustments.map((a) => {
                         const p = (a.product || 'Refund').slice(0, 80);
-                        return '£' + (Number(a.amount) || 0).toFixed(2) + ' — ' + p;
+                        const claw = Number(a.client_clawback != null ? a.client_clawback : a.amount) || 0;
+                        const gross = Number(a.amount) || 0;
+                        if (gross > claw + 0.01) {
+                            return '£' + claw.toFixed(2) + ' from your earnings (eBay refund £' + gross.toFixed(2) + ') — ' + p;
+                        }
+                        return '£' + claw.toFixed(2) + ' — ' + p;
                     });
-                    retTitle = ' title="Linked refund(s) exceed this sale. ' + escAttr(parts.join('; ')) + '"';
+                    retTitle = ' title="' + escAttr(parts.join('; ')) + '"';
+                } else if (item.returns_exceed_sale && Array.isArray(item.linked_return_adjustments) && item.linked_return_adjustments.length) {
+                    const parts = item.linked_return_adjustments.map((a) => {
+                        const p = (a.product || 'Refund').slice(0, 80);
+                        return 'eBay refund £' + (Number(a.amount) || 0).toFixed(2) + ' — ' + p;
+                    });
+                    retTitle = ' title="Gross buyer refund exceeds sale earnings; your statement uses proportional clawback. ' + escAttr(parts.join('; ')) + '"';
                 }
                 const retCell = ret > 0
                     ? '<td class="text-danger"' + retTitle + '>£' + ret.toFixed(2) + '</td>'

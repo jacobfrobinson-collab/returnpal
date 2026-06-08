@@ -7,6 +7,12 @@ const { normalizeSoldDateForDb } = require('../utils/adminBulkImport');
 const { mapSoldItemDatesForApi } = require('../utils/soldDateDisplayRepair');
 const { soldDatesCanonicalStorage } = require('../utils/soldDateStorageMode');
 const { sortSoldItemsByDateDesc } = require('../utils/sortSoldItemsByDateDesc');
+const {
+    buildClawbackContext,
+    clientClawbackMapForAdjustments,
+    clientClawbackFromContext,
+    roundMoney,
+} = require('../utils/returnAdjustmentClawback');
 
 const router = express.Router();
 
@@ -20,47 +26,62 @@ function parseResults(result) {
     });
 }
 
-/** Sum of applied return amounts per sold_items.id for this user. */
-function computeReturnsBySoldId(db, userId) {
-    const rows = parseResults(
+function loadAppliedReturnAdjustments(db, userId) {
+    return parseResults(
         db.exec(
-            `SELECT linked_sold_item_id, COALESCE(SUM(amount), 0) AS s
+            `SELECT id, linked_sold_item_id, product, amount, order_number, refund_date, created_at, status
              FROM return_adjustments
-             WHERE user_id = ? AND status = 'applied' AND linked_sold_item_id IS NOT NULL
-             GROUP BY linked_sold_item_id`,
+             WHERE user_id = ? AND status = 'applied'
+             ORDER BY COALESCE(NULLIF(refund_date, ''), created_at), id`,
             [userId]
         )
     );
+}
+
+/** Sum of client clawbacks per sold_items.id (not gross eBay refund). */
+function computeReturnsBySoldId(appliedReturns, clawbackContext) {
+    const clawMap = clientClawbackMapForAdjustments(appliedReturns, clawbackContext);
     const map = Object.create(null);
-    for (const r of rows) {
-        map[String(r.linked_sold_item_id)] = Number(r.s) || 0;
+    for (const r of appliedReturns) {
+        if (r.linked_sold_item_id == null) continue;
+        const key = String(r.linked_sold_item_id);
+        const claw = clawMap.get(r.id) || 0;
+        map[key] = roundMoney((map[key] || 0) + claw);
     }
     return map;
 }
 
-function computeLinkedReturnDetailsBySoldId(db, userId) {
-    const rows = parseResults(
-        db.exec(
-            `SELECT linked_sold_item_id, id, product, amount, order_number, refund_date
-             FROM return_adjustments
-             WHERE user_id = ? AND status = 'applied' AND linked_sold_item_id IS NOT NULL
-             ORDER BY refund_date DESC, id DESC`,
-            [userId]
-        )
-    );
+function computeLinkedReturnDetailsBySoldId(appliedReturns, clawbackContext) {
+    const clawMap = clientClawbackMapForAdjustments(appliedReturns, clawbackContext);
     const map = Object.create(null);
-    for (const r of rows) {
+    for (const r of appliedReturns) {
+        if (r.linked_sold_item_id == null) continue;
         const key = String(r.linked_sold_item_id);
         if (!map[key]) map[key] = [];
+        const gross = Number(r.amount) || 0;
+        const claw = clawMap.get(r.id) || clientClawbackFromContext(r, clawbackContext, clawMap);
         map[key].push({
             id: r.id,
             product: r.product,
-            amount: Number(r.amount) || 0,
+            amount: gross,
+            client_clawback: claw,
             order_number: r.order_number,
             refund_date: r.refund_date,
         });
     }
+    for (const key of Object.keys(map)) {
+        map[key].sort((a, b) => String(b.refund_date || '').localeCompare(String(a.refund_date || '')));
+    }
     return map;
+}
+
+function totalAppliedClawback(appliedReturns, clawbackContext) {
+    const clawMap = clientClawbackMapForAdjustments(appliedReturns, clawbackContext);
+    let total = 0;
+    for (const r of appliedReturns) {
+        total += clawMap.get(r.id) || clientClawbackFromContext(r, clawbackContext, clawMap);
+    }
+    return roundMoney(total);
 }
 
 // GET /api/sold/returns — list refund/return adjustments (define before /:id routes)
@@ -79,12 +100,19 @@ router.get('/returns', authMiddleware, async (req, res) => {
             )
         );
         const { mapReturnAdjustmentRowForApi } = require('../utils/returnAdjustmentDateDisplay');
+        const allSold = parseResults(db.exec('SELECT * FROM sold_items WHERE user_id = ?', [req.user.id]));
+        const clawbackContext = buildClawbackContext(db, req.user.id, allSold);
+        const clawMap = clientClawbackMapForAdjustments(rows, clawbackContext);
         let items = clientIsAdmin(req) ? rows : redactOrderNumberForClientRows(rows);
         let datesFixed = 0;
         items = items.map((r) => {
             const before = String(r.refund_date || '').trim();
             const out = mapReturnAdjustmentRowForApi(db, r);
             if (out.refund_date && out.refund_date !== before) datesFixed++;
+            const gross = Number(out.amount) || 0;
+            const claw = clawMap.get(out.id) || clientClawbackFromContext(out, clawbackContext, clawMap);
+            out.client_clawback = claw;
+            out.gross_refund = gross;
             return out;
         });
         if (datesFixed) saveDb();
@@ -121,15 +149,11 @@ router.get('/', authMiddleware, async (req, res) => {
             total_earnings: 0, items_sold: 0, avg_earnings: 0, avg_margin: 0
         };
 
-        const returnsBySold = computeReturnsBySoldId(db, req.user.id);
-        const linkedReturnDetails = computeLinkedReturnDetailsBySoldId(db, req.user.id);
-        const totalReturnsRows = parseResults(
-            db.exec(
-                `SELECT COALESCE(SUM(amount), 0) AS s FROM return_adjustments WHERE user_id = ? AND status = 'applied'`,
-                [req.user.id]
-            )
-        );
-        const total_returns_applied = totalReturnsRows.length ? Number(totalReturnsRows[0].s) || 0 : 0;
+        const appliedReturns = loadAppliedReturnAdjustments(db, req.user.id);
+        const clawbackContext = buildClawbackContext(db, req.user.id, items);
+        const returnsBySold = computeReturnsBySoldId(appliedReturns, clawbackContext);
+        const linkedReturnDetails = computeLinkedReturnDetailsBySoldId(appliedReturns, clawbackContext);
+        const total_returns_applied = totalAppliedClawback(appliedReturns, clawbackContext);
         const gross = Number(stats.total_earnings) || 0;
         stats.total_returns_applied = total_returns_applied;
         stats.net_earnings_after_returns = gross - total_returns_applied;
@@ -141,6 +165,8 @@ router.get('/', authMiddleware, async (req, res) => {
             const w = promo.winner_by_item_id[String(row.id)];
             const ret = returnsBySold[String(row.id)] || 0;
             const profit = Number(row.profit) || 0;
+            const linkedAdj = linkedReturnDetails[String(row.id)] || [];
+            const grossRefunds = linkedAdj.reduce((s, a) => s + (Number(a.amount) || 0), 0);
             const dates = mapSoldItemDatesForApi(row.sold_date, normalizeSoldDateForDb);
             return {
                 ...row,
@@ -151,9 +177,9 @@ router.get('/', authMiddleware, async (req, res) => {
                 is_monthly_free_processing: !!w,
                 monthly_free_processing_month: w ? w.year_month : null,
                 returns_deducted: ret,
-                net_after_returns: profit - ret,
-                linked_return_adjustments: linkedReturnDetails[String(row.id)] || [],
-                returns_exceed_sale: ret > profit + 0.01,
+                net_after_returns: roundMoney(profit - ret),
+                linked_return_adjustments: linkedAdj,
+                returns_exceed_sale: grossRefunds > profit + 0.01,
             };
         });
 
