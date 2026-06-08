@@ -80,7 +80,7 @@ function buildReferralInviteEmail(opts) {
 
     const html = wrapBrandedEmail({
         title: "You're invited to ReturnPal",
-        subtitle: 'Recommended by ' + referrerName,
+        subtitle: referrerName + " thinks you'll love this",
         bodyHtml,
         recipientEmail: inviteeEmail,
         preheader: referrerName + ' invited you to try ReturnPal for Amazon returns recovery',
