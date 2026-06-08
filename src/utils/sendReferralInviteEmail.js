@@ -38,21 +38,24 @@ function buildReferralInviteEmail(opts) {
     const bodyHtml =
         `<p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#323a46;">Hello,</p>` +
         paragraphHtml(
-            `<strong>${escapeHtml(referrerName)}</strong> uses ReturnPal to turn Amazon returns into recovered revenue — and thought you might benefit too.`
+            `<strong>${escapeHtml(referrerName)}</strong> uses ReturnPal for Amazon returns recovery and suggested you take a look.`
         ) +
         personalHtml +
         paragraphHtml(
-            'ReturnPal handles the full returns recovery process: inspection, reimbursement checks, resale, and liquidation. You stay focused on growing your business while we work on getting money back from returned inventory.'
+            'ReturnPal manages the work end to end: receiving returns, inspection, reimbursement checks, resale, and liquidation. You get a clear dashboard for every package, with performance-based pricing and no monthly subscription.'
         ) +
-        summaryTableHtml('Why sellers choose ReturnPal', [
-            { label: 'Performance-based pricing', value: 'No subscriptions or setup fees' },
-            { label: 'Full visibility', value: 'Track every package in your dashboard' },
-            { label: 'Fast processing', value: 'Most returns handled in 24–72 hours' },
+        paragraphHtml(
+            'Many returns services focus mainly on listing stock on marketplaces. ReturnPal is set up for the wider recovery picture, including reimbursement claims and proper inspection, not only reselling items on your behalf.'
+        ) +
+        summaryTableHtml('At a glance', [
+            { label: 'Pricing', value: 'Performance-based, no setup fees' },
+            { label: 'Dashboard', value: 'Track packages, sales, and payouts' },
+            { label: 'Turnaround', value: 'Most returns processed in 24 to 72 hours' },
         ]) +
         noticeBoxHtml(
-            `<strong>Ready to get started?</strong><br>Create your free account with ${escapeHtml(referrerName)}'s referral link below. It only takes a few minutes to sign up.`
+            `<strong>Create your account</strong><br>Use ${escapeHtml(referrerName)}'s referral link below to sign up. Registration takes a few minutes.`
         ) +
-        ctaButtonHtml('Create your free ReturnPal account', referralLink || site + '/login.html') +
+        ctaButtonHtml('Sign up for ReturnPal', referralLink || site + '/login.html') +
         paragraphHtml(
             `Or copy this link: <a href="${escapeHtml(referralLink || site)}" style="color:#128BD0;word-break:break-all;">${escapeHtml(referralLink || site)}</a>`
         ) +
@@ -64,10 +67,11 @@ function buildReferralInviteEmail(opts) {
         title: subject,
         greeting: 'Hello,',
         paragraphs: [
-            referrerName + ' uses ReturnPal to recover revenue from Amazon returns and invited you to try it.',
+            referrerName + ' uses ReturnPal for Amazon returns recovery and suggested you take a look.',
             personalPlain,
-            'ReturnPal handles inspection, reimbursement checks, resale, and liquidation — with performance-based pricing and no subscriptions.',
-            'Create your free account using the link below:',
+            'ReturnPal handles receiving, inspection, reimbursement checks, resale, and liquidation, with performance-based pricing and no monthly subscription.',
+            'Many returns services focus mainly on listing stock on marketplaces. ReturnPal covers the wider recovery picture, including reimbursement claims and inspection, not only reselling on your behalf.',
+            'Create your account using the link below:',
         ],
         ctaLabel: 'Sign up',
         ctaUrl: referralLink || site + '/login.html',
@@ -76,10 +80,10 @@ function buildReferralInviteEmail(opts) {
 
     const html = wrapBrandedEmail({
         title: "You're invited to ReturnPal",
-        subtitle: referrerName + " thinks you'll love it",
+        subtitle: 'Recommended by ' + referrerName,
         bodyHtml,
         recipientEmail: inviteeEmail,
-        preheader: referrerName + ' invited you — recover revenue from Amazon returns with ReturnPal',
+        preheader: referrerName + ' invited you to try ReturnPal for Amazon returns recovery',
     });
 
     return { subject, text, html };
