@@ -147,6 +147,7 @@ router.get('/users', async (req, res) => {
                 `SELECT id, email, full_name, company_name, created_at, COALESCE(is_admin, 0) AS is_admin,
                         COALESCE(legacy_client_id, '') AS legacy_client_id,
                         COALESCE(account_status, 'approved') AS account_status,
+                        COALESCE(payout_verification_code, '') AS payout_verification_code,
                         (SELECT COUNT(*) FROM client_delegate_access cda WHERE cda.hub_user_id = users.id) AS linked_clients_count,
                         (SELECT COUNT(*) FROM client_delegate_access cda2 WHERE cda2.client_user_id = users.id) AS delegate_hub_count
                  FROM users ORDER BY created_at DESC`
@@ -155,6 +156,50 @@ router.get('/users', async (req, res) => {
         res.json({ users: rows });
     } catch (err) {
         console.error('Admin list users error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/payout-verification-lookup?code=RP-XXXX-XXXX
+router.get('/payout-verification-lookup', async (req, res) => {
+    try {
+        const { lookupClientByPayoutVerificationCode } = require('../utils/payoutVerificationCode');
+        const db = await dbForAdminRead();
+        const match = lookupClientByPayoutVerificationCode(db, req.query.code);
+        if (!match) {
+            return res.status(404).json({ error: 'No client found for that code' });
+        }
+        res.json({ match });
+    } catch (err) {
+        console.error('Admin payout verification lookup error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/users/:id/payout-bank-details — verification code for Jotform cross-check
+router.get('/users/:id/payout-bank-details', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
+
+        const { ensurePayoutVerificationCode } = require('../utils/payoutVerificationCode');
+        const db = await getDb();
+        const profile = parseResults(
+            db.exec('SELECT id, email, full_name FROM users WHERE id = ?', [userId])
+        );
+        if (!profile.length) return res.status(404).json({ error: 'User not found' });
+
+        const info = ensurePayoutVerificationCode(db, userId);
+        if (!info) return res.status(404).json({ error: 'User not found' });
+        saveDb();
+
+        res.json({
+            ...info,
+            email: profile[0].email || '',
+            full_name: profile[0].full_name || '',
+        });
+    } catch (err) {
+        console.error('Admin payout bank details error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

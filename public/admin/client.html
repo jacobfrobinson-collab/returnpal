@@ -221,6 +221,24 @@
             </div>
             <div class="col-lg-4">
                 <div class="card">
+                    <div class="card-header bg-white py-2">Bank transfer verification</div>
+                    <div class="card-body py-2" id="payout-verification-card-body">
+                        <p class="small text-muted mb-2">Use this code to verify Jotform bank-detail submissions belong to this client. Compare the email on the form with the account email below.</p>
+                        <div id="payout-verification-loading" class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Loading…</div>
+                        <div id="payout-verification-content" class="d-none">
+                            <div class="mb-2">
+                                <span class="text-muted small d-block mb-1">Payout verification code</span>
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <code class="fs-6 user-select-all" id="admin-payout-verification-code">—</code>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="admin-payout-verification-copy">Copy code</button>
+                                </div>
+                            </div>
+                            <p class="small mb-0"><span class="text-muted">Account email:</span> <span id="admin-payout-verification-email">—</span></p>
+                        </div>
+                        <p class="small text-danger mb-0 d-none" id="payout-verification-error"></p>
+                    </div>
+                </div>
+                <div class="card mt-3">
                     <div class="card-header bg-white">Send notification</div>
                     <div class="card-body">
                         <p class="small text-muted">Client will see this in their dashboard activity feed.</p>
@@ -585,6 +603,34 @@
                     }
                 }
             });
+        }
+
+        function loadPayoutVerificationCard() {
+            var $loading = $('#payout-verification-loading');
+            var $content = $('#payout-verification-content');
+            var $err = $('#payout-verification-error');
+            $loading.removeClass('d-none');
+            $content.addClass('d-none');
+            $err.addClass('d-none').text('');
+            API.request('/admin/users/' + encodeURIComponent(clientId) + '/payout-bank-details')
+                .then(function(data) {
+                    $loading.addClass('d-none');
+                    $content.removeClass('d-none');
+                    var code = data.payout_verification_code || '—';
+                    $('#admin-payout-verification-code').text(code);
+                    $('#admin-payout-verification-email').text(data.email || '—');
+                    $('#admin-payout-verification-copy').off('click').on('click', function() {
+                        navigator.clipboard.writeText(code).then(function() {
+                            alert('Verification code copied');
+                        }).catch(function() {
+                            alert('Could not copy code');
+                        });
+                    });
+                })
+                .catch(function(e) {
+                    $loading.addClass('d-none');
+                    $err.removeClass('d-none').text((e && e.error) ? e.error : 'Could not load verification code');
+                });
         }
 
         var selectedPackageIds = new Set();
@@ -1696,6 +1742,7 @@
 
         initCardMinimizeControls();
         loadClientName();
+        loadPayoutVerificationCard();
         refreshAll();
     });
     </script>

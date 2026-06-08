@@ -120,9 +120,49 @@ function ensurePayoutVerificationCode(db, userId, opts = {}) {
     };
 }
 
+/**
+ * Normalize pasted Jotform / admin lookup input to stored RP-XXXX-XXXX form.
+ */
+function normalizePayoutVerificationCodeInput(raw) {
+    let s = String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
+    if (!s) return '';
+    s = s.replace(/^RP[-\s]*/i, '');
+    const alnum = s.replace(/[^A-Z0-9]/g, '');
+    if (alnum.length < 8) return '';
+    return 'RP-' + alnum.slice(0, 4) + '-' + alnum.slice(4, 8);
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {string} codeInput
+ */
+function lookupClientByPayoutVerificationCode(db, codeInput) {
+    const code = normalizePayoutVerificationCodeInput(codeInput);
+    if (!code) return null;
+    const rows = parseResults(
+        db.exec(
+            `SELECT id, email, full_name, company_name, payout_verification_code
+             FROM users WHERE payout_verification_code = ?`,
+            [code]
+        )
+    );
+    if (!rows.length) return null;
+    const row = rows[0];
+    return {
+        id: row.id,
+        client_code: 'RP' + String(row.id).padStart(4, '0'),
+        email: row.email || '',
+        full_name: row.full_name || '',
+        company_name: row.company_name || '',
+        payout_verification_code: row.payout_verification_code || code,
+    };
+}
+
 module.exports = {
     generatePayoutVerificationCode,
     ensurePayoutVerificationCode,
     buildBankDetailsFormUrl,
     getBankDetailsFormBaseUrl,
+    normalizePayoutVerificationCodeInput,
+    lookupClientByPayoutVerificationCode,
 };

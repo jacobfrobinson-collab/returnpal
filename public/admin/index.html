@@ -103,7 +103,15 @@
                         <span class="collapse-chevron text-muted small" aria-hidden="true">▼</span>
                         <h2 class="h6 mb-0">All clients</h2>
                     </div>
-                    <input type="search" class="form-control form-control-sm" id="admin-client-search" placeholder="Search name, email, ID…" style="max-width:280px" aria-label="Search clients" onclick="event.stopPropagation()" />
+                    <input type="search" class="form-control form-control-sm" id="admin-client-search" placeholder="Search name, email, ID, payout code…" style="max-width:280px" aria-label="Search clients" onclick="event.stopPropagation()" />
+                </div>
+            </div>
+            <div class="card-body border-bottom py-2 collapse show" id="payout-code-lookup-bar">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <label class="small text-muted mb-0 text-nowrap" for="admin-payout-code-lookup-input">Verify Jotform code</label>
+                    <input type="text" class="form-control form-control-sm" id="admin-payout-code-lookup-input" placeholder="RP-XXXX-XXXX" style="max-width:180px" autocomplete="off" />
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="admin-payout-code-lookup-btn">Look up</button>
+                    <span class="small text-muted" id="admin-payout-code-lookup-result"></span>
                 </div>
             </div>
             <div class="card-body p-0 collapse show" id="all-clients-body">
@@ -956,6 +964,44 @@
             });
         });
 
+        function runPayoutCodeLookup() {
+            var code = $('#admin-payout-code-lookup-input').val().trim();
+            var $result = $('#admin-payout-code-lookup-result');
+            if (!code) {
+                $result.html('<span class="text-danger">Enter a payout verification code.</span>');
+                return;
+            }
+            $result.html('<span class="text-muted">Looking up…</span>');
+            API.request('/admin/payout-verification-lookup?code=' + encodeURIComponent(code))
+                .then(function(data) {
+                    var m = data.match;
+                    if (!m) {
+                        $result.html('<span class="text-danger">No client found for that code.</span>');
+                        return;
+                    }
+                    var name = escapeHtml(m.full_name || m.company_name || m.email || 'Client');
+                    var email = escapeHtml(m.email || '');
+                    var idPadded = String(m.id).padStart(4, '0');
+                    $result.html(
+                        '<span class="text-success me-2">Match: <strong>' + name + '</strong> (' + email + ') · ID ' + idPadded + '</span>' +
+                        '<a href="client.html?id=' + encodeURIComponent(m.id) + '" class="btn btn-sm btn-outline-secondary me-1">Manage client</a>' +
+                        '<button type="button" class="btn btn-sm btn-outline-primary view-dashboard-btn" data-id="' + m.id + '" data-name="' + name + '">View dashboard</button>'
+                    );
+                })
+                .catch(function(e) {
+                    var msg = (e && e.error) ? e.error : 'Lookup failed';
+                    $result.html('<span class="text-danger">' + escapeHtml(msg) + '</span>');
+                });
+        }
+
+        $('#admin-payout-code-lookup-btn').on('click', runPayoutCodeLookup);
+        $('#admin-payout-code-lookup-input').on('keydown', function(ev) {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                runPayoutCodeLookup();
+            }
+        });
+
         function renderPendingApprovalHint(cfg) {
             var $hint = $('#pending-registrations-approval-hint');
             if (!$hint.length) return;
@@ -1207,7 +1253,8 @@
                                 'data-id="' + u.id + '" value="' + escapeHtml(legRaw) + '" placeholder="Old ID" maxlength="64" />' +
                             '<button type="button" class="btn btn-sm btn-outline-primary save-legacy-id-btn" data-id="' + u.id + '">Save</button>' +
                         '</div>';
-                    var searchHay = (idPadded + ' ' + legRaw + ' ' + (u.full_name || '') + ' ' + (u.email || '') + ' ' + (u.company_name || '')).toLowerCase();
+                    var payoutCode = (u.payout_verification_code && String(u.payout_verification_code).trim()) ? String(u.payout_verification_code).trim() : '';
+                    var searchHay = (idPadded + ' ' + legRaw + ' ' + (u.full_name || '') + ' ' + (u.email || '') + ' ' + (u.company_name || '') + ' ' + payoutCode).toLowerCase();
                     var row = '<tr data-search="' + escapeHtml(searchHay) + '">' +
                         '<td>' + idPadded + '</td>' +
                         '<td>' + legCell + '</td>' +
