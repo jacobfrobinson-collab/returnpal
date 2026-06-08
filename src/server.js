@@ -246,9 +246,13 @@ async function start() {
 
         try {
             const { startWeeklyDigestScheduler } = require('./jobs/weeklyDigest');
+            const { startMonthlyDigestScheduler } = require('./jobs/monthlyDigest');
+            const { startMonthlyInvoiceScheduler } = require('./jobs/monthlyInvoiceEmail');
             startWeeklyDigestScheduler();
+            startMonthlyDigestScheduler();
+            startMonthlyInvoiceScheduler();
         } catch (e) {
-            console.warn('Weekly digest scheduler:', e && e.message);
+            console.warn('Email schedulers:', e && e.message);
         }
     } catch (err) {
         console.error('Failed to start server:', err);

@@ -5,6 +5,7 @@ const {
     parseClientPreferences,
     mergeClientPreferencesFromClient,
 } = require('../utils/clientPreferences');
+const { prefsFromUserRow } = require('../utils/emailPreferences');
 
 const router = express.Router();
 
@@ -36,7 +37,7 @@ router.get('/', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        const prefs = parseClientPreferences(users[0].client_preferences);
+        const prefs = prefsFromUserRow(users[0]);
         res.json({
             settings: {
                 vat_registered: !!users[0].vat_registered,
@@ -60,9 +61,10 @@ router.put('/preferences', authMiddleware, async (req, res) => {
             db.exec('SELECT client_preferences FROM users WHERE id = ?', [req.user.id])
         );
         const merged = mergeClientPreferencesFromClient(cur[0]?.client_preferences, req.body);
+        const weeklyDigestCol = merged.email_digest === 'weekly' ? 1 : 0;
         db.run(
-            "UPDATE users SET client_preferences = ?, updated_at = datetime('now') WHERE id = ?",
-            [JSON.stringify(merged), req.user.id]
+            "UPDATE users SET client_preferences = ?, weekly_digest_email = ?, updated_at = datetime('now') WHERE id = ?",
+            [JSON.stringify(merged), weeklyDigestCol, req.user.id]
         );
         saveDb();
         res.json({ message: 'Preferences saved', preferences: merged });

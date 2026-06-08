@@ -478,6 +478,18 @@ async function getDb() {
     `);
     db.run('CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_log(created_at)');
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS email_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            kind TEXT NOT NULL,
+            ref_key TEXT NOT NULL,
+            sent_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(user_id, kind, ref_key)
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_email_log_user_kind ON email_log(user_id, kind)');
+
     try {
         db.run('ALTER TABLE users ADD COLUMN weekly_digest_email INTEGER DEFAULT 1');
     } catch (e) {

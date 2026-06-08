@@ -171,6 +171,12 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (status === 'Delivered') {
             const msg = 'Package ' + (pkg.reference || '') + ' marked as delivered';
             await pushActivity(pkg.user_id, 'package_delivered', msg, '/dashboard/packages.html');
+            try {
+                const { sendPackageDeliveredEmail } = require('../utils/sendTransactionalEmail');
+                await sendPackageDeliveredEmail(db, pkg.user_id, pkg.id, pkg.reference);
+            } catch (e) {
+                console.error('[email] package delivered:', e.message || e);
+            }
         }
 
         if (products && Array.isArray(products)) {

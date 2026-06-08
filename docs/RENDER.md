@@ -93,6 +93,27 @@ Create keys at [Cloudflare Turnstile](https://dash.cloudflare.com/?to=/:account/
 | `TURNSTILE_SECRET_KEY` | your secret key |
 | `SIGNUP_TURNSTILE_REQUIRED` | `1` |
 
+### Outbound email (SMTP)
+
+See [`EMAIL.md`](EMAIL.md) for full setup. Minimum for digests + transactional mail:
+
+| Key | Value |
+|-----|--------|
+| `EMAIL_ENABLED` | `1` |
+| `SMTP_HOST` | e.g. `smtp.sendgrid.net` |
+| `SMTP_PORT` | `587` |
+| `SMTP_SECURE` | `0` |
+| `SMTP_USER` | provider user (SendGrid: `apikey`) |
+| `SMTP_PASS` | provider secret |
+| `SMTP_FROM` | verified from address |
+| `PUBLIC_APP_URL` | `https://www.returnpal.co.uk` |
+| `WEEKLY_DIGEST_EMAIL_ENABLED` | `1` |
+| `MONTHLY_DIGEST_EMAIL_ENABLED` | `1` |
+| `MONTHLY_INVOICE_EMAIL_ENABLED` | `1` |
+| `TRANSACTIONAL_EMAIL_ENABLED` | `1` |
+
+After deploy, logs should show `[weekly-digest] scheduler started` (and monthly schedulers if enabled). Test with `npm run email:test-weekly -- USER_ID` from Shell.
+
 ### Optional
 
 | Key | Value |

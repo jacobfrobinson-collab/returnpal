@@ -3852,8 +3852,9 @@ const Dashboard = {
         $('#email-item-sold').prop('checked', p.email_item_sold !== false);
         $('#email-payout-sent').prop('checked', p.email_payout_sent !== false);
         $('#email-monthly-invoice').prop('checked', !!p.email_monthly_invoice);
-        if ($('#email-digest-preference').length && p.email_digest) {
-            $('#email-digest-preference').val(p.email_digest);
+        if ($('#email-digest-preference').length) {
+            const d = p.email_digest || 'off';
+            $('#email-digest-preference').val(d === 'weekly' || d === 'monthly' ? d : 'off');
         }
     },
 
@@ -4844,10 +4845,6 @@ const Dashboard = {
             if (data.settings) {
                 $('#flexSwitchCheckDefault').prop('checked', !!data.settings.vat_registered);
                 $('input[placeholder*="discord"]').val(data.settings.discord_webhook || '');
-                const wd = data.settings.weekly_digest_email;
-                const weeklyOn = wd === 1 || wd === '1' || wd === true;
-                const $dig = $('#email-digest-preference');
-                if ($dig.length) $dig.val(weeklyOn ? 'weekly' : 'off');
             }
             // Profile details (name, email from user; company from profile or billing)
             const user = API.getUser();
@@ -5017,12 +5014,11 @@ const Dashboard = {
 
             $(document).off('click', '#settings-email-prefs-save').on('click', '#settings-email-prefs-save', async function() {
                 const v = $('#email-digest-preference').val();
-                const on = v === 'weekly' || v === 'monthly';
                 const $btn = $(this);
                 try {
                     $btn.prop('disabled', true).text('Saving…');
                     await Dashboard.saveClientPreferences();
-                    await API.updateWeeklyDigest(on);
+                    await API.updateWeeklyDigest(v === 'weekly');
                     Dashboard.showToast('Email preferences saved');
                     $btn.text('Saved!');
                     setTimeout(() => $btn.text('Save email preferences').prop('disabled', false), 1500);

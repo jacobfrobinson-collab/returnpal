@@ -235,6 +235,12 @@ router.post('/', authMiddleware, async (req, res) => {
                     : 0;
         const msg = 'Item "' + (product || '') + '" sold for £' + amount.toFixed(2);
         await pushActivity(targetUserId, 'item_sold', msg, '/dashboard/sold-items.html');
+        try {
+            const { sendItemSoldEmail } = require('../utils/sendTransactionalEmail');
+            await sendItemSoldEmail(db, targetUserId, id, product, amount);
+        } catch (e) {
+            console.error('[email] item sold:', e.message || e);
+        }
 
         res.status(201).json({ message: 'Sold item recorded', id });
     } catch (err) {

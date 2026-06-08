@@ -741,11 +741,18 @@ function importSoldRow(db, userId, row) {
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
     const amount = total || unit * qty;
     const msg = 'Item "' + product + '" sold for £' + amount.toFixed(2);
+    const soldId = id;
+    const soldProduct = product;
+    const soldAmount = amount;
     return {
         id,
         table: 'sold_items',
         rollbackJson: '',
         activity: () => pushActivity(userId, 'item_sold', msg, '/dashboard/sold-items.html'),
+        eventEmail: async () => {
+            const { sendItemSoldEmail } = require('./sendTransactionalEmail');
+            await sendItemSoldEmail(db, userId, soldId, soldProduct, soldAmount);
+        },
     };
 }
 
@@ -832,11 +839,20 @@ function importMarkDeliveredRow(db, userId, row) {
         db.run(`UPDATE packages SET status = ?, updated_at = datetime('now') WHERE id = ?`, ['Delivered', pkg.id]);
     }
     const msg = 'Package ' + (pkg.reference || '') + ' marked as delivered';
+    const pkgId = pkg.id;
+    const pkgRef = pkg.reference;
     return {
         id: pkg.id,
         table: 'packages',
         rollbackJson: JSON.stringify({ type: 'package_status', package_id: pkg.id, previous_status: previousStatus }),
         activity: () => pushActivity(userId, 'package_delivered', msg, '/dashboard/packages.html'),
+        eventEmail:
+            previousStatus !== 'Delivered'
+                ? async () => {
+                      const { sendPackageDeliveredEmail } = require('./sendTransactionalEmail');
+                      await sendPackageDeliveredEmail(db, userId, pkgId, pkgRef);
+                  }
+                : undefined,
     };
 }
 
@@ -1249,6 +1265,7 @@ async function runBulkImport(db, kind, userId, buffer, options = {}) {
     let skipped_no_matching_sale = 0;
     const skipped_no_sale_samples = [];
     const activities = [];
+    const eventEmails = [];
     const inserted = [];
 
     for (let i = 0; i < rows.length; i++) {
@@ -1267,6 +1284,7 @@ async function runBulkImport(db, kind, userId, buffer, options = {}) {
                 continue;
             }
             if (result && result.activity) activities.push(result.activity);
+            if (result && result.eventEmail) eventEmails.push(result.eventEmail);
             imported++;
             if (result && result.table) {
                 inserted.push({
@@ -1288,6 +1306,13 @@ async function runBulkImport(db, kind, userId, buffer, options = {}) {
                 await fn();
             } catch (e) {
                 console.error('Bulk import activity error:', e);
+            }
+        }
+        for (const fn of eventEmails) {
+            try {
+                await fn();
+            } catch (e) {
+                console.error('Bulk import event email error:', e);
             }
         }
     }
@@ -1356,6 +1381,7 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
     let skipped_no_matching_sale = 0;
     const skipped_no_sale_samples = [];
     const activities = [];
+    const eventEmails = [];
     const byUser = {};
     const inserted = [];
     const pendingBuffer = [];
@@ -1410,6 +1436,7 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
                 continue;
             }
             if (result && result.activity) activities.push(result.activity);
+            if (result && result.eventEmail) eventEmails.push(result.eventEmail);
             imported++;
             const k = String(userId);
             byUser[k] = (byUser[k] || 0) + 1;
@@ -1451,6 +1478,13 @@ async function runBulkImportMulti(db, kind, buffer, opts = {}) {
                 await fn();
             } catch (e) {
                 console.error('Bulk import activity error:', e);
+            }
+        }
+        for (const fn of eventEmails) {
+            try {
+                await fn();
+            } catch (e) {
+                console.error('Bulk import event email error:', e);
             }
         }
     }

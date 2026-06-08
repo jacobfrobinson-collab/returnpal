@@ -1,7 +1,15 @@
 /**
- * Optional Monday 08:00 digest email (configure SMTP_* env vars).
+ * Optional Monday 08:00 weekly digest email.
  */
 const { getDb } = require('../database');
+const { isWeeklyDigestEnabled, sendEmail, publicAppUrl, escapeHtml } = require('../utils/emailTransport');
+const {
+    prefsFromUserRow,
+    wantsWeeklyDigest,
+    listNonAdminUsersWithEmail,
+    weeklyDigestRefKey,
+} = require('../utils/emailPreferences');
+const { wasEmailSent, recordEmailSent } = require('../utils/emailLog');
 
 function parseResults(result) {
     if (!result || !result.length) return [];
@@ -17,38 +25,42 @@ function parseResults(result) {
 
 function buildDigestBody(u, stats) {
     const name = u.full_name || u.email || 'there';
+    const url = publicAppUrl() + '/dashboard/index.html';
+    const recovered =
+        stats.soldRecovered > 0
+            ? `\n• £ recovered from sales: £${stats.soldRecovered.toFixed(2)}`
+            : '';
+    const recoveredHtml =
+        stats.soldRecovered > 0
+            ? `<li>£ recovered from sales: <strong>£${stats.soldRecovered.toFixed(2)}</strong></li>`
+            : '';
     return {
         subject: 'Your ReturnPal week in review',
         text:
             `Hi ${name},\n\n` +
             `Here is activity on your account in the last 7 days:\n` +
             `• Received check-ins: ${stats.received}\n` +
-            `• Sales recorded: ${stats.sold}\n` +
-            `• Reimbursement claims: ${stats.claims}\n\n` +
-            `Open your dashboard: ${process.env.PUBLIC_APP_URL || 'https://returnpal.co.uk'}/dashboard/index.html\n\n` +
+            `• Sales recorded: ${stats.sold}` +
+            recovered +
+            `\n• Reimbursement claims: ${stats.claims}\n\n` +
+            `Open your dashboard: ${url}\n\n` +
             `— ReturnPal`,
         html:
             `<p>Hi ${escapeHtml(name)},</p>` +
             `<p>Activity in the last 7 days:</p><ul>` +
             `<li>Received check-ins: <strong>${stats.received}</strong></li>` +
             `<li>Sales recorded: <strong>${stats.sold}</strong></li>` +
+            recoveredHtml +
             `<li>Reimbursement claims: <strong>${stats.claims}</strong></li></ul>` +
-            `<p><a href="${escapeHtml(process.env.PUBLIC_APP_URL || 'https://returnpal.co.uk')}/dashboard/index.html">Open dashboard</a></p>` +
+            `<p><a href="${escapeHtml(url)}">Open dashboard</a></p>` +
             `<p>— ReturnPal</p>`,
     };
 }
 
-function escapeHtml(s) {
-    return String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
-
-async function sendDigestForUser(nodemailer, transport, u) {
-    const db = await getDb();
+async function sendDigestForUser(db, u, refKey) {
     const uid = u.id;
+    if (wasEmailSent(db, uid, 'weekly_digest', refKey)) return;
+
     const received = parseResults(
         db.exec(
             "SELECT COUNT(*) as c FROM received_items WHERE user_id = ? AND date_received >= datetime('now', '-7 days')",
@@ -61,6 +73,13 @@ async function sendDigestForUser(nodemailer, transport, u) {
             [uid]
         )
     );
+    const soldSum = parseResults(
+        db.exec(
+            `SELECT COALESCE(SUM(COALESCE(profit, total_revenue, 0)), 0) AS s
+             FROM sold_items WHERE user_id = ? AND sold_date >= date(datetime('now', '-7 days'))`,
+            [uid]
+        )
+    );
     const claims = parseResults(
         db.exec(
             "SELECT COUNT(*) as c FROM reimbursement_claims WHERE user_id = ? AND created_at >= datetime('now', '-7 days')",
@@ -70,53 +89,28 @@ async function sendDigestForUser(nodemailer, transport, u) {
     const stats = {
         received: received[0]?.c || 0,
         sold: sold[0]?.c || 0,
+        soldRecovered: Number(soldSum[0]?.s) || 0,
         claims: claims[0]?.c || 0,
     };
     if (stats.received + stats.sold + stats.claims === 0) return;
 
     const { subject, text, html } = buildDigestBody(u, stats);
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@returnpal.local';
-    await transport.sendMail({
-        from,
-        to: u.email,
-        subject,
-        text,
-        html,
-    });
+    const sent = await sendEmail({ to: u.email, subject, text, html });
+    if (sent) recordEmailSent(db, uid, 'weekly_digest', refKey);
 }
 
 async function runWeeklyDigestOnce() {
-    if (process.env.WEEKLY_DIGEST_EMAIL_ENABLED !== '1') {
+    if (!isWeeklyDigestEnabled()) {
         return;
     }
-    if (!process.env.SMTP_HOST) {
-        console.warn('[weekly-digest] WEEKLY_DIGEST_EMAIL_ENABLED=1 but SMTP_HOST is not set; skipping send.');
-        return;
-    }
-    const nodemailer = require('nodemailer');
-    const transport = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587', 10),
-        secure: process.env.SMTP_SECURE === '1',
-        auth:
-            process.env.SMTP_USER && process.env.SMTP_PASS
-                ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-                : undefined,
-    });
 
     const db = await getDb();
-    const users = parseResults(
-        db.exec(
-            `SELECT id, email, full_name FROM users
-             WHERE COALESCE(is_admin, 0) = 0
-               AND COALESCE(weekly_digest_email, 1) = 1
-               AND email IS NOT NULL AND TRIM(email) <> ''`
-        )
-    );
+    const refKey = weeklyDigestRefKey();
+    const users = listNonAdminUsersWithEmail(db).filter((u) => wantsWeeklyDigest(prefsFromUserRow(u)));
 
     for (const u of users) {
         try {
-            await sendDigestForUser(nodemailer, transport, u);
+            await sendDigestForUser(db, u, refKey);
         } catch (e) {
             console.error('[weekly-digest] send failed for user', u.id, e.message || e);
         }
@@ -125,7 +119,7 @@ async function runWeeklyDigestOnce() {
 }
 
 function startWeeklyDigestScheduler() {
-    if (process.env.WEEKLY_DIGEST_EMAIL_ENABLED !== '1') {
+    if (!isWeeklyDigestEnabled()) {
         return;
     }
     let cron;
@@ -146,4 +140,4 @@ function startWeeklyDigestScheduler() {
     console.log('[weekly-digest] scheduler started:', expr, process.env.WEEKLY_DIGEST_TZ || 'Europe/London');
 }
 
-module.exports = { startWeeklyDigestScheduler, runWeeklyDigestOnce };
+module.exports = { startWeeklyDigestScheduler, runWeeklyDigestOnce, sendDigestForUser };
