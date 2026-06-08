@@ -61,7 +61,7 @@ function buildReferralInviteEmail(opts) {
         ) +
         signOffHtml();
 
-    const subject = referrerName + ' invited you to try ReturnPal';
+    const subject = referrerName + " thinks you'll love this";
 
     const text = buildPlainEmail({
         title: subject,

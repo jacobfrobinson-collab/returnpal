@@ -8,7 +8,7 @@ const built = buildReferralInviteEmail({
     personalMessage: 'You should try this. It saved me a fortune on returns.',
 });
 
-assert.ok(built.subject.includes('Jane Seller'));
+assert.ok(built.subject.includes("Jane Seller thinks you'll love this"));
 assert.ok(built.html.includes('Jane Seller'));
 assert.ok(built.html.includes('register.html?ref=RP16'));
 assert.ok(built.html.includes('Sign up for ReturnPal'));
