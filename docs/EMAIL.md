@@ -10,6 +10,7 @@ ReturnPal can send:
 | Item sold | When a sale row is created | Per-client toggle |
 | Payout sent | Wording in monthly email when Paid | Per-client toggle |
 | **Admin: client query** | Client submits or follows up on **My queries** | `ADMIN_QUERY_NOTIFY_EMAIL` |
+| **Admin: homepage contact** | Public **Contact us** form on [returnpal.co.uk](https://www.returnpal.co.uk/index.html#contact) | Same inbox |
 
 Weekly emails always send (including zero-activity weeks). Monthly emails include invoice totals and payout schedule text.
 

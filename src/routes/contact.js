@@ -24,7 +24,22 @@ router.post('/', [
             'INSERT INTO contact_messages (name, email, subject, message) VALUES (?, ?, ?, ?)',
             [name, email, subject, message]
         );
+        const rid = db.exec('SELECT last_insert_rowid() as id');
+        const contactId = rid[0].values[0][0];
         saveDb();
+
+        try {
+            const { notifyAdminContactMessage } = require('../utils/adminQueryNotification');
+            await notifyAdminContactMessage(db, {
+                contactId,
+                name,
+                email,
+                subject,
+                message,
+            });
+        } catch (e) {
+            console.error('[admin-contact-notify]', e.message || e);
+        }
 
         res.status(201).json({ message: 'Message sent successfully. We will get back to you soon!' });
     } catch (err) {

@@ -1,6 +1,7 @@
 /**
- * Email ReturnPal operators when a client submits or follows up on a query thread.
+ * Email ReturnPal operators for inbound messages (client queries, homepage contact form).
  */
+const PUBLIC_CONTACT_LOG_USER_ID = 0;
 const { isEmailConfigured, sendEmail, publicAppUrl, escapeHtml } = require('./emailTransport');
 const {
     wrapBrandedEmail,
@@ -180,8 +181,100 @@ async function notifyAdminClientQuery(db, opts) {
     return sent;
 }
 
+function buildAdminContactFormEmail({ name, email, subject, message, contactId }) {
+    const title = 'New website contact message';
+    const emailSubject = `ReturnPal: contact form — ${subject || name}`;
+    const msgHtml = escapeHtml(truncate(message)).replace(/\n/g, '<br>');
+
+    const summaryRows = [
+        { label: 'Name', value: name || '—', emphasis: true },
+        { label: 'Email', value: email || '—' },
+        { label: 'Subject', value: subject || '—' },
+        { label: 'Message #', value: contactId != null ? String(contactId) : '—' },
+    ];
+
+    const bodyHtml =
+        greetingHtml('team') +
+        paragraphHtml(
+            `Someone submitted the <strong>contact form</strong> on the ReturnPal homepage. Reply directly to their email address below.`
+        ) +
+        summaryTableHtml('Contact details', summaryRows) +
+        `<div style="margin:0 0 24px;padding:16px 18px;background:#f8fafc;border:1px solid #d8dfe7;border-radius:8px;">` +
+        `<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#687d92;margin-bottom:8px;">Message</div>` +
+        `<div style="font-size:15px;line-height:1.6;color:#323a46;">${msgHtml}</div></div>` +
+        (email
+            ? `<p style="margin:0 0 24px;font-size:14px;color:#687d92;">Reply: <a href="mailto:${escapeHtml(email)}" style="color:#128BD0;">${escapeHtml(email)}</a></p>`
+            : '') +
+        signOffHtml();
+
+    const html = wrapBrandedEmail({
+        title,
+        subtitle: subject || 'Homepage contact',
+        bodyHtml,
+        preheader: `${name}: ${truncate(message, 120)}`,
+    });
+
+    const text = buildPlainEmail({
+        title: emailSubject,
+        greeting: 'Hello team,',
+        paragraphs: [
+            `New message from the homepage contact form.`,
+            `From: ${name} <${email}>`,
+            `Subject: ${subject}`,
+            '',
+            'Message:',
+            truncate(message),
+        ],
+    });
+
+    return { subject: emailSubject, text, html };
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {object} opts
+ * @param {number} opts.contactId
+ * @param {string} opts.name
+ * @param {string} opts.email
+ * @param {string} opts.subject
+ * @param {string} opts.message
+ */
+async function notifyAdminContactMessage(db, opts) {
+    if (!isAdminQueryNotifyEnabled()) return false;
+
+    const to = adminNotifyEmail();
+    if (!to) {
+        console.warn('[admin-contact-notify] no ADMIN_QUERY_NOTIFY_EMAIL configured');
+        return false;
+    }
+
+    const { contactId, name, email, subject, message } = opts;
+    const refKey = `contact:${contactId}`;
+
+    if (wasEmailSent(db, PUBLIC_CONTACT_LOG_USER_ID, 'admin_contact_notify', refKey)) {
+        return false;
+    }
+
+    const { subject: emailSubject, text, html } = buildAdminContactFormEmail({
+        name,
+        email,
+        subject,
+        message,
+        contactId,
+    });
+
+    const sent = await sendEmail({ to, subject: emailSubject, text, html });
+    if (sent) {
+        recordEmailSent(db, PUBLIC_CONTACT_LOG_USER_ID, 'admin_contact_notify', refKey);
+        console.log('[admin-contact-notify] sent to', to, 'for contact', contactId);
+    }
+    return sent;
+}
+
 module.exports = {
     isAdminQueryNotifyEnabled,
     adminNotifyEmail,
     notifyAdminClientQuery,
+    notifyAdminContactMessage,
+    PUBLIC_CONTACT_LOG_USER_ID,
 };
