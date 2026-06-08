@@ -15,6 +15,18 @@ const {
     parsePeriodYm,
     buildInvoicePeriodPayload,
 } = require('../utils/computedMonthlyStatements');
+const {
+    wrapBrandedEmail,
+    greetingHtml,
+    paragraphHtml,
+    heroAmountBlock,
+    summaryTableHtml,
+    noticeBoxHtml,
+    ctaButtonHtml,
+    signOffHtml,
+    buildPlainEmail,
+    formatGbp,
+} = require('../utils/emailTemplates');
 
 function periodLabel(periodYm) {
     const p = parsePeriodYm(periodYm);
@@ -23,42 +35,113 @@ function periodLabel(periodYm) {
     return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
+function statusTone(status) {
+    if (status === 'Paid') return 'success';
+    if (status === 'Pending') return 'warning';
+    return 'info';
+}
+
+function statusHeroLabel(status, amount) {
+    if (amount <= 0) return 'No payment due';
+    if (status === 'Paid') return 'Payout sent';
+    return 'Payout pending';
+}
+
 function buildInvoiceEmailBody(u, periodYm, detail, prefs) {
     const name = u.full_name || u.email || 'there';
     const label = periodLabel(periodYm);
     const amount = Number(detail.total) || 0;
     const status = detail.status || 'Pending';
+    const summary = detail.summary || {};
+    const salesProfit = Number(summary.sales_profit) || 0;
+    const refunds = Number(summary.refunds_and_returns) || 0;
+    const fees = Number(summary.fees_deducted) || 0;
+    const grossNet = Number(summary.gross_net) || 0;
+    const itemsCount = detail._items_count || 0;
+    const returnsCount = detail._returns_count || 0;
+    const noActivity = itemsCount === 0 && returnsCount === 0;
+
     const url =
         publicAppUrl() +
         '/dashboard/invoices.html' +
         (periodYm ? '?period=' + encodeURIComponent(periodYm) : '');
+
+    const payoutNotice =
+        status === 'Paid' && wantsEventEmail(prefs, 'payout_sent')
+            ? noticeBoxHtml(
+                  '<strong>Your payout has been sent.</strong> Funds for this period should appear in your account according to your usual payment schedule.'
+              )
+            : '';
+
+    const summaryRows = [
+        { label: 'Sales profit', value: formatGbp(salesProfit) },
+        { label: 'Refunds & returns', value: formatGbp(-Math.abs(refunds)), negative: refunds > 0 },
+        { label: 'Fees deducted', value: formatGbp(-Math.abs(fees)), negative: fees > 0 },
+        { label: 'Gross net', value: formatGbp(grossNet) },
+        { label: 'Items sold in period', value: String(itemsCount) },
+        { label: 'Returns in period', value: String(returnsCount) },
+        {
+            label: amount > 0 ? 'Net payout' : 'Net amount (no payment due)',
+            value: formatGbp(amount),
+            emphasis: true,
+        },
+    ];
+
+    const intro = noActivity
+        ? `The billing period for <strong>${escapeHtml(label)}</strong> has ended. There were no sales or returns recorded during this time. You can check your dashboard for the current status of all your products.`
+        : `The billing period for <strong>${escapeHtml(label)}</strong> has ended. Your monthly statement is ready — see the summary below and open your invoices page for the full breakdown.`;
+
+    const bodyHtml =
+        greetingHtml(name) +
+        paragraphHtml(intro) +
+        heroAmountBlock({
+            label: 'Payout amount',
+            amount,
+            statusLabel: statusHeroLabel(status, amount),
+            statusTone: noActivity ? 'muted' : statusTone(status),
+            noActivity,
+        }) +
+        summaryTableHtml('Period summary', summaryRows) +
+        noticeBoxHtml(
+            '<strong>📎 View your full billing statement online</strong><br>' +
+                'Open your invoices page for a detailed breakdown of all sales, returns, and fees for this period.'
+        ) +
+        payoutNotice +
+        paragraphHtml('If you have any questions about this billing period, please contact our support team.') +
+        ctaButtonHtml('Go to invoices', url) +
+        signOffHtml();
+
+    const html = wrapBrandedEmail({
+        title: 'Billing period update',
+        subtitle: label,
+        bodyHtml,
+        recipientEmail: u.email,
+        preheader: `${label}: ${formatGbp(amount)} · ${status}`,
+    });
+
     const payoutLine =
         status === 'Paid' && wantsEventEmail(prefs, 'payout_sent')
-            ? '\n\nYour payout for this period has been sent.'
+            ? 'Your payout for this period has been sent.'
             : '';
-    const payoutHtml =
-        status === 'Paid' && wantsEventEmail(prefs, 'payout_sent')
-            ? '<p><strong>Your payout for this period has been sent.</strong></p>'
-            : '';
-    return {
-        subject: `ReturnPal invoice — ${label}`,
-        text:
-            `Hi ${name},\n\n` +
-            `Your monthly statement for ${label} is ready.\n` +
-            `Net payout: £${amount.toFixed(2)}\n` +
-            `Status: ${status}${payoutLine}\n\n` +
-            `View invoice: ${url}\n\n` +
-            `— ReturnPal`,
-        html:
-            `<p>Hi ${escapeHtml(name)},</p>` +
-            `<p>Your monthly statement for <strong>${escapeHtml(label)}</strong> is ready.</p>` +
-            `<ul>` +
-            `<li>Net payout: <strong>£${amount.toFixed(2)}</strong></li>` +
-            `<li>Status: <strong>${escapeHtml(status)}</strong></li></ul>` +
-            payoutHtml +
-            `<p><a href="${escapeHtml(url)}">View invoice</a></p>` +
-            `<p>— ReturnPal</p>`,
-    };
+
+    const text = buildPlainEmail({
+        title: `ReturnPal billing period update — ${label}`,
+        greeting: `Hello ${name},`,
+        paragraphs: [
+            noActivity
+                ? `The billing period for ${label} has ended. There were no sales or returns recorded.`
+                : `Your monthly statement for ${label} is ready.`,
+            `Status: ${status}.`,
+            payoutLine,
+            'View your full statement on the invoices page.',
+        ].filter(Boolean),
+        summaryLines: summaryRows,
+        ctaLabel: 'Go to invoices',
+        ctaUrl: url,
+        recipientEmail: u.email,
+    });
+
+    return { subject: `ReturnPal billing update — ${label}`, text, html };
 }
 
 async function sendMonthlyInvoiceForUser(db, u, periodYm) {

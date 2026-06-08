@@ -2,7 +2,7 @@
  * Optional Monday 08:00 weekly digest email.
  */
 const { getDb } = require('../database');
-const { isWeeklyDigestEnabled, sendEmail, publicAppUrl, escapeHtml } = require('../utils/emailTransport');
+const { isWeeklyDigestEnabled, sendEmail, publicAppUrl } = require('../utils/emailTransport');
 const {
     prefsFromUserRow,
     wantsWeeklyDigest,
@@ -10,7 +10,17 @@ const {
     weeklyDigestRefKey,
 } = require('../utils/emailPreferences');
 const { wasEmailSent, recordEmailSent } = require('../utils/emailLog');
-
+const {
+    wrapBrandedEmail,
+    greetingHtml,
+    paragraphHtml,
+    heroAmountBlock,
+    summaryTableHtml,
+    ctaButtonHtml,
+    signOffHtml,
+    buildPlainEmail,
+    formatGbp,
+} = require('../utils/emailTemplates');
 function parseResults(result) {
     if (!result || !result.length) return [];
     const cols = result[0].columns;
@@ -26,35 +36,57 @@ function parseResults(result) {
 function buildDigestBody(u, stats) {
     const name = u.full_name || u.email || 'there';
     const url = publicAppUrl() + '/dashboard/index.html';
-    const recovered =
-        stats.soldRecovered > 0
-            ? `\n• £ recovered from sales: £${stats.soldRecovered.toFixed(2)}`
-            : '';
-    const recoveredHtml =
-        stats.soldRecovered > 0
-            ? `<li>£ recovered from sales: <strong>£${stats.soldRecovered.toFixed(2)}</strong></li>`
-            : '';
-    return {
-        subject: 'Your ReturnPal week in review',
-        text:
-            `Hi ${name},\n\n` +
-            `Here is activity on your account in the last 7 days:\n` +
-            `• Received check-ins: ${stats.received}\n` +
-            `• Sales recorded: ${stats.sold}` +
-            recovered +
-            `\n• Reimbursement claims: ${stats.claims}\n\n` +
-            `Open your dashboard: ${url}\n\n` +
-            `— ReturnPal`,
-        html:
-            `<p>Hi ${escapeHtml(name)},</p>` +
-            `<p>Activity in the last 7 days:</p><ul>` +
-            `<li>Received check-ins: <strong>${stats.received}</strong></li>` +
-            `<li>Sales recorded: <strong>${stats.sold}</strong></li>` +
-            recoveredHtml +
-            `<li>Reimbursement claims: <strong>${stats.claims}</strong></li></ul>` +
-            `<p><a href="${escapeHtml(url)}">Open dashboard</a></p>` +
-            `<p>— ReturnPal</p>`,
-    };
+    const hasActivity = stats.received + stats.sold + stats.claims > 0;
+
+    const summaryRows = [
+        { label: 'Received check-ins', value: String(stats.received) },
+        { label: 'Sales recorded', value: String(stats.sold) },
+        { label: '£ recovered from sales', value: formatGbp(stats.soldRecovered), emphasis: stats.soldRecovered > 0 },
+        { label: 'Reimbursement claims', value: String(stats.claims) },
+    ];
+
+    const bodyHtml =
+        greetingHtml(name) +
+        paragraphHtml(
+            hasActivity
+                ? 'Here is a snapshot of activity on your ReturnPal account over the <strong>last 7 days</strong>.'
+                : 'There was no recorded activity on your account in the last 7 days.'
+        ) +
+        heroAmountBlock({
+            label: 'Recovered this week',
+            amount: stats.soldRecovered,
+            statusLabel: hasActivity ? 'Weekly update' : 'No activity',
+            statusTone: hasActivity ? 'success' : 'muted',
+            noActivity: !hasActivity,
+        }) +
+        summaryTableHtml('Week in review', summaryRows) +
+        paragraphHtml('Open your dashboard for full details on packages, sold items, and claims.') +
+        ctaButtonHtml('Go to dashboard', url) +
+        signOffHtml();
+
+    const html = wrapBrandedEmail({
+        title: 'Your week in review',
+        subtitle: 'Weekly account summary',
+        bodyHtml,
+        recipientEmail: u.email,
+        preheader: `${stats.sold} sales · ${formatGbp(stats.soldRecovered)} recovered this week`,
+    });
+
+    const text = buildPlainEmail({
+        title: 'Your ReturnPal week in review',
+        greeting: `Hello ${name},`,
+        paragraphs: [
+            hasActivity
+                ? 'Here is activity on your account in the last 7 days.'
+                : 'There was no recorded activity in the last 7 days.',
+        ],
+        summaryLines: summaryRows,
+        ctaLabel: 'Open dashboard',
+        ctaUrl: url,
+        recipientEmail: u.email,
+    });
+
+    return { subject: 'Your ReturnPal week in review', text, html };
 }
 
 async function sendDigestForUser(db, u, refKey) {

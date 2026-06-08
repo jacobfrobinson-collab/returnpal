@@ -2,7 +2,7 @@
  * 1st of month digest for users with email_digest = monthly.
  */
 const { getDb } = require('../database');
-const { isMonthlyDigestEnabled, sendEmail, publicAppUrl, escapeHtml } = require('../utils/emailTransport');
+const { isMonthlyDigestEnabled, sendEmail, publicAppUrl } = require('../utils/emailTransport');
 const {
     prefsFromUserRow,
     wantsMonthlyDigest,
@@ -14,6 +14,17 @@ const {
     parsePeriodYm,
     buildInvoicePeriodPayload,
 } = require('../utils/computedMonthlyStatements');
+const {
+    wrapBrandedEmail,
+    greetingHtml,
+    paragraphHtml,
+    heroAmountBlock,
+    summaryTableHtml,
+    ctaButtonHtml,
+    signOffHtml,
+    buildPlainEmail,
+    formatGbp,
+} = require('../utils/emailTemplates');
 
 function parseResults(result) {
     if (!result || !result.length) return [];
@@ -34,29 +45,58 @@ function periodLabel(periodYm) {
     return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
-function buildMonthlyDigestBody(u, periodYm, stats) {
+function buildMonthlyDigestBody(u, periodYm, stats, detail) {
     const name = u.full_name || u.email || 'there';
     const label = periodLabel(periodYm);
     const url = publicAppUrl() + '/dashboard/analytics.html';
-    return {
-        subject: `Your ReturnPal summary for ${label}`,
-        text:
-            `Hi ${name},\n\n` +
-            `Here is your account summary for ${label}:\n` +
-            `• Items sold: ${stats.itemsSold}\n` +
-            `• Net payout estimate: £${stats.netPayout.toFixed(2)}\n` +
-            `• Open reimbursement claims: ${stats.openClaims}\n\n` +
-            `View analytics: ${url}\n\n` +
-            `— ReturnPal`,
-        html:
-            `<p>Hi ${escapeHtml(name)},</p>` +
-            `<p>Your account summary for <strong>${escapeHtml(label)}</strong>:</p><ul>` +
-            `<li>Items sold: <strong>${stats.itemsSold}</strong></li>` +
-            `<li>Net payout estimate: <strong>£${stats.netPayout.toFixed(2)}</strong></li>` +
-            `<li>Open reimbursement claims: <strong>${stats.openClaims}</strong></li></ul>` +
-            `<p><a href="${escapeHtml(url)}">View analytics</a></p>` +
-            `<p>— ReturnPal</p>`,
-    };
+    const salesProfit = detail?.summary?.sales_profit ?? 0;
+    const refunds = detail?.summary?.refunds_and_returns ?? 0;
+    const fees = detail?.summary?.fees_deducted ?? 0;
+
+    const summaryRows = [
+        { label: 'Items sold', value: String(stats.itemsSold) },
+        { label: 'Sales profit', value: formatGbp(salesProfit), emphasis: true },
+        { label: 'Refunds & returns', value: formatGbp(-Math.abs(refunds)), negative: refunds > 0 },
+        { label: 'Fees deducted', value: formatGbp(-Math.abs(fees)), negative: fees > 0 },
+        { label: 'Net payout estimate', value: formatGbp(stats.netPayout), emphasis: true },
+        { label: 'Open reimbursement claims', value: String(stats.openClaims) },
+    ];
+
+    const bodyHtml =
+        greetingHtml(name) +
+        paragraphHtml(
+            `Your <strong>${label}</strong> account summary is ready. Here are the key numbers from the billing period that just ended.`
+        ) +
+        heroAmountBlock({
+            label: 'Net payout estimate',
+            amount: stats.netPayout,
+            statusLabel: stats.netPayout > 0 ? 'Period complete' : 'No payment due',
+            statusTone: stats.netPayout > 0 ? 'success' : 'muted',
+        }) +
+        summaryTableHtml('Period summary', summaryRows) +
+        paragraphHtml('View analytics for ROI trends, recovery scorecard, and inventory insights.') +
+        ctaButtonHtml('Go to analytics', url) +
+        signOffHtml();
+
+    const html = wrapBrandedEmail({
+        title: 'Monthly account summary',
+        subtitle: label,
+        bodyHtml,
+        recipientEmail: u.email,
+        preheader: `${label}: ${formatGbp(stats.netPayout)} net payout · ${stats.itemsSold} items sold`,
+    });
+
+    const text = buildPlainEmail({
+        title: `Your ReturnPal summary for ${label}`,
+        greeting: `Hello ${name},`,
+        paragraphs: [`Your account summary for ${label} is ready.`],
+        summaryLines: summaryRows,
+        ctaLabel: 'View analytics',
+        ctaUrl: url,
+        recipientEmail: u.email,
+    });
+
+    return { subject: `Your ReturnPal summary for ${label}`, text, html };
 }
 
 async function sendMonthlyDigestForUser(db, u, periodYm) {
@@ -83,7 +123,7 @@ async function sendMonthlyDigestForUser(db, u, periodYm) {
         openClaims: openClaims[0]?.c || 0,
     };
 
-    const { subject, text, html } = buildMonthlyDigestBody(u, periodYm, stats);
+    const { subject, text, html } = buildMonthlyDigestBody(u, periodYm, stats, detail);
     const sent = await sendEmail({ to: u.email, subject, text, html });
     if (sent) recordEmailSent(db, u.id, 'monthly_digest', refKey);
 }
