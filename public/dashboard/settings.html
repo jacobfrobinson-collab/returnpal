@@ -148,6 +148,8 @@
                     </div>
                     <!-- ========== Page Title End ========== -->
 
+                    <div class="alert alert-light border d-none mb-4" id="settings-loyalty-tier" role="status"></div>
+
                     <!-- Start here.... -->
                     <div class="row">
                         <div class="col-lg-6">
@@ -315,16 +317,25 @@
                             </div>
                             <div class="card">
                                 <div class="card-header d-flex justify-content-between align-items-center">
-                                    <div>Discord Notifications</div>
+                                    <div>Discord &amp; Slack notifications</div>
                                 </div>
-                                <div class="card-body">
-                                    <div class="mb-1">
+                                <div class="card-body" id="settings-webhooks-card">
+                                    <div class="mb-3">
                                         <label class="form-label">Discord Webhook URL</label>
-                                        <input type="text" class="form-control" placeholder="https://discord.com/api/webhooks/...">
+                                        <input type="text" class="form-control" id="settings-discord-webhook" placeholder="https://discord.com/api/webhooks/...">
                                     </div>
-                                    <small class="text-muted">Create a webhook in your Discord server settings → Integrations → Webhooks</small>
+                                    <div class="mb-3">
+                                        <label class="form-label">Slack Webhook URL</label>
+                                        <input type="text" class="form-control" id="settings-slack-webhook" placeholder="https://hooks.slack.com/services/...">
+                                    </div>
+                                    <p class="small text-muted mb-2">Event templates: item sold, payout paid, query reply, package delivered, high-value received.</p>
+                                    <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="webhook-item-sold" checked><label class="form-check-label" for="webhook-item-sold">Item sold</label></div>
+                                    <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="webhook-payout-paid" checked><label class="form-check-label" for="webhook-payout-paid">Payout paid</label></div>
+                                    <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="webhook-query-reply" checked><label class="form-check-label" for="webhook-query-reply">Query reply</label></div>
+                                    <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="webhook-package-delivered" checked><label class="form-check-label" for="webhook-package-delivered">Package delivered</label></div>
+                                    <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="webhook-high-value" checked><label class="form-check-label" for="webhook-high-value">High-value received</label></div>
                                     <div class="text-end">
-                                        <button class="btn btn-primary px-4 mt-3">Save Webhook</button>
+                                        <button type="button" class="btn btn-primary px-4" id="settings-webhooks-save">Save webhooks</button>
                                     </div>
                                 </div>
                             </div>
@@ -345,13 +356,21 @@
                                             <input class="form-check-input" type="checkbox" id="email-payout-sent" checked>
                                             <label class="form-check-label" for="email-payout-sent">Include payout-sent notice in monthly invoice email</label>
                                         </div>
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="email-trust-monthly" checked>
+                                            <label class="form-check-label" for="email-trust-monthly">Monthly trust email — narrative “here’s what we did for you”</label>
+                                        </div>
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="email-action-digest" checked>
+                                            <label class="form-check-label" for="email-action-digest">Weekly action-required digest (billing, claims, queries)</label>
+                                        </div>
                                         <div class="mb-3 mt-3">
                                             <label class="form-label">Scheduled summary emails</label>
                                             <select class="form-select form-select-sm" id="email-digest-preference" aria-label="Scheduled summary emails">
                                                 <option value="weekly">On — Sunday weekly + monthly snapshot (1st)</option>
                                                 <option value="off">Off — unsubscribe from scheduled summaries</option>
                                             </select>
-                                            <small class="text-muted">Weekly emails cover Mon–Sun sales recovered. Monthly emails include your invoice and payout schedule.</small>
+                                            <small class="text-muted">Weekly stats email is separate from the action-required digest.</small>
                                         </div>
                                         <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="settings-email-prefs-save">Save email preferences</button>
                                         <p class="text-muted small mt-2 mb-0">Emails are sent only when ReturnPal has outbound mail configured on the server. If you are not receiving mail, contact support.</p>

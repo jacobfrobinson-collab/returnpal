@@ -12,6 +12,9 @@ const {
     earliestEligibleDateSentYmd,
     mapEnquiryRow,
 } = require('../utils/lostItemEnquiry');
+const { getClientActionItems } = require('../utils/clientActionItems');
+const { getClientBenchmarks } = require('../utils/clientBenchmarks');
+const { setClientPayoutNote } = require('../utils/payoutEvents');
 
 const router = express.Router();
 
@@ -373,6 +376,47 @@ router.post('/lost-items', authMiddleware, async (req, res) => {
         });
     } catch (err) {
         console.error('Lost items create error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/attention-items
+router.get('/attention-items', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const items = getClientActionItems(db, req.user.id);
+        res.json({ items });
+    } catch (err) {
+        console.error('Attention items error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/benchmarks?period=YYYY-MM
+router.get('/benchmarks', authMiddleware, async (req, res) => {
+    try {
+        const period = String(req.query.period || '').trim();
+        const db = await getDb();
+        res.json(getClientBenchmarks(db, req.user.id, period || undefined));
+    } catch (err) {
+        console.error('Benchmarks error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/prep-partners
+router.get('/prep-partners', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec(
+                `SELECT id, name, region, services, logo_url, contact_url, prep_address_template
+                 FROM prep_partners WHERE active = 1 ORDER BY sort_order ASC, name ASC`
+            )
+        );
+        res.json({ partners: rows });
+    } catch (err) {
+        console.error('Prep partners error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

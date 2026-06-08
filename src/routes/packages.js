@@ -120,6 +120,13 @@ router.post('/', authMiddleware, [
             );
         }
 
+        try {
+            const { maybeGrantReferralCredit } = require('../utils/referralCredits');
+            maybeGrantReferralCredit(db, targetUserId);
+        } catch (e) {
+            console.error('[referral-credit]', e.message || e);
+        }
+
         saveDb();
 
         res.status(201).json({

@@ -176,6 +176,24 @@ router.post('/', authMiddleware, async (req, res) => {
         const msg = 'Package received: ' + ref + (desc ? ' – ' + desc.slice(0, 80) : '');
         await pushActivity(targetUserId, 'package_received', msg, '/dashboard/received.html');
 
+        if (packageId) {
+            try {
+                const costRows = parseResults(
+                    db.exec(
+                        `SELECT COALESCE(MAX(cost_of_goods), 0) AS m FROM package_products WHERE package_id = ?`,
+                        [packageId]
+                    )
+                );
+                const maxCost = Number(costRows[0]?.m) || 0;
+                if (maxCost > 0) {
+                    const { sendHighValueReceivedEmail } = require('../utils/sendTransactionalEmail');
+                    await sendHighValueReceivedEmail(db, targetUserId, id, desc, maxCost);
+                }
+            } catch (e) {
+                console.error('[high-value-received]', e.message || e);
+            }
+        }
+
         res.status(201).json({ message: 'Received item recorded', id });
     } catch (err) {
         console.error('Create received error:', err);

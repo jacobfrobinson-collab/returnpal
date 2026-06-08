@@ -1293,8 +1293,11 @@ const API = {
     async updateVat(vat_registered) {
         return this.request('/settings/vat', { method: 'PUT', body: { vat_registered } });
     },
-    async updateWebhook(discord_webhook) {
-        return this.request('/settings/webhook', { method: 'PUT', body: { discord_webhook } });
+    async updateWebhook(discord_webhook, slack_webhook) {
+        return this.request('/settings/webhook', {
+            method: 'PUT',
+            body: { discord_webhook, slack_webhook },
+        });
     },
 
     async updateWeeklyDigest(weekly_digest_email) {
@@ -1357,6 +1360,26 @@ const API = {
 
     async getLostItems() {
         return this.request('/client/lost-items');
+    },
+
+    async getAttentionItems() {
+        return this.request('/client/attention-items');
+    },
+
+    async getBenchmarks(period) {
+        const q = period ? '?period=' + encodeURIComponent(period) : '';
+        return this.request('/client/benchmarks' + q);
+    },
+
+    async getPrepPartners() {
+        return this.request('/client/prep-partners');
+    },
+
+    async savePayoutNote(periodYm, note) {
+        return this.request('/invoices/period/' + encodeURIComponent(periodYm) + '/payout-note', {
+            method: 'PATCH',
+            body: { client_bank_note: note },
+        });
     },
 
     async submitLostItemEnquiry(body) {

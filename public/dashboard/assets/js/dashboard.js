@@ -724,6 +724,60 @@ const Dashboard = {
         });
     },
 
+    async loadPrepNetwork() {
+        const $grid = $('#prep-network-grid');
+        const $search = $('#prep-network-search');
+        if (!$grid.length) return;
+        $grid.html('<div class="col-12 text-muted">Loading…</div>');
+        try {
+            const data = await API.getPrepPartners();
+            const partners = data.partners || [];
+            const render = (list) => {
+                if (!list.length) {
+                    $grid.html('<div class="col-12 text-muted">No prep partners listed yet. Use Prep send-back with your own address in Settings.</div>');
+                    return;
+                }
+                let html = '';
+                list.forEach((p) => {
+                    html +=
+                        '<div class="col-md-6 col-lg-4 prep-partner-card" data-name="' +
+                        this.escHtml((p.name || '').toLowerCase()) +
+                        '"><div class="rp-card card border-0 h-100 p-3">' +
+                        '<h6 class="mb-1">' +
+                        this.escHtml(p.name) +
+                        '</h6>' +
+                        (p.region ? '<div class="small text-muted mb-2">' + this.escHtml(p.region) + '</div>' : '') +
+                        '<p class="small mb-3">' +
+                        this.escHtml(p.services || 'Prep & fulfilment partner') +
+                        '</p>' +
+                        '<a href="prep-sendback.html" class="btn btn-sm btn-outline-primary">Request send-back</a></div></div>';
+                });
+                $grid.html(html);
+            };
+            render(partners);
+            if ($search.length) {
+                $search.off('input.prepNet').on('input.prepNet', function() {
+                    const q = String($(this).val() || '')
+                        .toLowerCase()
+                        .trim();
+                    const filtered = partners.filter(
+                        (p) =>
+                            !q ||
+                            String(p.name || '')
+                                .toLowerCase()
+                                .includes(q) ||
+                            String(p.region || '')
+                                .toLowerCase()
+                                .includes(q)
+                    );
+                    render(filtered);
+                });
+            }
+        } catch (e) {
+            $grid.html('<div class="col-12 text-danger">Could not load prep network.</div>');
+        }
+    },
+
     async loadPrepSendback() {
         const $list = $('#prep-sendback-list');
         const $addr = $('#prep-sendback-address');
@@ -1199,6 +1253,8 @@ const Dashboard = {
             this.loadQueries();
         } else if (page.includes('exports')) {
             this.loadExportsHub();
+        } else if (page.includes('prep-network')) {
+            this.loadPrepNetwork();
         } else if (page.includes('prep-sendback')) {
             this.loadPrepSendback();
         } else if (page.includes('lost-items')) {
@@ -1381,6 +1437,7 @@ const Dashboard = {
             ['queries.html', 'ri-question-answer-line', 'My queries'],
             ['exports.html', 'ri-download-cloud-2-line', 'Exports hub'],
             ['scorecard.html', 'ri-pie-chart-2-line', 'Recovery scorecard'],
+            ['prep-network.html', 'ri-building-line', 'Prep network'],
             ['prep-sendback.html', 'ri-truck-line', 'Prep send-back'],
             ['lost-items.html', 'ri-search-eye-line', 'Missing/Lost Items'],
             ['reimbursement.html', 'ri-refund-line', 'Reimbursement / Claims'],
@@ -2002,85 +2059,77 @@ const Dashboard = {
             return;
         }
 
-        const items = [];
         try {
-            const [queriesData, lostData, reimbData, prefs] = await Promise.all([
-                API.getQueries().catch(() => ({ queries: [] })),
-                API.getLostItems().catch(() => ({ enquiries: [] })),
-                API.getReimbursementClaims().catch(() => ({ claims: [] })),
-                this.ensureClientPreferences(),
-            ]);
-
-            const awaitingReply = (queriesData.queries || []).filter(
-                (q) =>
-                    q.can_client_reply ||
-                    (String(q.last_sender || '') === 'admin' && String(q.status || '') === 'open')
-            );
-            if (awaitingReply.length) {
-                items.push({
-                    href: 'queries.html',
-                    text:
-                        awaitingReply.length === 1
-                            ? 'ReturnPal replied to your query — read and follow up'
-                            : awaitingReply.length + ' queries have replies from ReturnPal',
-                });
+            const data = await API.getAttentionItems().catch(() => ({ items: [] }));
+            const items = data.items || [];
+            if (!items.length) {
+                $strip.addClass('d-none');
+                $list.empty();
+                return;
             }
-
-            const pendingLost = (lostData.enquiries || []).filter((e) => e.status === 'pending');
-            if (pendingLost.length) {
-                items.push({
-                    href: 'lost-items.html',
-                    text:
-                        pendingLost.length +
-                        ' missing-item ' +
-                        (pendingLost.length === 1 ? 'enquiry' : 'enquiries') +
-                        ' under review',
-                });
-            }
-
-            const readyClaims = (reimbData.claims || []).filter((c) => (c.case_status || '') === 'ready');
-            if (readyClaims.length) {
-                items.push({
-                    href: 'reimbursement.html',
-                    text:
-                        readyClaims.length +
-                        ' reimbursement ' +
-                        (readyClaims.length === 1 ? 'claim is' : 'claims are') +
-                        ' ready to file in Seller Central',
-                });
-            }
-
-            const billingName = String((prefs && prefs.billing_name) || '').trim();
-            const billingAddr = String((prefs && prefs.billing_address) || '').trim();
-            if (!billingName || !billingAddr) {
-                items.push({
-                    href: 'settings.html',
-                    text: 'Add billing details in Settings so we can pay you on time',
-                });
-            }
+            let html = '';
+            items.forEach((it) => {
+                html +=
+                    '<li class="mb-2">' +
+                    '<a href="' +
+                    this.escHtml(it.href || '#') +
+                    '" class="text-decoration-none">' +
+                    '<i class="ri-arrow-right-s-line me-1"></i>' +
+                    this.escHtml(it.text) +
+                    '</a></li>';
+            });
+            $list.html(html);
+            $strip.removeClass('d-none');
         } catch (e) {
-            /* non-fatal */
-        }
-
-        if (!items.length) {
             $strip.addClass('d-none');
-            $list.empty();
-            return;
         }
+    },
 
-        let html = '';
-        items.forEach((it) => {
-            html +=
-                '<li class="mb-2">' +
-                '<a href="' +
-                this.escHtml(it.href) +
-                '" class="text-decoration-none">' +
-                '<i class="ri-arrow-right-s-line me-1"></i>' +
-                this.escHtml(it.text) +
-                '</a></li>';
+    renderMilestones(milestones, loyalty) {
+        const $wrap = $('#dashboard-milestones');
+        if (!$wrap.length || !milestones) return;
+        const earned = milestones.earned || [];
+        const next = milestones.next;
+        const pct = milestones.progress_pct != null ? milestones.progress_pct : 0;
+        let badges = '';
+        earned.forEach((b) => {
+            badges +=
+                '<span class="badge bg-success-subtle text-success me-1 mb-1"><i class="ri-medal-line me-1"></i>' +
+                this.escHtml(b.label) +
+                '</span>';
         });
-        $list.html(html);
-        $strip.removeClass('d-none');
+        let progressHtml = '';
+        if (next) {
+            progressHtml =
+                '<div class="small text-muted mb-1">' +
+                this.escHtml('£' + Number(next.remaining).toFixed(2) + ' to ' + next.label) +
+                '</div>' +
+                '<div class="progress" style="height:6px"><div class="progress-bar bg-primary" style="width:' +
+                Math.min(100, pct) +
+                '%"></div></div>';
+        } else if (earned.length) {
+            progressHtml = '<div class="small text-muted">All milestones unlocked — thank you for trusting ReturnPal.</div>';
+        }
+        let tierHtml = '';
+        if (loyalty && loyalty.tier && loyalty.tier !== 'standard') {
+            tierHtml =
+                '<span class="badge bg-warning-subtle text-warning-emphasis ms-2">' +
+                this.escHtml(loyalty.label) +
+                ' · ' +
+                this.escHtml(loyalty.sla) +
+                '</span>';
+        }
+        $wrap.html(
+            '<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">' +
+            '<h6 class="mb-0"><i class="ri-trophy-line me-1"></i>Lifetime recovery' +
+            tierHtml +
+            '</h6>' +
+            '<div>' +
+            badges +
+            '</div></div>' +
+            progressHtml
+        );
+        $wrap.removeClass('d-none');
     },
 
     async loadOverview() {
@@ -2172,6 +2221,7 @@ const Dashboard = {
             );
 
             this.renderAttentionStrip().catch(() => {});
+            this.renderMilestones(data.milestones, data.loyalty_tier);
 
             const $wRec = $('#dash-week-received');
             if ($wRec.length) {
@@ -3416,7 +3466,12 @@ const Dashboard = {
                         vat_amount: 0,
                         status: inv.status,
                         date_issued: inv.date_issued || fallbackIssueStr,
-                        payout_date: payoutDate
+                        payout_date: payoutDate,
+                        due_date: inv.due_date || '',
+                        days_until_due: inv.days_until_due,
+                        payout_date_label: inv.payout_date_label || '',
+                        bank_reference: inv.bank_reference || '',
+                        client_bank_note: inv.client_bank_note || '',
                     };
                 }
                 byMonth[key].amount += Number(inv.amount) || 0;
@@ -3471,6 +3526,26 @@ const Dashboard = {
             window._lastInvoicesData = monthly;
             $('.seco-title').text(monthly.length + ' invoice' + (monthly.length !== 1 ? 's' : ''));
 
+            const $hero = $('#invoices-next-payout-hero');
+            if ($hero.length) {
+                const pending = monthly.find((m) => m.status === 'Pending');
+                if (pending) {
+                    const days = pending.days_until_due;
+                    let etaText = '';
+                    if (days === 0) etaText = 'Due today';
+                    else if (days > 0) etaText = '£' + Number(pending.amount).toFixed(2) + ' due in ' + days + ' day' + (days === 1 ? '' : 's');
+                    else etaText = 'Overdue by ' + Math.abs(days) + ' day' + (Math.abs(days) === 1 ? '' : 's');
+                    $hero.html(
+                        '<div class="alert alert-primary border-0 mb-0 d-flex flex-wrap justify-content-between align-items-center gap-2">' +
+                        '<div><strong>Next payout</strong> — ' + this.escHtml(etaText) +
+                        (pending.payout_date_label ? '<br><span class="small">' + this.escHtml(pending.payout_date_label) + '</span>' : '') +
+                        '</div><a href="#" class="btn btn-sm btn-light" data-period="' + this.escHtml(pending.key) + '" id="invoices-hero-period">' + this.escHtml(this.formatStatementPeriodLabel(pending.key)) + '</a></div>'
+                    ).removeClass('d-none');
+                } else {
+                    $hero.addClass('d-none').empty();
+                }
+            }
+
             const totalVat = monthly.reduce((s, m) => s + (Number(m.vat_amount) || 0), 0);
             const $vatSummary = $('#invoices-vat-summary');
             if ($vatSummary.length) {
@@ -3480,14 +3555,35 @@ const Dashboard = {
 
             monthly.forEach(m => {
                 const periodLabel = m.key ? this.formatStatementPeriodLabel(m.key) : '-';
+                let etaBadge = '';
+                if (m.status === 'Pending' && m.days_until_due != null) {
+                    const days = Number(m.days_until_due);
+                    let label = '';
+                    if (days === 0) label = 'Due today';
+                    else if (days > 0) label = '£' + Number(m.amount).toFixed(2) + ' due in ' + days + 'd';
+                    else label = 'Overdue ' + Math.abs(days) + 'd';
+                    etaBadge = '<div class="small fw-semibold text-primary mt-1">' + this.escHtml(label) + '</div>';
+                    if (m.payout_date_label) {
+                        etaBadge += '<div class="small text-muted">' + this.escHtml(m.payout_date_label) + '</div>';
+                    }
+                }
+                let bankLine = '';
+                if (m.status === 'Paid' && (m.bank_reference || m.client_bank_note)) {
+                    bankLine = '<div class="small text-muted mt-1">Ref: ' + this.escHtml(m.bank_reference || m.client_bank_note) + '</div>';
+                } else if (m.status === 'Paid') {
+                    bankLine =
+                        '<button type="button" class="btn btn-link btn-sm p-0 small payout-note-btn" data-period="' +
+                        this.escHtml(m.key) +
+                        '">Add bank ref</button>';
+                }
                 $tbody.append(`
                     <tr>
                         <td><strong>${periodLabel}</strong></td>
                         <td>${this.formatDate(m.date_issued)}</td>
-                        <td>${this.formatDate(m.payout_date)}</td>
+                        <td>${this.formatDate(m.payout_date)}${etaBadge}</td>
                         <td class="text-success">£${Number(m.amount).toFixed(2)}</td>
                         <td>${m.items_count}</td>
-                        <td>${this.statusBadge(m.status)}</td>
+                        <td>${this.statusBadge(m.status)}${bankLine}</td>
                         <td class="text-center">
                             <div class="dropdown d-inline-block">
                                 <button type="button" class="btn btn-link btn-sm p-0 text-primary" data-bs-toggle="dropdown" data-period="${m.key}" aria-expanded="false" title="Print or save as PDF"><i class="ri-download-2-line fs-18"></i></button>
@@ -3499,6 +3595,17 @@ const Dashboard = {
                         </td>
                     </tr>
                 `);
+            });
+            $tbody.find('.payout-note-btn').on('click', (e) => {
+                const period = $(e.currentTarget).attr('data-period');
+                const note = window.prompt('Enter your bank reference for reconciliation (optional):', '');
+                if (note == null) return;
+                API.savePayoutNote(period, note)
+                    .then(() => {
+                        this.showToast('Bank reference saved', 'success');
+                        this.loadInvoices();
+                    })
+                    .catch((err) => this.showToast((err && err.error) || 'Could not save', 'error'));
             });
             $tbody.find('.invoice-print-opt').on('click', function (e) {
                 e.preventDefault();
@@ -3570,6 +3677,18 @@ const Dashboard = {
             }
             $('#referrals-tier-progress').css('width', pct + '%').attr('aria-valuenow', pct);
             $('#referrals-tier-progress-label').text(progLabel);
+
+            const $creditMsg = $('#referrals-credit-message');
+            if ($creditMsg.length && data.credit_message) {
+                let msg = data.credit_message;
+                if (Number(data.pending_credits) > 0) {
+                    msg += ' Pending statement credit: £' + Number(data.pending_credits).toFixed(2) + '.';
+                }
+                if (Number(data.applied_credits_total) > 0) {
+                    msg += ' Applied to date: £' + Number(data.applied_credits_total).toFixed(2) + '.';
+                }
+                $creditMsg.text(msg).removeClass('d-none');
+            }
 
             if (nextTier && activeRequired > 0) {
                 $('#referrals-tier-next')
@@ -4249,6 +4368,13 @@ const Dashboard = {
         $('#email-item-sold').prop('checked', p.email_item_sold !== false);
         $('#email-payout-sent').prop('checked', p.email_payout_sent !== false);
         $('#email-monthly-invoice').prop('checked', !!p.email_monthly_invoice);
+        $('#email-trust-monthly').prop('checked', p.email_trust_monthly !== false);
+        $('#email-action-digest').prop('checked', p.email_action_digest !== false);
+        $('#webhook-item-sold').prop('checked', p.webhook_item_sold !== false);
+        $('#webhook-payout-paid').prop('checked', p.webhook_payout_paid !== false);
+        $('#webhook-query-reply').prop('checked', p.webhook_query_reply !== false);
+        $('#webhook-package-delivered').prop('checked', p.webhook_package_delivered !== false);
+        $('#webhook-high-value').prop('checked', p.webhook_high_value_received !== false);
         if ($('#email-digest-preference').length) {
             const d = p.email_digest || 'weekly';
             $('#email-digest-preference').val(d === 'off' ? 'off' : 'weekly');
@@ -4273,6 +4399,13 @@ const Dashboard = {
             email_payout_sent: $('#email-payout-sent').is(':checked'),
             email_monthly_invoice: $('#email-monthly-invoice').is(':checked'),
             email_digest: $('#email-digest-preference').val() || 'off',
+            email_trust_monthly: $('#email-trust-monthly').is(':checked'),
+            email_action_digest: $('#email-action-digest').is(':checked'),
+            webhook_item_sold: $('#webhook-item-sold').is(':checked'),
+            webhook_payout_paid: $('#webhook-payout-paid').is(':checked'),
+            webhook_query_reply: $('#webhook-query-reply').is(':checked'),
+            webhook_package_delivered: $('#webhook-package-delivered').is(':checked'),
+            webhook_high_value_received: $('#webhook-high-value').is(':checked'),
         };
     },
 
@@ -4804,6 +4937,25 @@ const Dashboard = {
             } else {
                 $chart.html('<div class="text-center py-5 text-muted">No chart data yet.</div>');
             }
+            const $bench = $('#analytics-benchmark-body');
+            if ($bench.length) {
+                try {
+                    const bench = await API.getBenchmarks();
+                    let html = '';
+                    if (bench.vs_last_year_pct != null) {
+                        const dir = bench.vs_last_year_pct >= 0 ? 'more' : 'less';
+                        html += '<p class="mb-1">You recovered <strong>' + Math.abs(bench.vs_last_year_pct) + '%</strong> ' + dir + ' than the same month last year.</p>';
+                    }
+                    if (bench.cohort_sufficient && bench.vs_cohort_pct != null) {
+                        html += '<p class="mb-1">Vs similar sellers: <strong>' + (bench.vs_cohort_pct >= 0 ? '+' : '') + bench.vs_cohort_pct + '%</strong> (cohort n=' + bench.cohort_size + ').</p>';
+                    } else if (bench.disclaimer) {
+                        html += '<p class="mb-0 text-muted">' + this.escHtml(bench.disclaimer) + '</p>';
+                    }
+                    $bench.html(html || '<span class="text-muted">Benchmark data will appear after your first completed month.</span>');
+                } catch (e) {
+                    $bench.text('Benchmarks unavailable.');
+                }
+            }
         } catch (err) {
             console.error('Load analytics error:', err);
             $chart.html('<div class="text-center py-5"><p class="text-danger mb-2">' + (err.error || 'Unable to load analytics.') + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></div>');
@@ -5241,8 +5393,24 @@ const Dashboard = {
             const data = await API.getSettings();
             if (data.settings) {
                 $('#flexSwitchCheckDefault').prop('checked', !!data.settings.vat_registered);
-                $('input[placeholder*="discord"]').val(data.settings.discord_webhook || '');
+                $('#settings-discord-webhook').val(data.settings.discord_webhook || '');
+                $('#settings-slack-webhook').val(data.settings.slack_webhook || '');
             }
+            try {
+                const summary = await API.getDashboardSummary();
+                const tier = summary && summary.loyalty_tier;
+                const $loy = $('#settings-loyalty-tier');
+                if ($loy.length && tier && tier.tier !== 'standard') {
+                    $loy.html(
+                        '<strong>' +
+                        this.escHtml(tier.label) +
+                        ' member</strong> — ' +
+                        this.escHtml(tier.sla) +
+                        ' · ' +
+                        this.escHtml(tier.perk)
+                    ).removeClass('d-none');
+                }
+            } catch (e) { /* ignore */ }
             // Profile details (name, email from user; company from profile or billing)
             const user = API.getUser();
             const profileName = localStorage.getItem('returnpal_profile_name') || (user && user.full_name) || '';
@@ -5395,17 +5563,20 @@ const Dashboard = {
                 }
             });
 
-            // Save webhook
-            $(document).on('click', '.card-body .btn-primary', async function() {
-                const webhook = $(this).closest('.card-body').find('input').val().trim();
+            $(document).off('click', '#settings-webhooks-save').on('click', '#settings-webhooks-save', async function() {
+                const $btn = $(this);
                 try {
-                    $(this).prop('disabled', true).text('Saving...');
-                    await API.updateWebhook(webhook);
-                    $(this).text('Saved!');
-                    setTimeout(() => $(this).text('Save Webhook').prop('disabled', false), 1500);
-                } catch(err) {
-                    alert(err.error || 'Failed to save webhook.');
-                    $(this).prop('disabled', false).text('Save Webhook');
+                    $btn.prop('disabled', true).text('Saving…');
+                    await API.updateWebhook(
+                        $('#settings-discord-webhook').val().trim(),
+                        $('#settings-slack-webhook').val().trim()
+                    );
+                    await Dashboard.saveClientPreferences();
+                    $btn.text('Saved!');
+                    setTimeout(() => $btn.text('Save webhooks').prop('disabled', false), 1500);
+                } catch (err) {
+                    alert((err && err.error) || 'Failed to save webhooks.');
+                    $btn.prop('disabled', false).text('Save webhooks');
                 }
             });
 

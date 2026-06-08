@@ -71,6 +71,8 @@ function wantsEventEmail(prefs, eventType) {
         package_delivered: 'email_package_delivered',
         item_sold: 'email_item_sold',
         payout_sent: 'email_payout_sent',
+        high_value_alert: 'email_item_sold',
+        reimbursement_reminder: 'email_item_sold',
     };
     const key = map[eventType];
     if (!key) return false;

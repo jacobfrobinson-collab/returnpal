@@ -93,6 +93,10 @@ router.get('/', authMiddleware, async (req, res) => {
             ? { ...nextTier, active_required: activeRequired }
             : null;
 
+        const { getReferralCreditsSummary } = require('../utils/referralCredits');
+        const credits = getReferralCreditsSummary(db, req.user.id);
+        const creditPerFirst = rewardEach || (TIERS[0] && TIERS[0].reward_per_referral) || 10;
+
         res.json({
             referral_code: referralCode,
             referral_link: referralLink,
@@ -101,7 +105,14 @@ router.get('/', authMiddleware, async (req, res) => {
             active_count: activeCount,
             tiers: TIERS,
             current_tier: currentTier,
-            next_tier: nextTierWithRequired
+            next_tier: nextTierWithRequired,
+            pending_credits: credits.pending_credits,
+            applied_credits_total: credits.applied_credits_total,
+            credit_per_first_package: creditPerFirst,
+            credit_message:
+                '£' +
+                creditPerFirst +
+                ' credit is applied on your next monthly statement when a referral sends their first package.',
         });
     } catch (err) {
         console.error('Get referrals error:', err);

@@ -2168,6 +2168,12 @@ router.put('/queries/:id/reply', async (req, res) => {
                 '. You can reply again on My queries if you need to.',
             '/dashboard/queries.html'
         );
+        try {
+            const { sendQueryReplyWebhook } = require('../utils/sendTransactionalEmail');
+            await sendQueryReplyWebhook(db, rows[0].user_id, rows[0].context_label);
+        } catch (e) {
+            console.error('[query-webhook]', e.message || e);
+        }
         res.json({ message: 'Reply sent — client can follow up on this thread.' });
     } catch (err) {
         console.error('Admin query reply error:', err);
@@ -2318,6 +2324,110 @@ router.post('/partners', async (req, res) => {
         });
     } catch (err) {
         console.error('Create partner error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/users/:id/payouts/:period/mark-paid
+router.post('/users/:id/payouts/:period/mark-paid', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        const periodYm = String(req.params.period || '').trim();
+        const { bank_reference, amount, due_date } = req.body;
+        const { markPayoutPaid } = require('../utils/payoutEvents');
+        const { parsePeriodYm, buildInvoicePeriodPayload } = require('../utils/computedMonthlyStatements');
+        const p = parsePeriodYm(periodYm);
+        if (!p) return res.status(400).json({ error: 'Invalid period YYYY-MM' });
+
+        const db = await getDb();
+        const detail = buildInvoicePeriodPayload(db, userId, p);
+        const ev = markPayoutPaid(db, userId, periodYm, {
+            amount: amount != null ? Number(amount) : detail?.total || 0,
+            due_date: due_date || detail?.due_date || '',
+            bank_reference: String(bank_reference || '').trim().slice(0, 120),
+            adminId: req.user.id,
+        });
+        saveDb();
+
+        try {
+            const { sendPayoutPaidEmail } = require('../utils/sendTransactionalEmail');
+            await sendPayoutPaidEmail(db, userId, periodYm, ev.amount, ev.bank_reference);
+        } catch (e) {
+            console.error('[payout-email]', e.message || e);
+        }
+
+        res.json({ message: 'Payout marked paid', payout: ev });
+    } catch (err) {
+        console.error('Mark payout paid error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/prep-partners
+router.get('/prep-partners', async (req, res) => {
+    try {
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec('SELECT * FROM prep_partners ORDER BY sort_order ASC, name ASC')
+        );
+        res.json({ partners: rows });
+    } catch (err) {
+        console.error('Admin prep partners list error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/prep-partners
+router.post('/prep-partners', async (req, res) => {
+    try {
+        const db = await getDb();
+        const { name, region, services, logo_url, prep_address_template, contact_url, active, sort_order } = req.body;
+        if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name required' });
+        db.run(
+            `INSERT INTO prep_partners (name, region, services, logo_url, prep_address_template, contact_url, active, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                String(name).trim(),
+                String(region || '').trim(),
+                String(services || '').trim(),
+                String(logo_url || '').trim(),
+                String(prep_address_template || '').trim(),
+                String(contact_url || '').trim(),
+                active === false || active === 0 ? 0 : 1,
+                Number(sort_order) || 0,
+            ]
+        );
+        saveDb();
+        const id = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        res.status(201).json({ message: 'Partner created', id });
+    } catch (err) {
+        console.error('Admin prep partner create error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PATCH /api/admin/prep-partners/:id
+router.patch('/prep-partners/:id', async (req, res) => {
+    try {
+        const db = await getDb();
+        const id = parseInt(req.params.id, 10);
+        const fields = ['name', 'region', 'services', 'logo_url', 'prep_address_template', 'contact_url', 'active', 'sort_order'];
+        const sets = [];
+        const vals = [];
+        for (const f of fields) {
+            if (req.body[f] !== undefined) {
+                sets.push(f + ' = ?');
+                vals.push(f === 'active' ? (req.body[f] ? 1 : 0) : req.body[f]);
+            }
+        }
+        if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
+        sets.push("updated_at = datetime('now')");
+        vals.push(id);
+        db.run(`UPDATE prep_partners SET ${sets.join(', ')} WHERE id = ?`, vals);
+        saveDb();
+        res.json({ message: 'Partner updated' });
+    } catch (err) {
+        console.error('Admin prep partner patch error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

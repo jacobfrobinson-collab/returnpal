@@ -637,6 +637,91 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_password_reset_hash ON password_reset_tokens(token_hash)');
 
+    try {
+        db.run('ALTER TABLE users ADD COLUMN slack_webhook TEXT DEFAULT \'\'');
+    } catch (e) {
+        /* exists */
+    }
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS payout_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            period_ym TEXT NOT NULL,
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending','paid')),
+            amount REAL DEFAULT 0,
+            due_date TEXT DEFAULT '',
+            bank_reference TEXT DEFAULT '',
+            client_bank_note TEXT DEFAULT '',
+            paid_at TEXT DEFAULT '',
+            marked_by_admin_id INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(user_id, period_ym),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_payout_events_user ON payout_events(user_id)');
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS referral_credits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            referrer_user_id INTEGER NOT NULL,
+            referred_user_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending','applied')),
+            applied_period_ym TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(referrer_user_id, referred_user_id),
+            FOREIGN KEY (referrer_user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_referral_credits_referrer ON referral_credits(referrer_user_id)');
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS client_loyalty_tiers (
+            user_id INTEGER PRIMARY KEY,
+            tier TEXT DEFAULT 'standard' CHECK(tier IN ('standard','silver','gold')),
+            rolling_12m_recovered REAL DEFAULT 0,
+            rolling_12m_packages INTEGER DEFAULT 0,
+            assigned_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS benchmark_monthly_rollups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            period_ym TEXT NOT NULL,
+            recovered REAL DEFAULT 0,
+            packages_count INTEGER DEFAULT 0,
+            sold_count INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(user_id, period_ym),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_benchmark_rollups_period ON benchmark_monthly_rollups(period_ym)');
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS prep_partners (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            region TEXT DEFAULT '',
+            services TEXT DEFAULT '',
+            logo_url TEXT DEFAULT '',
+            prep_address_template TEXT DEFAULT '',
+            contact_url TEXT DEFAULT '',
+            active INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        )
+    `);
+
     db.run(`
         CREATE TABLE IF NOT EXISTS partner_integrations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

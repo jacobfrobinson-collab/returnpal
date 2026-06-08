@@ -7,6 +7,7 @@ const {
     parsePeriodYm,
     maxInvoicablePeriodYm
 } = require('../utils/computedMonthlyStatements');
+const { setClientPayoutNote } = require('../utils/payoutEvents');
 
 const router = express.Router();
 
@@ -69,6 +70,22 @@ router.get('/period/:period', authMiddleware, async (req, res) => {
         res.json(rest);
     } catch (err) {
         console.error('Get invoice by period error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PATCH /api/invoices/period/:period/payout-note — client bank reconciliation note
+router.patch('/period/:period/payout-note', authMiddleware, async (req, res) => {
+    try {
+        const p = parsePeriodYm(req.params.period);
+        if (!p) return res.status(400).json({ error: 'Invalid period; use YYYY-MM' });
+        const note = String(req.body.client_bank_note || req.body.note || '').trim().slice(0, 200);
+        const db = await getDb();
+        setClientPayoutNote(db, req.user.id, p.periodYm, note);
+        saveDb();
+        res.json({ message: 'Payout note saved', period: p.periodYm, client_bank_note: note });
+    } catch (err) {
+        console.error('Payout note error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

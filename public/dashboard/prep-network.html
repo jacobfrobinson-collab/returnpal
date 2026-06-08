@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Prep network | ReturnPal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="shortcut icon" href="assets/images/favicon.ico" />
+    <script src="assets/js/config.min.js"></script>
+    <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+    <div class="wrapper">
+        <header class=""><div class="topbar"><div class="container-fluid"><div class="navbar-header">
+            <div class="d-flex align-items-center gap-2">
+                <div class="topbar-item"><button type="button" class="button-toggle-menu topbar-button"><i class="ri-menu-2-line fs-24"></i></button></div>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <div class="topbar-item"><button type="button" class="topbar-button" id="light-dark-mode"><i class="ri-moon-line fs-24 light-mode"></i><i class="ri-sun-line fs-24 dark-mode"></i></button></div>
+                <div class="dropdown topbar-item">
+                    <a type="button" class="topbar-button" data-bs-toggle="dropdown"><img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="" /></a>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="settings.html">Settings</a>
+                        <a class="dropdown-item text-danger" href="login.html">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </div></div></div></header>
+        <div class="main-nav">
+            <div class="logo-box"><a href="index.html"><img src="assets/images/logo-dark.png" class="logo-lg" alt="" /></a></div>
+            <button type="button" class="button-sm-hover"><i class="ri-menu-2-line fs-24"></i></button>
+            <div class="scrollbar" data-simplebar><ul class="navbar-nav" id="navbar-nav"></ul></div>
+        </div>
+        <div class="page-content">
+            <div class="container-fluid">
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h4 class="fw-semibold mb-1"><i class="ri-building-line me-2"></i>Prep-centre network</h4>
+                        <p class="text-muted mb-0">Partner prep centres ReturnPal works with. One-click send-back from your dashboard after items are processed.</p>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <input type="search" class="form-control form-control-sm" id="prep-network-search" placeholder="Search by name or region" style="max-width:320px" />
+                </div>
+                <div class="row g-3" id="prep-network-grid"></div>
+            </div>
+            <footer class="footer rp-footer"><div class="container-fluid text-center"><script>document.write(new Date().getFullYear());</script> &copy; ReturnPal.</div></footer>
+        </div>
+    </div>
+    <script src="assets/js/vendor.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script src="/assets/js/api.js?v=rp-api-2026"></script>
+    <script src="/assets/js/dateUk.js"></script>
+    <script src="assets/js/custom.js"></script>
+    <script src="assets/js/dashboard.js?v=rp-nav-sync-2026"></script>
+</body>
+</html>

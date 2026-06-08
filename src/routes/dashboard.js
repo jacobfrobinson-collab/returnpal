@@ -1,7 +1,13 @@
 const express = require('express');
-const { getDb } = require('../database');
+const { getDb, saveDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { getComputedDashboardInvoiceAggregates } = require('../utils/computedMonthlyStatements');
+const {
+    getLifetimeRecovered,
+    getLifetimeRecoveredDelta30d,
+    getMilestones,
+} = require('../utils/clientRecoveryMetrics');
+const { getLoyaltyTier, refreshLoyaltyTier } = require('../utils/loyaltyTiers');
 
 const router = express.Router();
 
@@ -56,9 +62,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
             db.exec('SELECT COALESCE(SUM(profit), 0) as total FROM sold_items WHERE user_id = ?', [userId])
         );
 
-        const totalRecovered = parseResults(
-            db.exec('SELECT COALESCE(SUM(total_revenue), 0) as total FROM sold_items WHERE user_id = ?', [userId])
-        );
+        const lifetimeRecovered = getLifetimeRecovered(db, userId);
 
         const { unpaid_invoices_count, unpaid_invoices_total } = getComputedDashboardInvoiceAggregates(db, userId);
 
@@ -69,7 +73,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
             total_sold: totalSold[0]?.count || 0,
             total_pending: totalPending[0]?.count || 0,
             total_earnings: totalEarnings[0]?.total || 0,
-            total_recovered: totalRecovered[0]?.total || 0,
+            total_recovered: lifetimeRecovered,
             unpaid_invoices_count,
             unpaid_invoices_total
         });
@@ -91,7 +95,11 @@ router.get('/summary', authMiddleware, async (req, res) => {
         const totalPackages = parseResults(db.exec('SELECT COUNT(*) as count FROM packages WHERE user_id = ?', [userId]));
         const totalReceived = parseResults(db.exec('SELECT COUNT(*) as count FROM received_items WHERE user_id = ?', [userId]));
         const totalSold = parseResults(db.exec('SELECT COUNT(*) as count FROM sold_items WHERE user_id = ?', [userId]));
-        const totalRecovered = parseResults(db.exec('SELECT COALESCE(SUM(total_revenue), 0) as total FROM sold_items WHERE user_id = ?', [userId]));
+        const lifetimeRecovered = getLifetimeRecovered(db, userId);
+        const totalRecoveredDelta30d = getLifetimeRecoveredDelta30d(db, userId);
+        const milestones = getMilestones(lifetimeRecovered);
+        const loyalty = refreshLoyaltyTier(db, userId);
+        saveDb();
         const totalPending = parseResults(db.exec('SELECT COUNT(*) as count FROM pending_items WHERE user_id = ?', [userId]));
 
         const activities = parseResults(
@@ -140,7 +148,11 @@ router.get('/summary', authMiddleware, async (req, res) => {
         );
 
         res.json({
-            total_recovered: totalRecovered[0]?.total || 0,
+            total_recovered: lifetimeRecovered,
+            lifetime_recovered: lifetimeRecovered,
+            total_recovered_delta_30d: totalRecoveredDelta30d,
+            milestones,
+            loyalty_tier: loyalty,
             items_processing: totalPending[0]?.count || 0,
             items_sold: totalSold[0]?.count || 0,
             packages_sent: totalPackages[0]?.count || 0,

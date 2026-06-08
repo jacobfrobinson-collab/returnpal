@@ -79,6 +79,9 @@ app.get('/dashboard/exports.html', (req, res) => {
 app.get('/dashboard/prep-sendback.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/dashboard/prep-sendback.html'));
 });
+app.get('/dashboard/prep-network.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/dashboard/prep-network.html'));
+});
 app.get('/dashboard/roi-report.html', (req, res) => {
     res.redirect(302, '/dashboard/index.html');
 });
@@ -247,8 +250,18 @@ async function start() {
         try {
             const { startWeeklyDigestScheduler } = require('./jobs/weeklyDigest');
             const { startMonthlyInvoiceScheduler } = require('./jobs/monthlyInvoiceEmail');
+            const { startMonthlyTrustEmailScheduler } = require('./jobs/monthlyTrustEmail');
+            const { startWeeklyActionDigestScheduler } = require('./jobs/weeklyActionDigest');
+            const { startReimbursementRemindersScheduler } = require('./jobs/reimbursementReminders');
+            const { startInactivityReengagementScheduler } = require('./jobs/inactivityReengagement');
+            const { startBenchmarkRollupScheduler } = require('./jobs/benchmarkRollup');
             startWeeklyDigestScheduler();
             startMonthlyInvoiceScheduler();
+            startMonthlyTrustEmailScheduler();
+            startWeeklyActionDigestScheduler();
+            startReimbursementRemindersScheduler();
+            startInactivityReengagementScheduler();
+            startBenchmarkRollupScheduler();
         } catch (e) {
             console.warn('Email schedulers:', e && e.message);
         }

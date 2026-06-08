@@ -11,6 +11,15 @@ const {
     buildPlainEmail,
     formatGbp,
 } = require('./emailTemplates');
+const { dispatchClientWebhook } = require('./webhookDispatcher');
+
+function highValueThreshold() {
+    return Number(process.env.HIGH_VALUE_ALERT_GBP) || 500;
+}
+
+function isHighValue(amount) {
+    return (Number(amount) || 0) >= highValueThreshold();
+}
 
 /**
  * Send a one-off event email if user prefs and env allow. Idempotent per refKey.
@@ -70,11 +79,13 @@ async function sendPackageDeliveredEmail(db, userId, packageId, reference) {
         recipientEmail: prefs?.email,
     });
 
-    return maybeSendEventEmail(db, userId, 'package_delivered', `package:${packageId}`, {
+    const sent = await maybeSendEventEmail(db, userId, 'package_delivered', `package:${packageId}`, {
         subject: `Package delivered: ${ref}`,
         text,
         html,
     });
+    dispatchClientWebhook(db, userId, 'package_delivered', { reference: ref }).catch(() => {});
+    return sent;
 }
 
 async function sendItemSoldEmail(db, userId, soldItemId, product, amount) {
@@ -115,15 +126,135 @@ async function sendItemSoldEmail(db, userId, soldItemId, product, amount) {
         recipientEmail: prefs?.email,
     });
 
-    return maybeSendEventEmail(db, userId, 'item_sold', `sold:${soldItemId}`, {
+    const sent = await maybeSendEventEmail(db, userId, 'item_sold', `sold:${soldItemId}`, {
         subject: `Item sold: ${itemName}`,
         text,
         html,
     });
+    dispatchClientWebhook(db, userId, 'item_sold', {
+        product: itemName,
+        amount_label: formatGbp(amt),
+    }).catch(() => {});
+    if (isHighValue(amt)) {
+        await sendHighValueAlertEmail(db, userId, `sold:${soldItemId}`, itemName, amt, 'sold');
+        dispatchClientWebhook(db, userId, 'high_value_received', {
+            product: itemName,
+            amount_label: formatGbp(amt),
+        }).catch(() => {});
+    }
+    return sent;
+}
+
+async function sendHighValueAlertEmail(db, userId, refKey, product, amount, kind) {
+    const prefs = getUserEmailPrefs(db, userId);
+    const name = (prefs && prefs.billing_name) || '';
+    const itemName = String(product || 'Item').trim();
+    const amt = Number(amount) || 0;
+    const url =
+        kind === 'sold'
+            ? publicAppUrl() + '/dashboard/sold-items.html'
+            : publicAppUrl() + '/dashboard/received.html';
+
+    const bodyHtml =
+        greetingHtml(name || 'there') +
+        paragraphHtml(
+            `A high-value item (${formatGbp(amt)}+) has been ${kind === 'sold' ? 'sold' : 'received'} on your account: <strong>${escapeHtml(itemName)}</strong>.`
+        ) +
+        heroAmountBlock({
+            label: itemName,
+            amount: amt,
+            statusLabel: kind === 'sold' ? 'Sold' : 'Received',
+            statusTone: 'success',
+        }) +
+        ctaButtonHtml(kind === 'sold' ? 'View sold items' : 'View received', url) +
+        signOffHtml();
+
+    const html = wrapBrandedEmail({
+        title: 'High-value item alert',
+        subtitle: formatGbp(amt),
+        bodyHtml,
+        recipientEmail: prefs?.email,
+        preheader: `${itemName} — ${formatGbp(amt)}`,
+    });
+
+    const text = buildPlainEmail({
+        title: `High-value item: ${itemName}`,
+        greeting: `Hello ${name || 'there'},`,
+        paragraphs: [`${itemName} (${formatGbp(amt)}) was ${kind}.`],
+        ctaLabel: 'Open dashboard',
+        ctaUrl: url,
+        recipientEmail: prefs?.email,
+    });
+
+    return maybeSendEventEmail(db, userId, 'high_value_alert', refKey, {
+        subject: `High-value item ${kind}: ${itemName}`,
+        text,
+        html,
+    });
+}
+
+async function sendHighValueReceivedEmail(db, userId, receivedId, product, amount) {
+    if (!isHighValue(amount)) return false;
+    return sendHighValueAlertEmail(db, userId, `received:${receivedId}`, product, amount, 'received');
+}
+
+async function sendPayoutPaidEmail(db, userId, periodYm, amount, bankReference) {
+    const prefs = getUserEmailPrefs(db, userId);
+    const name = (prefs && prefs.billing_name) || '';
+    const amt = Number(amount) || 0;
+    const url = publicAppUrl() + '/dashboard/invoices.html';
+    const refLine = bankReference ? ` Bank reference: <strong>${escapeHtml(bankReference)}</strong>.` : '';
+
+    const bodyHtml =
+        greetingHtml(name || 'there') +
+        paragraphHtml(
+            `Your payout for <strong>${escapeHtml(periodYm)}</strong> has been marked as <strong>paid</strong> (${formatGbp(amt)}).${refLine}`
+        ) +
+        ctaButtonHtml('View invoices', url) +
+        signOffHtml();
+
+    const html = wrapBrandedEmail({
+        title: 'Payout sent',
+        subtitle: formatGbp(amt),
+        bodyHtml,
+        recipientEmail: prefs?.email,
+        preheader: `Payout ${formatGbp(amt)} for ${periodYm}`,
+    });
+
+    const text = buildPlainEmail({
+        title: `Payout sent: ${periodYm}`,
+        greeting: `Hello ${name || 'there'},`,
+        paragraphs: [`Payout for ${periodYm}: ${formatGbp(amt)}.${bankReference ? ' Ref: ' + bankReference : ''}`],
+        ctaLabel: 'View invoices',
+        ctaUrl: url,
+        recipientEmail: prefs?.email,
+    });
+
+    const sent = await maybeSendEventEmail(db, userId, 'payout_sent', `payout:${periodYm}`, {
+        subject: `Payout sent — ${periodYm}`,
+        text,
+        html,
+    });
+    dispatchClientWebhook(db, userId, 'payout_paid', {
+        period: periodYm,
+        amount_label: formatGbp(amt),
+        bank_reference: bankReference || '',
+    }).catch(() => {});
+    return sent;
+}
+
+async function sendQueryReplyWebhook(db, userId, subject) {
+    dispatchClientWebhook(db, userId, 'query_reply', { subject: subject || '' }).catch(() => {});
 }
 
 module.exports = {
     maybeSendEventEmail,
     sendPackageDeliveredEmail,
     sendItemSoldEmail,
+    sendHighValueReceivedEmail,
+    sendPayoutPaidEmail,
+    sendQueryReplyWebhook,
+    highValueThreshold,
+    isHighValue,
 };
+

@@ -25,7 +25,8 @@ router.get('/', authMiddleware, async (req, res) => {
         const db = await getDb();
         const users = parseResults(
             db.exec(
-                `SELECT vat_registered, discord_webhook, COALESCE(legacy_client_id, '') AS legacy_client_id,
+                `SELECT vat_registered, discord_webhook, COALESCE(slack_webhook, '') AS slack_webhook,
+                        COALESCE(legacy_client_id, '') AS legacy_client_id,
                         COALESCE(weekly_digest_email, 1) AS weekly_digest_email,
                         COALESCE(client_preferences, '') AS client_preferences
                  FROM users WHERE id = ?`,
@@ -42,6 +43,7 @@ router.get('/', authMiddleware, async (req, res) => {
             settings: {
                 vat_registered: !!users[0].vat_registered,
                 discord_webhook: users[0].discord_webhook || '',
+                slack_webhook: users[0].slack_webhook || '',
                 legacy_client_id: users[0].legacy_client_id || '',
                 weekly_digest_email: users[0].weekly_digest_email,
                 preferences: prefs,
@@ -97,19 +99,22 @@ router.put('/vat', authMiddleware, async (req, res) => {
 router.put('/webhook', authMiddleware, async (req, res) => {
     try {
         const db = await getDb();
-        const { discord_webhook } = req.body;
+        const { discord_webhook, slack_webhook } = req.body;
 
         if (discord_webhook && !discord_webhook.startsWith('https://discord.com/api/webhooks/')) {
             return res.status(400).json({ error: 'Invalid Discord webhook URL' });
         }
+        if (slack_webhook && !slack_webhook.startsWith('https://hooks.slack.com/')) {
+            return res.status(400).json({ error: 'Invalid Slack webhook URL' });
+        }
 
         db.run(
-            "UPDATE users SET discord_webhook = ?, updated_at = datetime('now') WHERE id = ?",
-            [discord_webhook || '', req.user.id]
+            "UPDATE users SET discord_webhook = ?, slack_webhook = ?, updated_at = datetime('now') WHERE id = ?",
+            [discord_webhook || '', slack_webhook || '', req.user.id]
         );
         saveDb();
 
-        res.json({ message: 'Discord webhook saved' });
+        res.json({ message: 'Webhooks saved' });
     } catch (err) {
         console.error('Update webhook error:', err);
         res.status(500).json({ error: 'Server error' });

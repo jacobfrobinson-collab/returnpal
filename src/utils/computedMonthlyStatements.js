@@ -10,6 +10,12 @@ const {
     isClientVatRegistered,
     clientPayoutFromGrossNet,
 } = require('./clientVatPayout');
+const {
+    getPayoutEventsMap,
+    resolveStatementStatus,
+    payoutEtaFields,
+} = require('./payoutEvents');
+const { getPendingReferralCreditsTotal, applyPendingReferralCredits } = require('./referralCredits');
 
 function parseResults(result) {
     if (!result || !result.length) return [];
@@ -284,14 +290,40 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
     const subtotal = Math.round(line_items.reduce((s, i) => s + i.amount * i.quantity, 0) * 100) / 100;
     const net_after_returns = Math.round((salesProfit - refundedProfit - adjustmentsApplied) * 100) / 100;
     /** Client payout: sales/returns only (fees already reflected in per-line profit). */
-    const gross_net = Math.round(net_after_returns * 100) / 100;
-    const total = clientPayoutFromGrossNet(gross_net, vatRegistered);
-    const vat_amount = 0;
-
+    let gross_net = Math.round(net_after_returns * 100) / 100;
     const issueStr = statementIssueDateStr(y, m);
     const dueStr = statementPayoutEndDateStr(y, m);
     const tz = getInvoiceCapTz();
-    const status = computeStatementStatus(dueStr, tz);
+    const today = calendarTodayYmdInTz(tz);
+    let referralCredit = 0;
+    if (today >= issueStr.slice(0, 10)) {
+        referralCredit = applyPendingReferralCredits(db, userId, periodYm);
+    } else {
+        referralCredit = getPendingReferralCreditsTotal(db, userId);
+    }
+    if (referralCredit > 0) {
+        gross_net = Math.round((gross_net - referralCredit) * 100) / 100;
+        line_items.push({
+            description: 'Referral credit',
+            quantity: 1,
+            unit_price: 0,
+            amount: -referralCredit,
+            status: 'credit',
+            sold_item_id: null,
+            reference: '',
+        });
+        statement_lines.push({
+            kind: 'referral_credit',
+            label: 'Referral credit',
+            reference: '',
+            amount: -referralCredit,
+            date: issueStr,
+        });
+    }
+    const total = clientPayoutFromGrossNet(gross_net, vatRegistered);
+    const vat_amount = 0;
+
+    const status = resolveStatementStatus(db, userId, periodYm, dueStr, tz);
 
     return {
         period: periodYm,
@@ -304,6 +336,7 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
             sales_profit: Math.round(salesProfit * 100) / 100,
             refunds_and_returns: Math.round((refundedProfit + adjustmentsApplied) * 100) / 100,
             fees_deducted: fees,
+            referral_credit: referralCredit,
             gross_net,
             net_payout_estimate: total
         },
@@ -383,6 +416,7 @@ function getComputedMonthlyStatements(db, userId) {
     const capped = months.filter((ym) => ym <= capYm);
     const maxMonths = 60;
     const slice = capped.slice(0, maxMonths);
+    const payoutMap = getPayoutEventsMap(db, userId);
 
     const invoices = slice
         .map((ym) => {
@@ -394,7 +428,9 @@ function getComputedMonthlyStatements(db, userId) {
             }
             const dueStr = statementPayoutEndDateStr(p.y, p.m);
             const issueStr = statementIssueDateStr(p.y, p.m);
-            const status = computeStatementStatus(dueStr, tz);
+            const status = resolveStatementStatus(db, userId, ym, dueStr, tz);
+            const eta = payoutEtaFields(dueStr, tz);
+            const pe = payoutMap[ym] || null;
             return {
                 id: null,
                 user_id: userId,
@@ -412,9 +448,16 @@ function getComputedMonthlyStatements(db, userId) {
                 period_label: detail.period_label,
                 net_payout_estimate: detail.summary.net_payout_estimate,
                 gross_net: detail.gross_net,
+                referral_credit: detail.summary.referral_credit || 0,
                 refund_only_period: !!detail.refund_only_period,
                 sales_in_period: detail._items_count || 0,
                 returns_in_period: detail._returns_count || 0,
+                days_until_due: eta.days_until_due,
+                payout_date_label: eta.payout_date_label,
+                is_overdue: eta.is_overdue,
+                bank_reference: pe?.bank_reference || '',
+                client_bank_note: pe?.client_bank_note || '',
+                paid_at: pe?.paid_at || '',
                 source: 'computed'
             };
         })
