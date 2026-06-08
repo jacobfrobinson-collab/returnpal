@@ -817,12 +817,201 @@ const Dashboard = {
         });
     },
 
+    bindLostItemsFilters() {
+        const self = this;
+        $(document)
+            .off('click.lostItemsFilter', '.rp-lost-filter-btn')
+            .on('click.lostItemsFilter', '.rp-lost-filter-btn', function() {
+                window._lostItemsFilter = $(this).data('filter') || 'all';
+                self.renderLostItemsInbox(window._lostItemsEnquiries || []);
+            });
+    },
+
+    updateLostItemsStats(rows) {
+        const counts = { pending: 0, confirmed: 0, denied: 0 };
+        (rows || []).forEach((r) => {
+            const s = String(r.status || 'pending').toLowerCase();
+            if (counts[s] != null) counts[s] += 1;
+        });
+        $('#lost-stat-pending').text(counts.pending);
+        $('#lost-stat-confirmed').text(counts.confirmed);
+        $('#lost-stat-denied').text(counts.denied);
+        const $stats = $('#lost-items-stats');
+        if ($stats.length) {
+            if ((rows || []).length) $stats.removeClass('d-none');
+            else $stats.addClass('d-none');
+        }
+    },
+
+    lostItemStatusBadge(status) {
+        const s = String(status || 'pending').toLowerCase();
+        const labels = { pending: 'Pending review', confirmed: 'Confirmed', denied: 'Not matched' };
+        let cls = 'rp-badge-secondary';
+        if (s === 'pending') cls = 'rp-badge-warning';
+        else if (s === 'confirmed') cls = 'rp-badge-success';
+        else if (s === 'denied') cls = 'rp-badge-danger';
+        return '<span class="rp-badge ' + cls + '">' + this.escHtml(labels[s] || s) + '</span>';
+    },
+
+    renderLostItemsInbox(rows) {
+        const $inbox = $('#lost-items-inbox');
+        if (!$inbox.length) return;
+        const self = this;
+        const all = rows || [];
+        const filter = window._lostItemsFilter || 'all';
+        const filtered =
+            filter === 'all' ? all : all.filter((r) => String(r.status || '').toLowerCase() === filter);
+
+        const filterHtml =
+            '<div class="rp-lost-filter">' +
+            ['all', 'pending', 'confirmed', 'denied'].map((f) => {
+                const labels = {
+                    all: 'All',
+                    pending: 'Pending',
+                    confirmed: 'Confirmed',
+                    denied: 'Not matched',
+                };
+                const count =
+                    f === 'all'
+                        ? all.length
+                        : all.filter((r) => String(r.status || '').toLowerCase() === f).length;
+                const active = filter === f ? ' active' : '';
+                return (
+                    '<button type="button" class="btn btn-sm btn-outline-secondary rp-lost-filter-btn' +
+                    active +
+                    '" data-filter="' +
+                    f +
+                    '">' +
+                    labels[f] +
+                    ' (' +
+                    count +
+                    ')</button>'
+                );
+            }).join('') +
+            '</div>';
+
+        if (!all.length) {
+            $inbox.html(
+                '<div class="rp-lost-empty">' +
+                '<i class="ri-inbox-line" aria-hidden="true"></i>' +
+                '<p class="mb-2 fw-medium">No enquiries yet</p>' +
+                '<p class="small mb-0">Use the form to tell us about stock that should be on your dashboard. Include tracking or package references if you have them.</p>' +
+                '</div>'
+            );
+            return;
+        }
+
+        if (!filtered.length) {
+            $inbox.html(filterHtml + '<p class="text-muted small mb-0">No enquiries in this status.</p>');
+            return;
+        }
+
+        const outcomeLabels = {
+            received: 'We received this stock',
+            in_stock: 'Still in our stock',
+            sold: 'Sold — earnings added to Sold Items',
+            not_found: 'No matching record found',
+            never_received: 'Never received at ReturnPal',
+        };
+
+        let html = filterHtml + '<div class="rp-lost-inbox">';
+        filtered.forEach((r) => {
+            const sentDisplay = r.date_sent
+                ? typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb
+                    ? RP_DATE.formatOrdinalEnGb(r.date_sent + 'T12:00:00')
+                    : r.date_sent
+                : '—';
+            const submitted = r.created_at ? RP_DATE.formatOrdinalEnGb(r.created_at) : '';
+
+            html +=
+                '<article class="rp-lost-enquiry" data-status="' +
+                self.escHtml(r.status || 'pending') +
+                '">' +
+                '<header class="rp-lost-enquiry-header">' +
+                '<div>' +
+                '<h6 class="rp-lost-enquiry-title">' +
+                self.escHtml(r.item_name) +
+                '</h6>' +
+                '<div class="rp-lost-meta">' +
+                '<span><i class="ri-stack-line"></i>Qty ' +
+                (r.quantity || 1) +
+                '</span>' +
+                '<span><i class="ri-calendar-line"></i>Sent ' +
+                self.escHtml(sentDisplay) +
+                '</span>' +
+                '</div></div>' +
+                self.lostItemStatusBadge(r.status) +
+                '</header>';
+
+            if (r.tracking_number || r.package_reference) {
+                html += '<div class="rp-lost-detail-chips">';
+                if (r.tracking_number) {
+                    html +=
+                        '<span class="rp-lost-chip"><i class="ri-truck-line"></i>' +
+                        self.escHtml(r.tracking_number) +
+                        '</span>';
+                }
+                if (r.package_reference) {
+                    html +=
+                        '<span class="rp-lost-chip"><i class="ri-hashtag"></i>' +
+                        self.escHtml(r.package_reference) +
+                        '</span>';
+                }
+                html += '</div>';
+            }
+
+            if (r.notes) {
+                html += '<p class="rp-lost-notes">' + self.escHtml(r.notes) + '</p>';
+            }
+
+            if (r.status === 'confirmed' && r.admin_outcome) {
+                html +=
+                    '<div class="rp-lost-outcome rp-lost-outcome--success">' +
+                    '<i class="ri-checkbox-circle-line"></i>' +
+                    '<div>' +
+                    self.escHtml(outcomeLabels[r.admin_outcome] || r.admin_outcome) +
+                    (r.linked_sold_item_id
+                        ? ' <a href="sold-items.html" class="fw-medium">View Sold Items</a>'
+                        : '') +
+                    '</div></div>';
+            }
+
+            if (r.status === 'denied') {
+                html +=
+                    '<div class="rp-lost-outcome rp-lost-outcome--denied">' +
+                    '<i class="ri-information-line"></i>' +
+                    '<div>We could not match this to our records. If you have more detail, open <a href="queries.html" class="fw-medium">My queries</a> and we can take another look.</div>' +
+                    '</div>';
+            }
+
+            if (r.admin_notes && r.status !== 'pending') {
+                html +=
+                    '<div class="rp-lost-admin-note">' +
+                    '<div class="rp-lost-admin-note-label">ReturnPal</div>' +
+                    self.escHtml(r.admin_notes) +
+                    '</div>';
+            }
+
+            html +=
+                '<footer class="rp-lost-enquiry-footer">Submitted ' +
+                self.escHtml(submitted || '—') +
+                '</footer></article>';
+        });
+        html += '</div>';
+        $inbox.html(html);
+    },
+
     async loadLostItems() {
-        const $list = $('#lost-items-list');
+        const $inbox = $('#lost-items-inbox');
         const $earliest = $('#lost-items-earliest-date');
         const $dateInput = $('#lost-item-date-sent');
-        if (!$list.length) return;
+        if (!$inbox.length) return;
         this.bindLostItemsForm();
+        this.bindLostItemsFilters();
+        if (!window._lostItemsFilter) window._lostItemsFilter = 'all';
+        $inbox.html(
+            '<div class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading…</div>'
+        );
         try {
             const data = await API.getLostItems();
             if ($earliest.length && data.earliest_eligible_date_sent) {
@@ -832,72 +1021,11 @@ const Dashboard = {
                 $dateInput.attr('max', data.earliest_eligible_date_sent);
             }
             const rows = data.enquiries || [];
-            if (!rows.length) {
-                $list.html(
-                    '<p class="text-muted mb-0">No enquiries yet. Use the form to tell us about missing stock — remember you can only enquire about items sent at least 2 months ago.</p>'
-                );
-                return;
-            }
-            const outcomeLabels = {
-                received: 'Received by ReturnPal',
-                in_stock: 'Still in stock',
-                sold: 'Sold',
-                not_found: 'No matching record',
-                never_received: 'Never received',
-            };
-            let html = '<div class="list-group list-group-flush">';
-            rows.forEach((r) => {
-                let badgeCls = 'bg-secondary';
-                if (r.status === 'pending') badgeCls = 'bg-warning text-dark';
-                else if (r.status === 'confirmed') badgeCls = 'bg-success';
-                else if (r.status === 'denied') badgeCls = 'bg-danger';
-                html +=
-                    '<div class="list-group-item px-0 py-3">' +
-                    '<div class="d-flex justify-content-between align-items-start gap-2">' +
-                    '<strong>' +
-                    this.escHtml(r.item_name) +
-                    '</strong>' +
-                    '<span class="badge ' +
-                    badgeCls +
-                    '">' +
-                    this.escHtml(r.status) +
-                    '</span></div>' +
-                    '<p class="small mb-1">Qty ' +
-                    (r.quantity || 1) +
-                    ' · sent ' +
-                    this.escHtml(r.date_sent || '—') +
-                    '</p>';
-                if (r.tracking_number) {
-                    html += '<p class="small mb-1 text-muted">Tracking: ' + this.escHtml(r.tracking_number) + '</p>';
-                }
-                if (r.package_reference) {
-                    html += '<p class="small mb-1 text-muted">Package ref: ' + this.escHtml(r.package_reference) + '</p>';
-                }
-                if (r.notes) {
-                    html += '<p class="small mb-1">' + this.escHtml(r.notes) + '</p>';
-                }
-                if (r.admin_outcome && r.status === 'confirmed') {
-                    html +=
-                        '<p class="small mb-1 text-success">' +
-                        this.escHtml(outcomeLabels[r.admin_outcome] || r.admin_outcome) +
-                        (r.linked_sold_item_id ? ' — added to Sold Items' : '') +
-                        '</p>';
-                }
-                if (r.admin_notes && r.status !== 'pending') {
-                    html += '<p class="small mb-1"><em>ReturnPal:</em> ' + this.escHtml(r.admin_notes) + '</p>';
-                }
-                if (r.status === 'denied') {
-                    html += '<p class="small mb-0 text-muted">We could not match this to our records. Contact support if you have more detail.</p>';
-                }
-                html +=
-                    '<small class="text-muted">' +
-                    (r.created_at ? RP_DATE.formatOrdinalEnGb(r.created_at) : '') +
-                    '</small></div>';
-            });
-            html += '</div>';
-            $list.html(html);
+            window._lostItemsEnquiries = rows;
+            this.updateLostItemsStats(rows);
+            this.renderLostItemsInbox(rows);
         } catch (err) {
-            $list.html('<p class="text-danger">' + this.escHtml(err.error || 'Failed to load') + '</p>');
+            $inbox.html('<p class="text-danger mb-0">' + this.escHtml(err.error || 'Failed to load') + '</p>');
         }
     },
 
@@ -1113,6 +1241,7 @@ const Dashboard = {
         this.injectExportsLink();
         this.injectScorecardLink();
         this.injectPrepSendbackLink();
+        this.injectLostItemsLink();
         this.injectMyClientsLink();
         this.injectReimbursementLink();
         this.injectConnectAmazonLink();
@@ -1208,16 +1337,14 @@ const Dashboard = {
         }
     },
 
-    /** Pages like exports.html ship with an empty #navbar-nav; inject the standard menu. */
+    /** Single source of truth for the dashboard sidebar — rendered on every page. */
     ensureDashboardSidebarNav() {
         const $nav = $('#navbar-nav');
         if (!$nav.length) return;
-        if ($nav.find('li.nav-item a.nav-link[href]').length >= 5) return;
 
         const page = (window.location.pathname || '').split('/').pop() || 'index.html';
         const items = [
             ['index.html', 'ri-dashboard-3-line', 'Overview'],
-            ['my-clients.html', 'ri-group-line', 'My clients'],
             ['packages.html', 'ri-box-3-line', 'Packages Sent'],
             ['received.html', 'ri-import-line', 'Received'],
             ['sold-items.html', 'ri-list-view', 'Sold Items'],
@@ -1230,7 +1357,7 @@ const Dashboard = {
             ['exports.html', 'ri-download-cloud-2-line', 'Exports hub'],
             ['scorecard.html', 'ri-pie-chart-2-line', 'Recovery scorecard'],
             ['prep-sendback.html', 'ri-truck-line', 'Prep send-back'],
-            ['lost-items.html', 'ri-search-eye-line', 'Missing items'],
+            ['lost-items.html', 'ri-search-eye-line', 'Missing/Lost Items'],
             ['reimbursement.html', 'ri-refund-line', 'Reimbursement / Claims'],
             ['referrals.html', 'ri-user-shared-line', 'Referrals'],
             ['settings.html', 'ri-settings-3-line', 'Settings'],
@@ -1324,10 +1451,22 @@ const Dashboard = {
         if ($('#navbar-nav a[href="prep-sendback.html"]').length) return;
         const $sc = $('#navbar-nav a[href="scorecard.html"]').closest('li');
         const $exp = $('#navbar-nav a[href="exports.html"]').closest('li');
-        const $anchor = $sc.length ? $sc : $exp;
+        const $inv = $('#navbar-nav a[href="invoices.html"]').closest('li');
+        const $anchor = $sc.length ? $sc : $exp.length ? $exp : $inv;
         if (!$anchor.length) return;
         $anchor.after(
             '<li class="nav-item"><a class="nav-link" href="prep-sendback.html"><span class="nav-icon"><i class="ri-truck-line"></i></span><span class="nav-text">Prep send-back</span></a></li>'
+        );
+    },
+    injectLostItemsLink() {
+        if ($('#navbar-nav a[href="lost-items.html"]').length) return;
+        const $prep = $('#navbar-nav a[href="prep-sendback.html"]').closest('li');
+        const $sc = $('#navbar-nav a[href="scorecard.html"]').closest('li');
+        const $exp = $('#navbar-nav a[href="exports.html"]').closest('li');
+        const $anchor = $prep.length ? $prep : $sc.length ? $sc : $exp;
+        if (!$anchor.length) return;
+        $anchor.after(
+            '<li class="nav-item"><a class="nav-link" href="lost-items.html"><span class="nav-icon"><i class="ri-search-eye-line"></i></span><span class="nav-text">Missing/Lost Items</span></a></li>'
         );
     },
     injectConnectAmazonLink() {
@@ -1444,10 +1583,28 @@ const Dashboard = {
     },
 
     injectMyClientsLink() {
-        if ($('#navbar-nav a[href="my-clients.html"]').length) return;
         const user = API.getUser();
         const count = user && user.linked_clients_count;
-        if (count != null && count <= 0) return;
+        const $existing = $('#navbar-nav a[href="my-clients.html"]').closest('li');
+
+        if (count != null && count <= 0) {
+            $existing.remove();
+            return;
+        }
+
+        if ($existing.length) {
+            if (count == null) {
+                API.getHubMeta()
+                    .then((m) => {
+                        if (!m || !m.is_hub_account) {
+                            $('#navbar-nav a[href="my-clients.html"]').closest('li').remove();
+                        }
+                    })
+                    .catch(() => {});
+            }
+            return;
+        }
+
         const $idx = $('#navbar-nav a[href="index.html"]').closest('li');
         if (!$idx.length) return;
         $idx.after(

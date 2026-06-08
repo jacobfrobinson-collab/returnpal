@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <title>Missing items | ReturnPal</title>
+    <title>Missing/Lost Items | ReturnPal</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="shortcut icon" href="assets/images/favicon.ico" />
     <script src="assets/js/config.min.js"></script>
@@ -10,85 +10,192 @@
     <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
     <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
     <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/lost-items-hub.css" rel="stylesheet" type="text/css" />
 </head>
 <body>
     <div class="wrapper">
-        <header class=""><div class="topbar"><div class="container-fluid"><div class="navbar-header">
-            <div class="d-flex align-items-center gap-2">
-                <div class="topbar-item"><button type="button" class="button-toggle-menu topbar-button"><i class="ri-menu-2-line fs-24"></i></button></div>
-            </div>
-            <div class="d-flex align-items-center gap-1">
-                <div class="topbar-item"><button type="button" class="topbar-button" id="light-dark-mode"><i class="ri-moon-line fs-24 light-mode"></i><i class="ri-sun-line fs-24 dark-mode"></i></button></div>
-                <div class="dropdown topbar-item">
-                    <a type="button" class="topbar-button" data-bs-toggle="dropdown"><img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="" /></a>
-                    <div class="dropdown-menu dropdown-menu-end">
-                        <a class="dropdown-item" href="settings.html">Settings</a>
-                        <a class="dropdown-item text-danger" href="login.html">Logout</a>
+        <header class="">
+            <div class="topbar">
+                <div class="container-fluid">
+                    <div class="navbar-header">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="topbar-item">
+                                <button type="button" class="button-toggle-menu topbar-button" aria-label="Toggle menu">
+                                    <i class="ri-menu-2-line fs-24"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <div class="topbar-item">
+                                <button type="button" class="topbar-button" id="light-dark-mode" aria-label="Toggle theme">
+                                    <i class="ri-moon-line fs-24 light-mode"></i>
+                                    <i class="ri-sun-line fs-24 dark-mode"></i>
+                                </button>
+                            </div>
+                            <div class="dropdown topbar-item">
+                                <a type="button" class="topbar-button" id="page-header-user-dropdown" data-bs-toggle="dropdown">
+                                    <img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="User" />
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <h6 class="dropdown-header">Welcome!</h6>
+                                    <a class="dropdown-item" href="settings.html"><i class="ri-settings-3-line me-1"></i>Settings</a>
+                                    <div class="dropdown-divider my-1"></div>
+                                    <a class="dropdown-item text-danger" href="login.html"><i class="ri-logout-circle-line me-1"></i>Logout</a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div></div></div></header>
+        </header>
+
         <div class="main-nav">
-            <div class="logo-box"><a href="index.html"><img src="assets/images/logo-dark.png" class="logo-lg" alt="" /></a></div>
-            <button type="button" class="button-sm-hover"><i class="ri-menu-2-line fs-24"></i></button>
-            <div class="scrollbar" data-simplebar><ul class="navbar-nav" id="navbar-nav"></ul></div>
+            <div class="logo-box">
+                <a href="index.html" class="logo-dark">
+                    <img src="assets/images/logo-sm-dark.png" class="logo-sm" alt="" />
+                    <img src="assets/images/logo-dark.png" class="logo-lg" alt="" />
+                </a>
+                <a href="index.html" class="logo-light">
+                    <img src="assets/images/logo-sm-light.png" class="logo-sm" alt="" />
+                    <img src="assets/images/logo-light.png" class="logo-lg" alt="" />
+                </a>
+            </div>
+            <button type="button" class="button-sm-hover" aria-label="Show sidebar"><i class="ri-menu-2-line fs-24"></i></button>
+            <div class="scrollbar" data-simplebar>
+                <ul class="navbar-nav" id="navbar-nav"></ul>
+            </div>
         </div>
+
         <div class="page-content">
             <div class="container-fluid">
                 <div class="row mb-4">
                     <div class="col-12">
-                        <h4 class="fw-semibold mb-1"><i class="ri-search-eye-line me-2"></i>Missing / lost items</h4>
-                        <p class="text-muted mb-0">Enquire about stock you sent to ReturnPal that does not appear on your dashboard. Include as much detail as you can — item names, quantities, tracking numbers, and package references help us locate it.</p>
+                        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+                            <div>
+                                <h4 class="fw-semibold mb-1"><i class="ri-search-eye-line me-2"></i>Missing/Lost Items</h4>
+                                <p class="mb-0 text-muted rp-label">Stock you sent to ReturnPal that is not showing on your dashboard. Tell us what you shipped and we will trace it against our records.</p>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a href="packages.html" class="btn btn-sm btn-outline-secondary rp-btn-secondary">
+                                    <i class="ri-box-3-line me-1"></i>Packages Sent
+                                </a>
+                                <a href="sold-items.html" class="btn btn-sm btn-outline-secondary rp-btn-secondary">
+                                    <i class="ri-list-view me-1"></i>Sold Items
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="alert alert-warning border-0 small mb-4" id="lost-items-eligibility-note">
-                    <strong>2-month rule:</strong> you can only submit an enquiry for items sent to ReturnPal <strong>at least 2 months ago</strong>. Earliest eligible send date: <span id="lost-items-earliest-date">…</span>.
+
+                <div class="rp-lost-info mb-4" id="lost-items-eligibility-note" role="note">
+                    <i class="ri-calendar-check-line" aria-hidden="true"></i>
+                    <div class="small">
+                        <strong>Two-month waiting period</strong>
+                        <p class="mb-0 mt-1">Enquiries are only accepted for stock sent to ReturnPal <strong>at least 2 months ago</strong>, so we have time to receive and process it first. Earliest eligible send date: <span id="lost-items-earliest-date" class="fw-semibold">…</span>.</p>
+                    </div>
                 </div>
+
+                <div class="row g-3 mb-4 d-none" id="lost-items-stats">
+                    <div class="col-md-4">
+                        <div class="rp-card card border-0 rp-lost-stat h-100">
+                            <div class="card-body d-flex align-items-center justify-content-between gap-2 py-3">
+                                <div>
+                                    <p class="rp-label text-muted mb-1">Pending review</p>
+                                    <div class="rp-lost-stat-value" id="lost-stat-pending">0</div>
+                                </div>
+                                <span class="rp-lost-stat-icon rp-lost-stat-icon--pending"><i class="ri-time-line"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="rp-card card border-0 rp-lost-stat h-100">
+                            <div class="card-body d-flex align-items-center justify-content-between gap-2 py-3">
+                                <div>
+                                    <p class="rp-label text-muted mb-1">Confirmed</p>
+                                    <div class="rp-lost-stat-value" id="lost-stat-confirmed">0</div>
+                                </div>
+                                <span class="rp-lost-stat-icon rp-lost-stat-icon--confirmed"><i class="ri-checkbox-circle-line"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="rp-card card border-0 rp-lost-stat h-100">
+                            <div class="card-body d-flex align-items-center justify-content-between gap-2 py-3">
+                                <div>
+                                    <p class="rp-label text-muted mb-1">Not matched</p>
+                                    <div class="rp-lost-stat-value" id="lost-stat-denied">0</div>
+                                </div>
+                                <span class="rp-lost-stat-icon rp-lost-stat-icon--denied"><i class="ri-close-circle-line"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row g-4">
-                    <div class="col-lg-5">
+                    <div class="col-lg-4">
                         <div class="rp-card card border-0">
-                            <div class="card-header bg-white border-0"><h6 class="mb-0">New enquiry</h6></div>
+                            <div class="card-header bg-white border-0 d-flex align-items-center gap-2">
+                                <i class="ri-add-circle-line text-primary"></i>
+                                <h6 class="mb-0">Submit an enquiry</h6>
+                            </div>
                             <div class="card-body">
                                 <form id="lost-items-form">
-                                    <div class="mb-2">
-                                        <label class="form-label small">Item name / description <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control form-control-sm" id="lost-item-name" required maxlength="300" />
+                                    <div class="mb-3">
+                                        <label class="form-label" for="lost-item-name">Item name or description <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control form-control-sm" id="lost-item-name" required maxlength="300" placeholder="e.g. Sony WH-1000XM5 headphones" />
                                     </div>
-                                    <div class="mb-2">
-                                        <label class="form-label small">Quantity</label>
-                                        <input type="number" class="form-control form-control-sm" id="lost-item-qty" value="1" min="1" />
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-5">
+                                            <label class="form-label" for="lost-item-qty">Quantity</label>
+                                            <input type="number" class="form-control form-control-sm" id="lost-item-qty" value="1" min="1" />
+                                        </div>
+                                        <div class="col-7">
+                                            <label class="form-label" for="lost-item-date-sent">Date sent <span class="text-danger">*</span></label>
+                                            <input type="date" class="form-control form-control-sm" id="lost-item-date-sent" required />
+                                        </div>
                                     </div>
-                                    <div class="mb-2">
-                                        <label class="form-label small">Date sent to ReturnPal <span class="text-danger">*</span></label>
-                                        <input type="date" class="form-control form-control-sm" id="lost-item-date-sent" required />
-                                        <div class="form-text">Must be at least 2 months before today.</div>
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label small">Tracking number</label>
-                                        <input type="text" class="form-control form-control-sm" id="lost-item-tracking" maxlength="200" placeholder="Optional" />
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label small">Package reference</label>
-                                        <input type="text" class="form-control form-control-sm" id="lost-item-package-ref" maxlength="200" placeholder="Optional" />
+                                    <p class="rp-lost-form-hint mb-3">Send date must be at least 2 months before today.</p>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="lost-item-tracking">Tracking number</label>
+                                        <input type="text" class="form-control form-control-sm" id="lost-item-tracking" maxlength="200" placeholder="Carrier tracking (optional)" />
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label small">Anything else helpful</label>
-                                        <textarea class="form-control form-control-sm" id="lost-item-notes" rows="3" maxlength="4000" placeholder="SKU, condition, where you shipped from, etc."></textarea>
+                                        <label class="form-label" for="lost-item-package-ref">Package reference</label>
+                                        <input type="text" class="form-control form-control-sm" id="lost-item-package-ref" maxlength="200" placeholder="Your ref or ReturnPal label (optional)" />
                                     </div>
-                                    <button type="submit" class="btn btn-primary btn-sm">Submit enquiry</button>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="lost-item-notes">Extra detail</label>
+                                        <textarea class="form-control form-control-sm" id="lost-item-notes" rows="3" maxlength="4000" placeholder="SKU, ASIN, condition, where you shipped from — anything that helps us find it."></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                                        <i class="ri-send-plane-line me-1"></i>Submit enquiry
+                                    </button>
                                 </form>
                             </div>
                         </div>
                     </div>
-                    <div class="col-lg-7">
+                    <div class="col-lg-8">
                         <div class="rp-card card border-0">
-                            <div class="card-header bg-white border-0"><h6 class="mb-0">Your enquiries</h6></div>
-                            <div class="card-body" id="lost-items-list">Loading…</div>
+                            <div class="card-header bg-white border-0 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="ri-file-list-3-line text-primary"></i>
+                                    <h6 class="mb-0">Your enquiries</h6>
+                                </div>
+                            </div>
+                            <div class="card-body" id="lost-items-inbox">
+                                <div class="text-center py-4 text-muted">
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading…
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <footer class="footer rp-footer"><div class="container-fluid text-center"><script>document.write(new Date().getFullYear());</script> &copy; ReturnPal.</div></footer>
+            <footer class="footer rp-footer">
+                <div class="container-fluid">
+                    <div class="col-12 text-center"><script>document.write(new Date().getFullYear());</script> &copy; ReturnPal.</div>
+                </div>
+            </footer>
         </div>
     </div>
     <script src="assets/js/vendor.js"></script>
@@ -96,6 +203,6 @@
     <script src="/assets/js/api.js?v=rp-api-2026"></script>
     <script src="/assets/js/dateUk.js"></script>
     <script src="assets/js/custom.js"></script>
-    <script src="assets/js/dashboard.js?v=rp-lost-items-2026"></script>
+    <script src="assets/js/dashboard.js?v=rp-nav-sync-2026"></script>
 </body>
 </html>
