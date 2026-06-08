@@ -72,7 +72,7 @@ async function main() {
     }
     const periodYm = maxInvoicablePeriodYm();
     await sendMonthlyInvoiceForUser(db, u, periodYm);
-    console.log('Monthly invoice email attempted for user', userId, 'period', periodYm);
+    console.log('Monthly invoice email attempted for user', u.id, u.email, 'period', periodYm);
 }
 
 main().catch((e) => {
