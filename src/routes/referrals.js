@@ -1,8 +1,7 @@
 const express = require('express');
-const { getDb, saveDb } = require('../database');
+const { getDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { sendReferralInviteEmail } = require('../utils/sendReferralInviteEmail');
-const { wasEmailSent, recordEmailSent } = require('../utils/emailLog');
 
 const router = express.Router();
 
@@ -145,11 +144,6 @@ router.post('/invite', authMiddleware, async (req, res) => {
             return res.status(409).json({ error: 'That email is already registered on ReturnPal' });
         }
 
-        const refKey = 'to:' + inviteeEmail;
-        if (wasEmailSent(db, req.user.id, 'referral_invite', refKey)) {
-            return res.status(409).json({ error: 'You have already sent an invite to this email' });
-        }
-
         const profile = parseResults(
             db.exec('SELECT full_name, company_name FROM users WHERE id = ?', [req.user.id])
         );
@@ -176,9 +170,6 @@ router.post('/invite', authMiddleware, async (req, res) => {
                 error: 'Email could not be sent. Please try again later or share your referral link manually.',
             });
         }
-
-        recordEmailSent(db, req.user.id, 'referral_invite', refKey);
-        saveDb();
 
         res.json({ message: 'Invite sent to ' + inviteeEmail });
     } catch (err) {
