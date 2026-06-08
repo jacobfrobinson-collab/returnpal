@@ -2,6 +2,7 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const multer = require('multer');
 const { getDb, saveDb } = require('../database');
 const {
     extractPayoutCodeFromJotformBody,
@@ -9,6 +10,9 @@ const {
 } = require('../utils/payoutVerificationCode');
 
 const router = express.Router();
+
+// Jotform webhooks send multipart/form-data; express.json/urlencoded leave req.body empty without this.
+const jotformMultipart = multer().none();
 
 function getWebhookSecret() {
     return String(process.env.PAYOUT_JOTFORM_WEBHOOK_SECRET || '').trim();
@@ -31,7 +35,7 @@ function validateWebhookSecret(req) {
 }
 
 // POST /api/webhooks/jotform-payout-bank — Jotform submission (no bank data stored)
-router.post('/jotform-payout-bank', async (req, res) => {
+router.post('/jotform-payout-bank', jotformMultipart, async (req, res) => {
     try {
         if (!getWebhookSecret()) {
             console.warn('[jotform-payout-webhook] PAYOUT_JOTFORM_WEBHOOK_SECRET is not set');
@@ -42,10 +46,17 @@ router.post('/jotform-payout-bank', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const code = extractPayoutCodeFromJotformBody(req.body);
+        const payload = req.body && typeof req.body === 'object' ? req.body : {};
+        const code = extractPayoutCodeFromJotformBody(payload);
         if (!code) {
-            const keys = req.body && typeof req.body === 'object' ? Object.keys(req.body).slice(0, 12) : [];
-            console.warn('[jotform-payout-webhook] Missing code in payload; keys:', keys.join(', '));
+            const keys = Object.keys(payload).slice(0, 12);
+            const ct = req.get('content-type') || '';
+            console.warn(
+                '[jotform-payout-webhook] Missing code in payload; keys:',
+                keys.join(', ') || '(none)',
+                'content-type:',
+                ct.slice(0, 40)
+            );
             return res.status(400).json({ error: 'Missing payout verification code' });
         }
 

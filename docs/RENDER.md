@@ -128,7 +128,7 @@ Clients see a private verification code on **Settings** and **Payouts & Invoices
 
 1. Jotform → your bank details form → **Settings → Integrations → Webhooks**
 2. URL: `https://www.returnpal.co.uk/api/webhooks/jotform-payout-bank?secret=YOUR_PAYOUT_JOTFORM_WEBHOOK_SECRET`
-3. Ensure the form includes a field named `payout_verification_code` (or match `PAYOUT_JOTFORM_CODE_FIELD`)
+3. Ensure the form includes a field for the client’s verification code (prefill name `payout_verification_code`, or match `PAYOUT_JOTFORM_CODE_FIELD`). Jotform sends webhooks as **multipart/form-data** with a `rawRequest` JSON field — ReturnPal parses this automatically.
 
 Verify after redeploy:
 
