@@ -108,7 +108,6 @@ See [`EMAIL.md`](EMAIL.md) for full setup. Minimum for digests + transactional m
 | `SMTP_FROM` | verified from address |
 | `PUBLIC_APP_URL` | `https://www.returnpal.co.uk` |
 | `WEEKLY_DIGEST_EMAIL_ENABLED` | `1` |
-| `MONTHLY_DIGEST_EMAIL_ENABLED` | `1` |
 | `MONTHLY_INVOICE_EMAIL_ENABLED` | `1` |
 | `TRANSACTIONAL_EMAIL_ENABLED` | `1` |
 
