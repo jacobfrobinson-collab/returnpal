@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin – Missing items – ReturnPal</title>
+    <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
+    <style>
+        body { background: #f8f9fa; }
+        .admin-header { background: #212529; color: #fff; }
+        .admin-header a { color: rgba(255, 255, 255, 0.9); text-decoration: none; }
+        .admin-header a:hover { color: #fff; }
+        .sale-fields { background: #f8f9fa; border-radius: 0.375rem; padding: 0.5rem; }
+    </style>
+</head>
+<body>
+    <header class="admin-header py-3 mb-4">
+        <div class="container-fluid d-flex justify-content-between flex-wrap gap-2">
+            <h1 class="h5 mb-0">Missing / lost item enquiries</h1>
+            <div class="d-flex gap-3 align-items-center flex-wrap">
+                <a href="/admin/index.html" class="small">Clients</a>
+                <a href="/admin/queries.html" class="small">Open queries</a>
+                <a href="/admin/prep-sendback.html" class="small">Prep send-back</a>
+                <a href="/admin/insights.html" class="small">Insights</a>
+                <a href="/login.html" class="small" id="logout">Logout</a>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <p class="text-muted small mb-3">
+            Clients can enquire about stock sent at least <strong>2 months ago</strong>. Confirm if received, still in stock, or sold (record sale to add to their Sold Items tab). Deny if there is no record. Leave pending while investigating.
+        </p>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <label class="small text-muted mb-0" for="status-filter">Status</label>
+            <select class="form-select form-select-sm" id="status-filter" style="max-width: 180px">
+                <option value="">All</option>
+                <option value="pending" selected>Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="denied">Denied</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-btn">Refresh</button>
+        </div>
+        <div id="msg" class="text-muted py-4 text-center">Loading…</div>
+        <div class="d-none" id="wrap">
+            <div class="table-responsive">
+                <table class="table table-sm bg-white shadow-sm align-top">
+                    <thead class="table-light">
+                        <tr>
+                            <th>When</th>
+                            <th>Client</th>
+                            <th>Item</th>
+                            <th>Sent</th>
+                            <th>Details</th>
+                            <th style="min-width: 280px">Review</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="/assets/js/jquery-3.7.1.min.js"></script>
+    <script src="/assets/js/api.js?v=rp-admin-lost-items-2026"></script>
+    <script>
+    $(function() {
+        var ao = window.location.origin || '';
+        if (!API.isLoggedIn()) {
+            window.location.assign(ao + '/admin/login.html');
+            return;
+        }
+        if (!API.isCurrentUserAdmin()) {
+            API.clearToken();
+            window.location.assign(ao + '/admin/login.html');
+            return;
+        }
+
+        $('#logout').on('click', function(e) {
+            e.preventDefault();
+            API.clearToken();
+            window.location.assign(ao + '/admin/login.html');
+        });
+
+        function esc(s) {
+            return $('<div/>').text(s == null ? '' : s).html();
+        }
+
+        function statusBadge(status) {
+            var s = String(status || 'pending');
+            var cls = 'bg-secondary';
+            if (s === 'pending') cls = 'bg-warning text-dark';
+            else if (s === 'confirmed') cls = 'bg-success';
+            else if (s === 'denied') cls = 'bg-danger';
+            return '<span class="badge ' + cls + '">' + esc(s) + '</span>';
+        }
+
+        function outcomeLabel(outcome) {
+            var map = {
+                received: 'Received',
+                in_stock: 'In stock',
+                sold: 'Sold',
+                not_found: 'Not found',
+                never_received: 'Never received',
+            };
+            return map[outcome] || outcome || '—';
+        }
+
+        function buildReviewRow(r) {
+            var rowId = 'lost-row-' + r.id;
+            var saleHidden = r.admin_outcome !== 'sold' || r.status !== 'confirmed' ? ' d-none' : '';
+            var linked =
+                r.linked_sold_item_id
+                    ? '<div class="small text-success mt-1">Sale #' + esc(r.linked_sold_item_id) + ' linked</div>'
+                    : '';
+
+            return (
+                '<tr data-id="' +
+                r.id +
+                '">' +
+                '<td class="small text-nowrap">' +
+                esc((r.created_at || '').slice(0, 16)) +
+                '<div class="mt-1">' +
+                statusBadge(r.status) +
+                '</div></td>' +
+                '<td class="small"><div><a href="/admin/client.html?id=' +
+                encodeURIComponent(r.user_id) +
+                '">' +
+                esc(r.full_name || r.email) +
+                '</a></div><div class="text-muted">' +
+                esc(r.email) +
+                '</div></td>' +
+                '<td class="small"><strong>' +
+                esc(r.item_name) +
+                '</strong><div>Qty ' +
+                esc(r.quantity || 1) +
+                '</div>' +
+                (r.admin_outcome ? '<div class="text-muted">' + esc(outcomeLabel(r.admin_outcome)) + '</div>' : '') +
+                linked +
+                '</td>' +
+                '<td class="small text-nowrap">' +
+                esc(r.date_sent) +
+                '</td>' +
+                '<td class="small">' +
+                (r.tracking_number ? '<div>Track: ' + esc(r.tracking_number) + '</div>' : '') +
+                (r.package_reference ? '<div>Ref: ' + esc(r.package_reference) + '</div>' : '') +
+                (r.notes ? '<div class="text-muted mt-1">' + esc(r.notes) + '</div>' : '') +
+                (r.admin_notes ? '<div class="mt-1"><em>Admin:</em> ' + esc(r.admin_notes) + '</div>' : '') +
+                '</td>' +
+                '<td class="small">' +
+                '<div class="mb-1"><select class="form-select form-select-sm lost-status" data-id="' +
+                r.id +
+                '">' +
+                '<option value="pending"' +
+                (r.status === 'pending' ? ' selected' : '') +
+                '>Pending</option>' +
+                '<option value="confirmed"' +
+                (r.status === 'confirmed' ? ' selected' : '') +
+                '>Confirmed</option>' +
+                '<option value="denied"' +
+                (r.status === 'denied' ? ' selected' : '') +
+                '>Denied</option>' +
+                '</select></div>' +
+                '<div class="mb-1"><select class="form-select form-select-sm lost-outcome" data-id="' +
+                r.id +
+                '">' +
+                '<option value="">Outcome (optional)</option>' +
+                '<option value="received"' +
+                (r.admin_outcome === 'received' ? ' selected' : '') +
+                '>Received</option>' +
+                '<option value="in_stock"' +
+                (r.admin_outcome === 'in_stock' ? ' selected' : '') +
+                '>Still in stock</option>' +
+                '<option value="sold"' +
+                (r.admin_outcome === 'sold' ? ' selected' : '') +
+                '>Sold</option>' +
+                '<option value="not_found"' +
+                (r.admin_outcome === 'not_found' ? ' selected' : '') +
+                '>No record</option>' +
+                '<option value="never_received"' +
+                (r.admin_outcome === 'never_received' ? ' selected' : '') +
+                '>Never received</option>' +
+                '</select></div>' +
+                '<div class="sale-fields' +
+                saleHidden +
+                '" id="sale-fields-' +
+                r.id +
+                '">' +
+                '<div class="mb-1"><input type="number" step="0.01" min="0" class="form-control form-control-sm lost-earnings" placeholder="Client earnings £" data-id="' +
+                r.id +
+                '" /></div>' +
+                '<div class="mb-1"><input type="date" class="form-control form-control-sm lost-sold-date" data-id="' +
+                r.id +
+                '" /></div>' +
+                '<div class="mb-1"><input type="text" class="form-control form-control-sm lost-order-num" placeholder="Order # (optional)" data-id="' +
+                r.id +
+                '" maxlength="200" /></div>' +
+                '<div class="form-check mb-1">' +
+                '<input class="form-check-input lost-record-sale" type="checkbox" id="record-sale-' +
+                r.id +
+                '" data-id="' +
+                r.id +
+                '"' +
+                (r.linked_sold_item_id ? ' disabled checked' : ' checked') +
+                ' />' +
+                '<label class="form-check-label" for="record-sale-' +
+                r.id +
+                '">Add to Sold Items</label></div>' +
+                '</div>' +
+                '<textarea class="form-control form-control-sm lost-admin-notes mb-1" rows="2" placeholder="Internal / client-visible notes" data-id="' +
+                r.id +
+                '">' +
+                esc(r.admin_notes || '') +
+                '</textarea>' +
+                '<button type="button" class="btn btn-sm btn-primary lost-save-btn" data-id="' +
+                r.id +
+                '">Save</button>' +
+                '<span class="small text-muted ms-2 lost-save-msg" id="save-msg-' +
+                r.id +
+                '"></span>' +
+                '</td></tr>'
+            );
+        }
+
+        function toggleSaleFields(id) {
+            var $row = $('tr[data-id="' + id + '"]');
+            var status = $row.find('.lost-status').val();
+            var outcome = $row.find('.lost-outcome').val();
+            var $sale = $('#sale-fields-' + id);
+            if (status === 'confirmed' && outcome === 'sold') {
+                $sale.removeClass('d-none');
+            } else {
+                $sale.addClass('d-none');
+            }
+        }
+
+        function loadList() {
+            var filter = $('#status-filter').val() || '';
+            $('#msg').removeClass('d-none text-danger').addClass('text-muted').text('Loading…');
+            $('#wrap').addClass('d-none');
+            $('#tbody').empty();
+
+            API.adminListLostItems(filter || undefined)
+                .then(function(d) {
+                    var rows = (d && d.enquiries) || [];
+                    if (!rows.length) {
+                        $('#msg')
+                            .removeClass('d-none')
+                            .text(filter ? 'No enquiries with that status.' : 'No missing-item enquiries yet.');
+                        return;
+                    }
+                    $('#msg').addClass('d-none');
+                    $('#wrap').removeClass('d-none');
+                    var html = '';
+                    rows.forEach(function(r) {
+                        html += buildReviewRow(r);
+                    });
+                    $('#tbody').html(html);
+                })
+                .catch(function(err) {
+                    $('#msg')
+                        .removeClass('text-muted')
+                        .addClass('text-danger')
+                        .text((err && err.error) || 'Failed to load');
+                });
+        }
+
+        $('#status-filter, #refresh-btn').on('change click', function(e) {
+            if (e.type === 'click' && e.target.id !== 'refresh-btn') return;
+            loadList();
+        });
+
+        $(document).on('change', '.lost-status, .lost-outcome', function() {
+            toggleSaleFields($(this).data('id'));
+        });
+
+        $(document).on('click', '.lost-save-btn', function() {
+            var id = $(this).data('id');
+            var $msg = $('#save-msg-' + id);
+            var $btn = $(this);
+            var status = $('.lost-status[data-id="' + id + '"]').val();
+            var outcome = $('.lost-outcome[data-id="' + id + '"]').val();
+            var body = {
+                status: status,
+                admin_outcome: outcome,
+                admin_notes: $('.lost-admin-notes[data-id="' + id + '"]').val(),
+            };
+            if (status === 'confirmed' && outcome === 'sold' && $('.lost-record-sale[data-id="' + id + '"]').is(':checked')) {
+                body.record_sale = true;
+                body.earnings = $('.lost-earnings[data-id="' + id + '"]').val();
+                body.sold_date = $('.lost-sold-date[data-id="' + id + '"]').val();
+                body.order_number = $('.lost-order-num[data-id="' + id + '"]').val();
+            }
+            $btn.prop('disabled', true);
+            $msg.text('Saving…').removeClass('text-danger text-success');
+            API.adminUpdateLostItem(id, body)
+                .then(function() {
+                    $msg.addClass('text-success').text('Saved');
+                    loadList();
+                })
+                .catch(function(err) {
+                    $msg.addClass('text-danger').text((err && err.error) || 'Save failed');
+                })
+                .finally(function() {
+                    $btn.prop('disabled', false);
+                });
+        });
+
+        loadList();
+    });
+    </script>
+</body>
+</html>

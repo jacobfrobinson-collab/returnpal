@@ -788,6 +788,119 @@ const Dashboard = {
         }
     },
 
+    bindLostItemsForm() {
+        const $form = $('#lost-items-form');
+        if (!$form.length) return;
+        const self = this;
+        $form.off('submit.lostItems').on('submit.lostItems', async function(e) {
+            e.preventDefault();
+            const $btn = $form.find('button[type="submit"]');
+            try {
+                $btn.prop('disabled', true);
+                await API.submitLostItemEnquiry({
+                    item_name: $('#lost-item-name').val().trim(),
+                    quantity: $('#lost-item-qty').val(),
+                    date_sent: $('#lost-item-date-sent').val(),
+                    tracking_number: $('#lost-item-tracking').val().trim(),
+                    package_reference: $('#lost-item-package-ref').val().trim(),
+                    notes: $('#lost-item-notes').val().trim(),
+                });
+                self.showToast('Enquiry submitted — we will review and update you here.');
+                $form[0].reset();
+                $('#lost-item-qty').val('1');
+                await self.loadLostItems();
+            } catch (err2) {
+                self.showToast((err2 && err2.error) || 'Submit failed', 'error');
+            } finally {
+                $btn.prop('disabled', false);
+            }
+        });
+    },
+
+    async loadLostItems() {
+        const $list = $('#lost-items-list');
+        const $earliest = $('#lost-items-earliest-date');
+        const $dateInput = $('#lost-item-date-sent');
+        if (!$list.length) return;
+        this.bindLostItemsForm();
+        try {
+            const data = await API.getLostItems();
+            if ($earliest.length && data.earliest_eligible_date_sent) {
+                $earliest.text(data.earliest_eligible_date_sent);
+            }
+            if ($dateInput.length && data.earliest_eligible_date_sent) {
+                $dateInput.attr('max', data.earliest_eligible_date_sent);
+            }
+            const rows = data.enquiries || [];
+            if (!rows.length) {
+                $list.html(
+                    '<p class="text-muted mb-0">No enquiries yet. Use the form to tell us about missing stock — remember you can only enquire about items sent at least 2 months ago.</p>'
+                );
+                return;
+            }
+            const outcomeLabels = {
+                received: 'Received by ReturnPal',
+                in_stock: 'Still in stock',
+                sold: 'Sold',
+                not_found: 'No matching record',
+                never_received: 'Never received',
+            };
+            let html = '<div class="list-group list-group-flush">';
+            rows.forEach((r) => {
+                let badgeCls = 'bg-secondary';
+                if (r.status === 'pending') badgeCls = 'bg-warning text-dark';
+                else if (r.status === 'confirmed') badgeCls = 'bg-success';
+                else if (r.status === 'denied') badgeCls = 'bg-danger';
+                html +=
+                    '<div class="list-group-item px-0 py-3">' +
+                    '<div class="d-flex justify-content-between align-items-start gap-2">' +
+                    '<strong>' +
+                    this.escHtml(r.item_name) +
+                    '</strong>' +
+                    '<span class="badge ' +
+                    badgeCls +
+                    '">' +
+                    this.escHtml(r.status) +
+                    '</span></div>' +
+                    '<p class="small mb-1">Qty ' +
+                    (r.quantity || 1) +
+                    ' · sent ' +
+                    this.escHtml(r.date_sent || '—') +
+                    '</p>';
+                if (r.tracking_number) {
+                    html += '<p class="small mb-1 text-muted">Tracking: ' + this.escHtml(r.tracking_number) + '</p>';
+                }
+                if (r.package_reference) {
+                    html += '<p class="small mb-1 text-muted">Package ref: ' + this.escHtml(r.package_reference) + '</p>';
+                }
+                if (r.notes) {
+                    html += '<p class="small mb-1">' + this.escHtml(r.notes) + '</p>';
+                }
+                if (r.admin_outcome && r.status === 'confirmed') {
+                    html +=
+                        '<p class="small mb-1 text-success">' +
+                        this.escHtml(outcomeLabels[r.admin_outcome] || r.admin_outcome) +
+                        (r.linked_sold_item_id ? ' — added to Sold Items' : '') +
+                        '</p>';
+                }
+                if (r.admin_notes && r.status !== 'pending') {
+                    html += '<p class="small mb-1"><em>ReturnPal:</em> ' + this.escHtml(r.admin_notes) + '</p>';
+                }
+                if (r.status === 'denied') {
+                    html += '<p class="small mb-0 text-muted">We could not match this to our records. Contact support if you have more detail.</p>';
+                }
+                html +=
+                    '<small class="text-muted">' +
+                    (r.created_at ? RP_DATE.formatOrdinalEnGb(r.created_at) : '') +
+                    '</small></div>';
+            });
+            html += '</div>';
+            $list.html(html);
+        } catch (err) {
+            $list.html('<p class="text-danger">' + this.escHtml(err.error || 'Failed to load') + '</p>');
+        }
+    },
+
     async loadScorecard() {
         const $root = $('#scorecard-root');
         if (!$root.length) return;
@@ -960,6 +1073,8 @@ const Dashboard = {
             this.loadExportsHub();
         } else if (page.includes('prep-sendback')) {
             this.loadPrepSendback();
+        } else if (page.includes('lost-items')) {
+            this.loadLostItems();
         } else if (page.includes('scorecard')) {
             this.loadScorecard();
         } else if (page.includes('my-clients')) {
@@ -1115,6 +1230,7 @@ const Dashboard = {
             ['exports.html', 'ri-download-cloud-2-line', 'Exports hub'],
             ['scorecard.html', 'ri-pie-chart-2-line', 'Recovery scorecard'],
             ['prep-sendback.html', 'ri-truck-line', 'Prep send-back'],
+            ['lost-items.html', 'ri-search-eye-line', 'Missing items'],
             ['reimbursement.html', 'ri-refund-line', 'Reimbursement / Claims'],
             ['referrals.html', 'ri-user-shared-line', 'Referrals'],
             ['settings.html', 'ri-settings-3-line', 'Settings'],
@@ -1277,6 +1393,7 @@ const Dashboard = {
         document.body.classList.add('rp-delegate-readonly');
 
         const hideSel = [
+            '#lost-items-form',
             '#prep-sendback-form',
             '#prep-sendback-address',
             '#support-submit-btn',

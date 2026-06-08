@@ -89,6 +89,13 @@ const {
 } = require('../utils/reimbursementPhotoStaging');
 
 const PREP_SENDBACK_STATUSES = ['requested', 'queued', 'shipped', 'delivered', 'cancelled'];
+const {
+    STATUSES: LOST_ITEM_STATUSES,
+    OUTCOMES: LOST_ITEM_OUTCOMES,
+    mapEnquiryRow,
+    insertSoldItemFromEnquiry,
+} = require('../utils/lostItemEnquiry');
+const LOST_ITEM_ADMIN_OUTCOMES = LOST_ITEM_OUTCOMES.filter((o) => o !== '');
 
 const uploadsBaseDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, '../../uploads');
 const reimbursementUploadDir = path.join(uploadsBaseDir, 'reimbursement');
@@ -1096,6 +1103,126 @@ router.patch('/prep-sendback/:id', async (req, res) => {
         res.json({ request: updated, message: 'Status updated' });
     } catch (err) {
         console.error('Admin patch prep sendback error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/lost-items — client missing / lost stock enquiries
+router.get('/lost-items', async (req, res) => {
+    try {
+        const db = await dbForAdminRead();
+        const statusFilter = String(req.query.status || '').trim().toLowerCase();
+        let sql = `SELECT e.*, u.full_name, u.email, u.company_name
+             FROM lost_item_enquiries e
+             JOIN users u ON u.id = e.user_id`;
+        const params = [];
+        if (statusFilter && LOST_ITEM_STATUSES.includes(statusFilter)) {
+            sql += ' WHERE e.status = ?';
+            params.push(statusFilter);
+        }
+        sql += ' ORDER BY e.created_at DESC LIMIT 300';
+        const rows = parseResults(db.exec(sql, params));
+        res.json({
+            enquiries: rows.map(mapEnquiryRow),
+            statuses: LOST_ITEM_STATUSES,
+            outcomes: LOST_ITEM_ADMIN_OUTCOMES,
+        });
+    } catch (err) {
+        console.error('Admin list lost items error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PATCH /api/admin/lost-items/:id — review enquiry (confirm, deny, pending, record sale)
+router.patch('/lost-items/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id) || id <= 0) {
+            return res.status(400).json({ error: 'Invalid enquiry id' });
+        }
+        const db = await getDb();
+        const rows = parseResults(db.exec('SELECT * FROM lost_item_enquiries WHERE id = ?', [id]));
+        if (!rows.length) return res.status(404).json({ error: 'Enquiry not found' });
+        const cur = rows[0];
+
+        const status = String(req.body.status || cur.status || 'pending').trim().toLowerCase();
+        if (!LOST_ITEM_STATUSES.includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+        const adminOutcome = String(req.body.admin_outcome ?? cur.admin_outcome ?? '').trim().toLowerCase();
+        if (adminOutcome && !LOST_ITEM_ADMIN_OUTCOMES.includes(adminOutcome)) {
+            return res.status(400).json({ error: 'Invalid outcome' });
+        }
+        const adminNotes = String(req.body.admin_notes ?? cur.admin_notes ?? '').trim().slice(0, 4000);
+
+        let linkedSoldItemId = cur.linked_sold_item_id;
+        const recordSale =
+            status === 'confirmed' &&
+            adminOutcome === 'sold' &&
+            (req.body.record_sale === true || req.body.record_sale === 'true' || req.body.record_sale === 1);
+
+        if (recordSale) {
+            if (linkedSoldItemId) {
+                return res.status(400).json({ error: 'A sale is already linked to this enquiry.' });
+            }
+            try {
+                const { soldItemId, amount } = insertSoldItemFromEnquiry(db, cur.user_id, cur, {
+                    earnings: req.body.earnings,
+                    sold_date: req.body.sold_date,
+                    order_number: req.body.order_number,
+                });
+                linkedSoldItemId = soldItemId;
+                const product = String(cur.item_name || '').trim();
+                const msg = 'Item "' + product + '" sold for £' + amount.toFixed(2) + ' (from missing-item enquiry).';
+                await pushActivity(cur.user_id, 'item_sold', msg, '/dashboard/sold-items.html');
+                try {
+                    const { sendItemSoldEmail } = require('../utils/sendTransactionalEmail');
+                    await sendItemSoldEmail(db, cur.user_id, soldItemId, product, amount);
+                } catch (e) {
+                    console.error('[email] lost-item sold:', e.message || e);
+                }
+            } catch (saleErr) {
+                return res.status(400).json({ error: saleErr.message || 'Could not record sale' });
+            }
+        }
+
+        const resolvedAt =
+            status === 'pending'
+                ? ''
+                : cur.resolved_at || new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+        db.run(
+            `UPDATE lost_item_enquiries
+             SET status = ?, admin_outcome = ?, admin_notes = ?, linked_sold_item_id = ?,
+                 resolved_at = ?, updated_at = datetime('now')
+             WHERE id = ?`,
+            [status, adminOutcome, adminNotes, linkedSoldItemId || null, resolvedAt, id]
+        );
+        saveDb();
+
+        if (status !== cur.status || adminOutcome !== cur.admin_outcome) {
+            let activityMsg = `Missing item enquiry (${cur.item_name}): `;
+            if (status === 'denied') {
+                activityMsg += 'could not be matched to our records.';
+            } else if (status === 'confirmed') {
+                const outcomeLabels = {
+                    received: 'we received this stock',
+                    in_stock: 'we still hold this stock',
+                    sold: 'this stock was sold',
+                };
+                activityMsg += outcomeLabels[adminOutcome] || 'review complete';
+            } else {
+                activityMsg += 'is still being reviewed.';
+            }
+            await pushActivity(cur.user_id, 'info', activityMsg, '/dashboard/lost-items.html');
+        }
+
+        const updated = mapEnquiryRow(
+            parseResults(db.exec('SELECT * FROM lost_item_enquiries WHERE id = ?', [id]))[0]
+        );
+        res.json({ enquiry: updated, message: 'Enquiry updated' });
+    } catch (err) {
+        console.error('Admin patch lost items error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

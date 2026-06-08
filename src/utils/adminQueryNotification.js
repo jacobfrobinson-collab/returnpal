@@ -271,10 +271,105 @@ async function notifyAdminContactMessage(db, opts) {
     return sent;
 }
 
+function buildAdminLostItemEnquiryEmail({ client, enquiryId, itemName, quantity, trackingNumber, packageReference, notes, dateSent }) {
+    const clientName = client.full_name || client.email || 'Client';
+    const clientEmail = client.email || '';
+    const company = client.company_name || '';
+    const adminUrl = publicAppUrl() + '/admin/lost-items.html';
+    const title = 'Missing / lost item enquiry';
+    const subject = `ReturnPal: missing item enquiry #${enquiryId} — ${clientName}`;
+
+    const summaryRows = [
+        { label: 'Client', value: clientName, emphasis: true },
+        { label: 'Email', value: clientEmail || '—' },
+        ...(company ? [{ label: 'Company', value: company }] : []),
+        { label: 'Item', value: itemName, emphasis: true },
+        { label: 'Quantity', value: String(quantity || 1) },
+        { label: 'Date sent to ReturnPal', value: dateSent || '—' },
+        ...(trackingNumber ? [{ label: 'Tracking', value: trackingNumber }] : []),
+        ...(packageReference ? [{ label: 'Package ref', value: packageReference }] : []),
+    ];
+
+    const notesHtml = notes
+        ? escapeHtml(truncate(notes)).replace(/\n/g, '<br>')
+        : '<span style="color:#687d92;">—</span>';
+
+    const bodyHtml =
+        greetingHtml('Hello team,') +
+        paragraphHtml('A client submitted a <strong>missing / lost item enquiry</strong> from their dashboard.') +
+        summaryTableHtml('Enquiry details', summaryRows) +
+        `<div style="margin:0 0 24px;padding:16px 18px;background:#f8fafc;border:1px solid #d8dfe7;border-radius:8px;">` +
+        `<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#687d92;margin-bottom:8px;">Client notes</div>` +
+        `<div style="font-size:15px;line-height:1.6;color:#323a46;">${notesHtml}</div></div>` +
+        ctaButtonHtml('Review enquiry', adminUrl) +
+        signOffHtml();
+
+    const text = buildPlainEmail({
+        title: subject,
+        greeting: 'Hello team,',
+        paragraphs: [
+            'New missing / lost item enquiry from the client dashboard.',
+            `Client: ${clientName} <${clientEmail}>`,
+            `Item: ${itemName} × ${quantity || 1}`,
+            `Date sent: ${dateSent}`,
+            ...(trackingNumber ? [`Tracking: ${trackingNumber}`] : []),
+            ...(packageReference ? [`Package ref: ${packageReference}`] : []),
+            ...(notes ? ['', 'Notes:', truncate(notes)] : []),
+            '',
+            `Review: ${adminUrl}`,
+        ],
+    });
+
+    return { subject, text, html: wrapBrandedEmail({ title, subtitle: subject, bodyHtml, preheader: `${itemName} — sent ${dateSent}` }) };
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {object} opts
+ */
+async function notifyAdminLostItemEnquiry(db, opts) {
+    if (!isAdminQueryNotifyEnabled()) return false;
+
+    const to = adminNotifyEmail();
+    if (!to) {
+        console.warn('[admin-lost-item-notify] no ADMIN_QUERY_NOTIFY_EMAIL configured');
+        return false;
+    }
+
+    const { enquiryId, userId, itemName, quantity, trackingNumber, packageReference, notes, dateSent } = opts;
+    const refKey = `lost_item:${enquiryId}`;
+
+    if (wasEmailSent(db, userId, 'admin_lost_item_notify', refKey)) {
+        return false;
+    }
+
+    const client = fetchClientUser(db, userId);
+    if (!client) return false;
+
+    const { subject, text, html } = buildAdminLostItemEnquiryEmail({
+        client,
+        enquiryId,
+        itemName,
+        quantity,
+        trackingNumber,
+        packageReference,
+        notes,
+        dateSent,
+    });
+
+    const sent = await sendEmail({ to, subject, text, html });
+    if (sent) {
+        recordEmailSent(db, userId, 'admin_lost_item_notify', refKey);
+        console.log('[admin-lost-item-notify] sent to', to, 'for enquiry', enquiryId);
+    }
+    return sent;
+}
+
 module.exports = {
     isAdminQueryNotifyEnabled,
     adminNotifyEmail,
     notifyAdminClientQuery,
     notifyAdminContactMessage,
+    notifyAdminLostItemEnquiry,
     PUBLIC_CONTACT_LOG_USER_ID,
 };

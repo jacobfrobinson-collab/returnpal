@@ -601,6 +601,29 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_prep_sendback_user ON prep_sendback_requests(user_id)');
 
     db.run(`
+        CREATE TABLE IF NOT EXISTS lost_item_enquiries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            item_name TEXT NOT NULL,
+            quantity INTEGER DEFAULT 1,
+            tracking_number TEXT DEFAULT '',
+            package_reference TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            date_sent TEXT NOT NULL,
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending','confirmed','denied')),
+            admin_outcome TEXT DEFAULT '',
+            admin_notes TEXT DEFAULT '',
+            linked_sold_item_id INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            resolved_at TEXT DEFAULT '',
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_lost_item_enquiries_user ON lost_item_enquiries(user_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_lost_item_enquiries_status ON lost_item_enquiries(status)');
+
+    db.run(`
         CREATE TABLE IF NOT EXISTS partner_integrations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,

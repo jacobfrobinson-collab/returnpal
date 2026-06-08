@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Missing items | ReturnPal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="shortcut icon" href="assets/images/favicon.ico" />
+    <script src="assets/js/config.min.js"></script>
+    <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+    <div class="wrapper">
+        <header class=""><div class="topbar"><div class="container-fluid"><div class="navbar-header">
+            <div class="d-flex align-items-center gap-2">
+                <div class="topbar-item"><button type="button" class="button-toggle-menu topbar-button"><i class="ri-menu-2-line fs-24"></i></button></div>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <div class="topbar-item"><button type="button" class="topbar-button" id="light-dark-mode"><i class="ri-moon-line fs-24 light-mode"></i><i class="ri-sun-line fs-24 dark-mode"></i></button></div>
+                <div class="dropdown topbar-item">
+                    <a type="button" class="topbar-button" data-bs-toggle="dropdown"><img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="" /></a>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="settings.html">Settings</a>
+                        <a class="dropdown-item text-danger" href="login.html">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </div></div></div></header>
+        <div class="main-nav">
+            <div class="logo-box"><a href="index.html"><img src="assets/images/logo-dark.png" class="logo-lg" alt="" /></a></div>
+            <button type="button" class="button-sm-hover"><i class="ri-menu-2-line fs-24"></i></button>
+            <div class="scrollbar" data-simplebar><ul class="navbar-nav" id="navbar-nav"></ul></div>
+        </div>
+        <div class="page-content">
+            <div class="container-fluid">
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h4 class="fw-semibold mb-1"><i class="ri-search-eye-line me-2"></i>Missing / lost items</h4>
+                        <p class="text-muted mb-0">Enquire about stock you sent to ReturnPal that does not appear on your dashboard. Include as much detail as you can — item names, quantities, tracking numbers, and package references help us locate it.</p>
+                    </div>
+                </div>
+                <div class="alert alert-warning border-0 small mb-4" id="lost-items-eligibility-note">
+                    <strong>2-month rule:</strong> you can only submit an enquiry for items sent to ReturnPal <strong>at least 2 months ago</strong>. Earliest eligible send date: <span id="lost-items-earliest-date">…</span>.
+                </div>
+                <div class="row g-4">
+                    <div class="col-lg-5">
+                        <div class="rp-card card border-0">
+                            <div class="card-header bg-white border-0"><h6 class="mb-0">New enquiry</h6></div>
+                            <div class="card-body">
+                                <form id="lost-items-form">
+                                    <div class="mb-2">
+                                        <label class="form-label small">Item name / description <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control form-control-sm" id="lost-item-name" required maxlength="300" />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small">Quantity</label>
+                                        <input type="number" class="form-control form-control-sm" id="lost-item-qty" value="1" min="1" />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small">Date sent to ReturnPal <span class="text-danger">*</span></label>
+                                        <input type="date" class="form-control form-control-sm" id="lost-item-date-sent" required />
+                                        <div class="form-text">Must be at least 2 months before today.</div>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small">Tracking number</label>
+                                        <input type="text" class="form-control form-control-sm" id="lost-item-tracking" maxlength="200" placeholder="Optional" />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small">Package reference</label>
+                                        <input type="text" class="form-control form-control-sm" id="lost-item-package-ref" maxlength="200" placeholder="Optional" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small">Anything else helpful</label>
+                                        <textarea class="form-control form-control-sm" id="lost-item-notes" rows="3" maxlength="4000" placeholder="SKU, condition, where you shipped from, etc."></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm">Submit enquiry</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="rp-card card border-0">
+                            <div class="card-header bg-white border-0"><h6 class="mb-0">Your enquiries</h6></div>
+                            <div class="card-body" id="lost-items-list">Loading…</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <footer class="footer rp-footer"><div class="container-fluid text-center"><script>document.write(new Date().getFullYear());</script> &copy; ReturnPal.</div></footer>
+        </div>
+    </div>
+    <script src="assets/js/vendor.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script src="/assets/js/api.js?v=rp-api-2026"></script>
+    <script src="/assets/js/dateUk.js"></script>
+    <script src="assets/js/custom.js"></script>
+    <script src="assets/js/dashboard.js?v=rp-lost-items-2026"></script>
+</body>
+</html>

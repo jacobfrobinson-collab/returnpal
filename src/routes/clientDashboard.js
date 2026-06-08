@@ -7,6 +7,11 @@ const { getRecoveryScorecard } = require('../utils/recoveryScorecard');
 const { buildPackageJourney } = require('../utils/packageJourney');
 const { parseClientPreferences, isPrepSendbackEnabled } = require('../utils/clientPreferences');
 const { clientIsAdmin, redactOrderNumberForClientRow } = require('../utils/internalFields');
+const {
+    isDateSentEligible,
+    earliestEligibleDateSentYmd,
+    mapEnquiryRow,
+} = require('../utils/lostItemEnquiry');
 
 const router = express.Router();
 
@@ -273,6 +278,101 @@ router.post('/prep-sendback', authMiddleware, async (req, res) => {
         res.status(201).json({ id, message: 'Send-back request submitted. ReturnPal will queue shipment to your prep centre.' });
     } catch (err) {
         console.error('Prep sendback create error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/lost-items — missing / lost item enquiries
+router.get('/lost-items', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const rows = parseResults(
+            db.exec(
+                `SELECT id, item_name, quantity, tracking_number, package_reference, notes, date_sent,
+                        status, admin_outcome, admin_notes, linked_sold_item_id, created_at, updated_at, resolved_at
+                 FROM lost_item_enquiries WHERE user_id = ? ORDER BY created_at DESC LIMIT 200`,
+                [req.user.id]
+            )
+        );
+        res.json({
+            enquiries: rows.map(mapEnquiryRow),
+            earliest_eligible_date_sent: earliestEligibleDateSentYmd(),
+        });
+    } catch (err) {
+        console.error('Lost items list error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/client/lost-items — submit missing / lost item enquiry
+router.post('/lost-items', authMiddleware, async (req, res) => {
+    try {
+        const itemName = String(req.body.item_name || '').trim();
+        const quantity = Math.max(1, parseInt(req.body.quantity, 10) || 1);
+        const trackingNumber = String(req.body.tracking_number || '').trim().slice(0, 200);
+        const packageReference = String(req.body.package_reference || '').trim().slice(0, 200);
+        const notes = String(req.body.notes || '').trim().slice(0, 4000);
+        const dateSentRaw = req.body.date_sent;
+
+        if (!itemName) {
+            return res.status(400).json({ error: 'Item name is required.' });
+        }
+        const eligibility = isDateSentEligible(dateSentRaw);
+        if (!eligibility.ok) {
+            return res.status(400).json({
+                error: eligibility.error,
+                earliest_eligible_date_sent: eligibility.earliest_eligible,
+            });
+        }
+
+        const db = await getDb();
+        db.run(
+            `INSERT INTO lost_item_enquiries
+             (user_id, item_name, quantity, tracking_number, package_reference, notes, date_sent, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
+            [
+                req.user.id,
+                itemName,
+                quantity,
+                trackingNumber,
+                packageReference,
+                notes,
+                eligibility.date_sent,
+            ]
+        );
+        saveDb();
+        const id = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+
+        await pushActivity(
+            req.user.id,
+            'info',
+            `Missing item enquiry submitted: ${itemName} (sent ${eligibility.date_sent}).`,
+            '/dashboard/lost-items.html'
+        );
+
+        try {
+            const { notifyAdminLostItemEnquiry } = require('../utils/adminQueryNotification');
+            await notifyAdminLostItemEnquiry(db, {
+                enquiryId: id,
+                userId: req.user.id,
+                itemName,
+                quantity,
+                trackingNumber,
+                packageReference,
+                notes,
+                dateSent: eligibility.date_sent,
+            });
+        } catch (e) {
+            console.error('[admin-lost-item-notify]', e.message || e);
+        }
+
+        res.status(201).json({
+            id,
+            message:
+                'Enquiry submitted. ReturnPal will review whether we received, still hold, or sold this stock. You can only enquire about items sent at least 2 months ago.',
+        });
+    } catch (err) {
+        console.error('Lost items create error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

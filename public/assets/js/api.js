@@ -1020,6 +1020,21 @@ const API = {
         });
     },
 
+    async adminListLostItems(status) {
+        const q =
+            status && String(status).trim()
+                ? '?status=' + encodeURIComponent(String(status).trim())
+                : '';
+        return this.request('/admin/lost-items' + q);
+    },
+
+    async adminUpdateLostItem(enquiryId, body) {
+        return this.request('/admin/lost-items/' + encodeURIComponent(enquiryId), {
+            method: 'PATCH',
+            body: body || {},
+        });
+    },
+
     async adminGetClientFeatures(userId) {
         return this.request('/admin/users/' + encodeURIComponent(userId) + '/client-features');
     },
@@ -1338,6 +1353,14 @@ const API = {
 
     async submitPrepSendback(body) {
         return this.request('/client/prep-sendback', { method: 'POST', body });
+    },
+
+    async getLostItems() {
+        return this.request('/client/lost-items');
+    },
+
+    async submitLostItemEnquiry(body) {
+        return this.request('/client/lost-items', { method: 'POST', body });
     },
 
     async getReimbursementCasePack(id) {
