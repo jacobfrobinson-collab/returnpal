@@ -129,8 +129,44 @@ function recordPayoutDetailsFromWebhook(db, codeInput) {
     };
 }
 
+const PAYOUT_CODE_IN_TEXT = /RP[-\s]?[A-Z0-9]{4}[-\s]?[A-Z0-9]{4}/i;
+
+function extractCodeFromText(value) {
+    const m = String(value || '').match(PAYOUT_CODE_IN_TEXT);
+    if (!m) return '';
+    return normalizePayoutVerificationCodeInput(m[0]);
+}
+
+function scanObjectForPayoutCode(obj, depth) {
+    if (!obj || depth > 6) return '';
+    if (typeof obj === 'string') return extractCodeFromText(obj);
+    if (Array.isArray(obj)) {
+        for (const item of obj) {
+            const found = scanObjectForPayoutCode(item, depth + 1);
+            if (found) return found;
+        }
+        return '';
+    }
+    if (typeof obj !== 'object') return '';
+    for (const key of Object.keys(obj)) {
+        const val = obj[key];
+        const keyLower = String(key).toLowerCase();
+        if (
+            keyLower.includes('payout') &&
+            (keyLower.includes('code') || keyLower.includes('verification'))
+        ) {
+            const direct = extractCodeFromText(val);
+            if (direct) return direct;
+        }
+        const found = scanObjectForPayoutCode(val, depth + 1);
+        if (found) return found;
+    }
+    return '';
+}
+
 /**
  * Extract verification code from Jotform webhook body (rawRequest or flat fields).
+ * Jotform often uses internal keys like q5_payoutVerificationCode — we also scan for RP-XXXX-XXXX.
  * @param {object} body
  */
 function extractPayoutCodeFromJotformBody(body) {
@@ -141,24 +177,32 @@ function extractPayoutCodeFromJotformBody(body) {
         try {
             const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
             if (parsed && parsed[field] != null) {
-                return String(parsed[field]).trim();
+                const direct = extractCodeFromText(parsed[field]);
+                if (direct) return direct;
             }
             for (const key of Object.keys(parsed || {})) {
                 if (String(key).toLowerCase() === field.toLowerCase() && parsed[key] != null) {
-                    return String(parsed[key]).trim();
+                    const direct = extractCodeFromText(parsed[key]);
+                    if (direct) return direct;
                 }
             }
+            const scanned = scanObjectForPayoutCode(parsed, 0);
+            if (scanned) return scanned;
         } catch {
             /* fall through */
         }
     }
-    if (body[field] != null) return String(body[field]).trim();
+    if (body[field] != null) {
+        const direct = extractCodeFromText(body[field]);
+        if (direct) return direct;
+    }
     for (const key of Object.keys(body)) {
         if (String(key).toLowerCase() === field.toLowerCase() && body[key] != null) {
-            return String(body[key]).trim();
+            const direct = extractCodeFromText(body[key]);
+            if (direct) return direct;
         }
     }
-    return '';
+    return scanObjectForPayoutCode(body, 0);
 }
 
 function ensurePayoutVerificationCode(db, userId, opts = {}) {

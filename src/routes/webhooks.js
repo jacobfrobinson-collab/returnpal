@@ -33,12 +33,19 @@ function validateWebhookSecret(req) {
 // POST /api/webhooks/jotform-payout-bank — Jotform submission (no bank data stored)
 router.post('/jotform-payout-bank', async (req, res) => {
     try {
+        if (!getWebhookSecret()) {
+            console.warn('[jotform-payout-webhook] PAYOUT_JOTFORM_WEBHOOK_SECRET is not set');
+            return res.status(503).json({ error: 'Webhook not configured' });
+        }
         if (!validateWebhookSecret(req)) {
+            console.warn('[jotform-payout-webhook] Rejected: invalid or missing secret');
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
         const code = extractPayoutCodeFromJotformBody(req.body);
         if (!code) {
+            const keys = req.body && typeof req.body === 'object' ? Object.keys(req.body).slice(0, 12) : [];
+            console.warn('[jotform-payout-webhook] Missing code in payload; keys:', keys.join(', '));
             return res.status(400).json({ error: 'Missing payout verification code' });
         }
 

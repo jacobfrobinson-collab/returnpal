@@ -239,6 +239,13 @@ async function start() {
                 '[ReturnPal] PAYOUT_BANK_DETAILS_FORM_URL is not set — secure bank form link is hidden on the client dashboard'
             );
         }
+        if (String(process.env.PAYOUT_JOTFORM_WEBHOOK_SECRET || '').trim()) {
+            console.log('[ReturnPal] Payout Jotform webhook secret is configured');
+        } else {
+            console.warn(
+                '[ReturnPal] PAYOUT_JOTFORM_WEBHOOK_SECRET is not set — Jotform bank submissions will not mark details on file'
+            );
+        }
 
         app.listen(PORT, () => {
             const gitCommit =

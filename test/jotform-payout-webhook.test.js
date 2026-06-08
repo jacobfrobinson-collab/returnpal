@@ -14,6 +14,12 @@ const body = {
     }),
 };
 assert.strictEqual(extractPayoutCodeFromJotformBody(body), 'RP-ABCD-2345');
+assert.strictEqual(
+    extractPayoutCodeFromJotformBody({
+        rawRequest: JSON.stringify({ q12_fullName: 'Test', q13_code: 'RP-HJKL-3456' }),
+    }),
+    'RP-HJKL-3456'
+);
 
 function secretsMatch(provided, expected) {
     if (!expected || !provided) return false;

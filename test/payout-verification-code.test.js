@@ -53,6 +53,12 @@ assert.strictEqual(normalizePayoutVerificationCodeInput('RP-AB'), '');
         extractPayoutCodeFromJotformBody({ payout_verification_code: 'RP-ABCD-2345' }),
         'RP-ABCD-2345'
     );
+    assert.strictEqual(
+        extractPayoutCodeFromJotformBody({
+            rawRequest: JSON.stringify({ q5_payoutVerificationCode: 'RP-WXYZ-9876' }),
+        }),
+        'RP-WXYZ-9876'
+    );
 
     const webhookResult = recordPayoutDetailsFromWebhook(db, 'RP-TEST-CODE');
     assert.ok(webhookResult);
