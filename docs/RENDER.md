@@ -120,8 +120,15 @@ Clients see a private verification code on **Settings** and **Payouts & Invoices
 | Key | Value |
 |-----|--------|
 | **`PAYOUT_BANK_DETAILS_FORM_URL`** | Full Jotform URL, e.g. `https://form.jotform.com/123456789012345` |
-| `PAYOUT_JOTFORM_CODE_FIELD` | Optional — prefill field name (default `payout_verification_code`) |
+| **`PAYOUT_JOTFORM_WEBHOOK_SECRET`** | Long random string — append to Jotform webhook URL as `?secret=…` |
+| `PAYOUT_JOTFORM_CODE_FIELD` | Optional — prefill + webhook field name (default `payout_verification_code`) |
 | `PAYOUT_JOTFORM_EMAIL_FIELD` | Optional — prefill field name (default `email`) |
+
+**Jotform webhook** (sets “bank details on file” on the client dashboard — no account numbers stored on ReturnPal):
+
+1. Jotform → your bank details form → **Settings → Integrations → Webhooks**
+2. URL: `https://www.returnpal.co.uk/api/webhooks/jotform-payout-bank?secret=YOUR_PAYOUT_JOTFORM_WEBHOOK_SECRET`
+3. Ensure the form includes a field named `payout_verification_code` (or match `PAYOUT_JOTFORM_CODE_FIELD`)
 
 Verify after redeploy:
 

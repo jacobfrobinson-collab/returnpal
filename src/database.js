@@ -649,6 +649,18 @@ async function getDb() {
         /* exists */
     }
 
+    try {
+        db.run('ALTER TABLE users ADD COLUMN payout_details_on_file INTEGER DEFAULT 0');
+    } catch (e) {
+        /* exists */
+    }
+
+    try {
+        db.run('ALTER TABLE users ADD COLUMN payout_details_submitted_at TEXT DEFAULT \'\'');
+    } catch (e) {
+        /* exists */
+    }
+
     db.run(`
         CREATE TABLE IF NOT EXISTS payout_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

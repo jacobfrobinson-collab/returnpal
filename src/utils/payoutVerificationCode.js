@@ -86,10 +86,86 @@ function buildBankDetailsFormUrl(baseUrl, code, email) {
  * @param {number} userId
  * @param {{ persist?: boolean }} [opts]
  */
+function readPayoutOnFileFields(row) {
+    const onFile = row && (row.payout_details_on_file === 1 || row.payout_details_on_file === '1');
+    return {
+        payout_details_on_file: !!onFile,
+        payout_details_submitted_at: String((row && row.payout_details_submitted_at) || '').trim(),
+    };
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {{ onFile: boolean, submittedAt?: string }} opts
+ */
+function setPayoutDetailsOnFile(db, userId, opts) {
+    const onFile = opts.onFile ? 1 : 0;
+    const submittedAt = opts.onFile
+        ? opts.submittedAt || new Date().toISOString().slice(0, 19).replace('T', ' ')
+        : '';
+    db.run(
+        `UPDATE users SET payout_details_on_file = ?, payout_details_submitted_at = ?, updated_at = datetime('now') WHERE id = ?`,
+        [onFile, submittedAt, userId]
+    );
+    return {
+        payout_details_on_file: !!onFile,
+        payout_details_submitted_at: submittedAt,
+    };
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {string} codeInput
+ */
+function recordPayoutDetailsFromWebhook(db, codeInput) {
+    const match = lookupClientByPayoutVerificationCode(db, codeInput);
+    if (!match) return null;
+    const flags = setPayoutDetailsOnFile(db, match.id, { onFile: true });
+    return {
+        userId: match.id,
+        email: match.email,
+        ...flags,
+    };
+}
+
+/**
+ * Extract verification code from Jotform webhook body (rawRequest or flat fields).
+ * @param {object} body
+ */
+function extractPayoutCodeFromJotformBody(body) {
+    if (!body || typeof body !== 'object') return '';
+    const field = jotformCodeFieldName();
+    let raw = body.rawRequest;
+    if (raw) {
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (parsed && parsed[field] != null) {
+                return String(parsed[field]).trim();
+            }
+            for (const key of Object.keys(parsed || {})) {
+                if (String(key).toLowerCase() === field.toLowerCase() && parsed[key] != null) {
+                    return String(parsed[key]).trim();
+                }
+            }
+        } catch {
+            /* fall through */
+        }
+    }
+    if (body[field] != null) return String(body[field]).trim();
+    for (const key of Object.keys(body)) {
+        if (String(key).toLowerCase() === field.toLowerCase() && body[key] != null) {
+            return String(body[key]).trim();
+        }
+    }
+    return '';
+}
+
 function ensurePayoutVerificationCode(db, userId, opts = {}) {
     const rows = parseResults(
         db.exec(
-            `SELECT payout_verification_code, email FROM users WHERE id = ?`,
+            `SELECT payout_verification_code, email, payout_details_on_file, payout_details_submitted_at
+             FROM users WHERE id = ?`,
             [userId]
         )
     );
@@ -113,10 +189,12 @@ function ensurePayoutVerificationCode(db, userId, opts = {}) {
     }
     const baseUrl = getBankDetailsFormBaseUrl();
     const email = rows[0].email || '';
+    const onFile = readPayoutOnFileFields(rows[0]);
     return {
         payout_verification_code: code,
         bank_details_form_url: buildBankDetailsFormUrl(baseUrl, code, email),
         form_configured: !!baseUrl,
+        ...onFile,
     };
 }
 
@@ -163,6 +241,11 @@ module.exports = {
     ensurePayoutVerificationCode,
     buildBankDetailsFormUrl,
     getBankDetailsFormBaseUrl,
+    jotformCodeFieldName,
     normalizePayoutVerificationCodeInput,
     lookupClientByPayoutVerificationCode,
+    setPayoutDetailsOnFile,
+    recordPayoutDetailsFromWebhook,
+    extractPayoutCodeFromJotformBody,
+    readPayoutOnFileFields,
 };

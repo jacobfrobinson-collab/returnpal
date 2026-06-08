@@ -114,7 +114,7 @@ function buildInvoiceEmailBody(u, periodYm, detail, prefs, openClaims) {
         payoutScheduleHtml = noticeBoxHtml(
             `<strong>Payout schedule</strong><br>` +
                 `Your net payout of <strong>${escapeHtml(formatGbp(amount))}</strong> for <strong>${escapeHtml(label)}</strong> is scheduled for <strong>${escapeHtml(dueLabel)}</strong> — at the end of the calendar month following your sales period. ` +
-                `We'll pay you via the bank details on your account once the period is finalised.`
+                `We'll pay you via bank transfer once the period is finalised — use the secure form on Settings or Payouts & Invoices if you have not submitted your bank details yet.`
         );
     } else if (amount > 0 && status === 'Paid') {
         payoutScheduleHtml = noticeBoxHtml(

@@ -3371,6 +3371,22 @@ const Dashboard = {
             const data = await API.getPayoutBankDetails();
             const code = data.payout_verification_code || '—';
             const formUrl = data.bank_details_form_url || '';
+            const onFile = !!data.payout_details_on_file;
+            const submittedAt = data.payout_details_submitted_at || '';
+            let onFileHtml = '';
+            if (onFile) {
+                let when = '';
+                if (submittedAt && typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb) {
+                    when = RP_DATE.formatOrdinalEnGb(submittedAt);
+                } else if (submittedAt) {
+                    when = String(submittedAt).slice(0, 10);
+                }
+                onFileHtml =
+                    '<div class="alert alert-success py-2 px-3 small mb-3">' +
+                    '<strong>We have your bank transfer details on file.</strong>' +
+                    (when ? ' Submitted ' + this.escHtml(when) + '.' : '') +
+                    ' Complete the form again only if your bank details change.</div>';
+            }
             let actionHtml = '';
             if (formUrl) {
                 actionHtml =
@@ -3382,6 +3398,7 @@ const Dashboard = {
                     '<p class="small text-muted mb-0">The secure form link is not configured yet. Use your code when ReturnPal sends you the form, or contact support.</p>';
             }
             $body.html(
+                onFileHtml +
                 '<p class="small text-muted mb-3">Enter this code on our secure bank details form so we can link your submission to your account. Keep this code private. Submit your details once; complete the form again only if your bank details change.</p>' +
                 '<div class="mb-2"><span class="text-muted small d-block mb-1">Your payout verification code</span>' +
                 '<div class="d-flex flex-wrap align-items-center gap-2">' +

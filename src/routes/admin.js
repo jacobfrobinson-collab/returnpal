@@ -204,6 +204,55 @@ router.get('/users/:id/payout-bank-details', async (req, res) => {
     }
 });
 
+// PUT /api/admin/users/:id/payout-bank-details/on-file
+router.put('/users/:id/payout-bank-details/on-file', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
+
+        const onFile = req.body.on_file === true || req.body.on_file === 1 || req.body.on_file === '1';
+        const { setPayoutDetailsOnFile } = require('../utils/payoutVerificationCode');
+        const db = await getDb();
+        const rows = parseResults(db.exec('SELECT id FROM users WHERE id = ?', [userId]));
+        if (!rows.length) return res.status(404).json({ error: 'User not found' });
+
+        const flags = setPayoutDetailsOnFile(db, userId, { onFile });
+        saveDb();
+
+        logAdminAudit(db, req.user.id, onFile ? 'payout_bank_on_file' : 'payout_bank_clear_on_file', {
+            target_user_id: userId,
+            payout_details_submitted_at: flags.payout_details_submitted_at,
+        });
+        saveDb();
+
+        res.json({
+            message: onFile ? 'Bank details marked on file' : 'Bank details on-file cleared',
+            ...flags,
+        });
+    } catch (err) {
+        console.error('Admin payout on-file toggle error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/users/:id/invoices — computed statements for mark-paid UI
+router.get('/users/:id/invoices', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
+
+        const { getComputedMonthlyStatements } = require('../utils/computedMonthlyStatements');
+        const db = await dbForAdminRead();
+        const rows = parseResults(db.exec('SELECT id FROM users WHERE id = ?', [userId]));
+        if (!rows.length) return res.status(404).json({ error: 'User not found' });
+
+        res.json(getComputedMonthlyStatements(db, userId));
+    } catch (err) {
+        console.error('Admin user invoices error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // GET /api/admin/hub-accounts — prep-centre hub accounts and who they can view
 router.get('/hub-accounts', async (req, res) => {
     try {

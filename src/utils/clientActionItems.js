@@ -32,9 +32,15 @@ function getClientActionItems(db, userId) {
     const items = [];
 
     const prefsRow = parseResults(
-        db.exec('SELECT client_preferences FROM users WHERE id = ?', [userId])
+        db.exec(
+            `SELECT client_preferences, COALESCE(payout_details_on_file, 0) AS payout_details_on_file
+             FROM users WHERE id = ?`,
+            [userId]
+        )
     );
     const prefs = parseClientPreferences(prefsRow[0]?.client_preferences || '');
+    const payoutOnFile =
+        prefsRow[0]?.payout_details_on_file === 1 || prefsRow[0]?.payout_details_on_file === '1';
 
     const queries = parseResults(
         db.exec(
@@ -97,13 +103,22 @@ function getClientActionItems(db, userId) {
         });
     }
 
+    if (!payoutOnFile) {
+        items.push({
+            type: 'payout_bank',
+            href: 'invoices.html',
+            text: 'Add bank transfer details for payouts',
+            priority: 3,
+        });
+    }
+
     const billingName = String(prefs.billing_name || '').trim();
     const billingAddr = String(prefs.billing_address || '').trim();
     if (!billingName || !billingAddr) {
         items.push({
             type: 'billing',
             href: 'settings.html',
-            text: 'Add billing details in Settings so we can pay you on time',
+            text: 'Add invoice billing details in Settings (name and address for statements)',
             priority: 4,
         });
     }
