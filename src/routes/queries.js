@@ -61,6 +61,19 @@ router.post('/', authMiddleware, async (req, res) => {
             [id, msg]
         );
         saveDb();
+        try {
+            const { notifyAdminClientQuery } = require('../utils/adminQueryNotification');
+            await notifyAdminClientQuery(db, {
+                queryId: id,
+                clientUserId: req.user.id,
+                message: msg,
+                contextLabel: label,
+                contextType: ctx,
+                isFollowUp: false,
+            });
+        } catch (e) {
+            console.error('[admin-query-notify] new query:', e.message || e);
+        }
         res.status(201).json({ id, message: 'Query submitted. We will get back to you.' });
     } catch (err) {
         console.error('Create query error:', err);
@@ -99,7 +112,7 @@ router.post('/:id/messages', authMiddleware, async (req, res) => {
         const db = await getDb();
         const rows = parseResults(
             db.exec(
-                `SELECT id, user_id, context_label, status, COALESCE(last_sender, 'client') AS last_sender
+                `SELECT id, user_id, context_type, context_label, status, COALESCE(last_sender, 'client') AS last_sender
                  FROM item_queries WHERE id = ?`,
                 [queryId]
             )
@@ -119,7 +132,24 @@ router.post('/:id/messages', authMiddleware, async (req, res) => {
         }
 
         appendQueryMessage(db, queryId, 'client', body);
+        const msgIdRow = parseResults(db.exec('SELECT last_insert_rowid() AS id'));
+        const messageId = msgIdRow[0]?.id;
         saveDb();
+
+        try {
+            const { notifyAdminClientQuery } = require('../utils/adminQueryNotification');
+            await notifyAdminClientQuery(db, {
+                queryId,
+                clientUserId: req.user.id,
+                message: body,
+                contextLabel: q.context_label || '',
+                contextType: q.context_type || 'general',
+                isFollowUp: true,
+                messageId,
+            });
+        } catch (e) {
+            console.error('[admin-query-notify] follow-up:', e.message || e);
+        }
 
         const qRow = parseResults(db.exec('SELECT status, last_sender FROM item_queries WHERE id = ?', [queryId]))[0];
         const msgs = listMessagesForQuery(db, queryId);

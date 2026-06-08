@@ -9,6 +9,7 @@ ReturnPal can send:
 | Package delivered | When status becomes Delivered | Per-client toggle |
 | Item sold | When a sale row is created | Per-client toggle |
 | Payout sent | Wording in monthly email when Paid | Per-client toggle |
+| **Admin: client query** | Client submits or follows up on **My queries** | `ADMIN_QUERY_NOTIFY_EMAIL` |
 
 Weekly emails always send (including zero-activity weeks). Monthly emails include invoice totals and payout schedule text.
 
@@ -40,6 +41,8 @@ Also set `FRONTEND_URL` to your public site URL (used as fallback for links).
 | `WEEKLY_DIGEST_EMAIL_ENABLED` | `1` | Sunday weekly summary scheduler |
 | `MONTHLY_INVOICE_EMAIL_ENABLED` | `1` | 1st-of-month monthly snapshot + invoice |
 | `TRANSACTIONAL_EMAIL_ENABLED` | `1` | Package delivered / item sold |
+| `ADMIN_QUERY_NOTIFY_ENABLED` | `1` | Email operators on new client queries (falls back to transactional toggle) |
+| `ADMIN_QUERY_NOTIFY_EMAIL` | `contact@returnpal.co.uk` | Inbox for query alerts |
 
 ### Optional schedule overrides
 
