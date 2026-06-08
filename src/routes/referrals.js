@@ -1,6 +1,8 @@
 const express = require('express');
-const { getDb } = require('../database');
+const { getDb, saveDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { sendReferralInviteEmail } = require('../utils/sendReferralInviteEmail');
+const { wasEmailSent, recordEmailSent } = require('../utils/emailLog');
 
 const router = express.Router();
 
@@ -116,6 +118,71 @@ router.get('/', authMiddleware, async (req, res) => {
         });
     } catch (err) {
         console.error('Get referrals error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/referrals/invite — branded invite email to a prospective seller
+router.post('/invite', authMiddleware, async (req, res) => {
+    try {
+        const inviteeEmail = String(req.body.email || '')
+            .trim()
+            .toLowerCase();
+        const personalMessage = String(req.body.message || '').trim().slice(0, 500);
+
+        if (!inviteeEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteeEmail)) {
+            return res.status(400).json({ error: 'Valid email address is required' });
+        }
+
+        const db = await getDb();
+        const referrerEmail = String(req.user.email || '').trim().toLowerCase();
+        if (inviteeEmail === referrerEmail) {
+            return res.status(400).json({ error: 'You cannot invite your own email address' });
+        }
+
+        const existing = parseResults(db.exec('SELECT id FROM users WHERE LOWER(email) = ?', [inviteeEmail]));
+        if (existing.length) {
+            return res.status(409).json({ error: 'That email is already registered on ReturnPal' });
+        }
+
+        const refKey = 'to:' + inviteeEmail;
+        if (wasEmailSent(db, req.user.id, 'referral_invite', refKey)) {
+            return res.status(409).json({ error: 'You have already sent an invite to this email' });
+        }
+
+        const profile = parseResults(
+            db.exec('SELECT full_name, company_name FROM users WHERE id = ?', [req.user.id])
+        );
+        const referrerName =
+            (profile[0] && (profile[0].full_name || profile[0].company_name)) ||
+            req.user.full_name ||
+            req.user.email ||
+            'A ReturnPal seller';
+
+        const baseUrl = process.env.FRONTEND_URL || (req.protocol + '://' + req.get('host'));
+        const referralCode = 'RP' + req.user.id;
+        const referralLink =
+            baseUrl.replace(/\/$/, '') + '/register.html?ref=' + encodeURIComponent(referralCode);
+
+        const result = await sendReferralInviteEmail({
+            inviteeEmail,
+            referrerName,
+            referralLink,
+            personalMessage,
+        });
+
+        if (!result.sent) {
+            return res.status(503).json({
+                error: 'Email could not be sent. Please try again later or share your referral link manually.',
+            });
+        }
+
+        recordEmailSent(db, req.user.id, 'referral_invite', refKey);
+        saveDb();
+
+        res.json({ message: 'Invite sent to ' + inviteeEmail });
+    } catch (err) {
+        console.error('Referral invite error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

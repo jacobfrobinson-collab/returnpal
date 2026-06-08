@@ -788,6 +788,13 @@ const API = {
             throw err;
         }
     },
+
+    async sendReferralInvite(email, message) {
+        return this.request('/referrals/invite', {
+            method: 'POST',
+            body: { email: email, message: message || '' },
+        });
+    },
     _getReferralsMock() {
         const now = new Date();
         const daysAgo = (n) => {

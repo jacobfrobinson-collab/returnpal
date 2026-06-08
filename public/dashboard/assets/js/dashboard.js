@@ -1330,25 +1330,20 @@ const Dashboard = {
                 const email = $('#refer-email').val().trim();
                 if (!email) return alert('Please enter their email.');
                 const msg = $('#refer-message').val().trim();
-                let link = ($('#referral-link-input').val() || '').trim();
-                if (!link) {
-                    try {
-                        const d = await API.getReferrals();
-                        link = d.referral_link || '';
-                    } catch (e) { /* ignore */ }
+                const $btn = $(this);
+                $btn.prop('disabled', true).text('Sending…');
+                try {
+                    await API.sendReferralInvite(email, msg);
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('referFriendModal'));
+                    if (modal) modal.hide();
+                    $('#refer-email').val('');
+                    $('#refer-message').val('');
+                    Dashboard.showToast('Invite sent — they will receive a welcome email from ReturnPal', 'success');
+                } catch (err) {
+                    Dashboard.showToast((err && err.error) || 'Could not send invite', 'error');
+                } finally {
+                    $btn.prop('disabled', false).text('Send invite');
                 }
-                const modal = bootstrap.Modal.getInstance(document.getElementById('referFriendModal'));
-                if (modal) modal.hide();
-                $('#refer-email').val('');
-                $('#refer-message').val('');
-                const body = (msg ? msg + '\n\n' : '') + (link ? 'Sign up with my ReturnPal referral link:\n' + link : 'Try ReturnPal for Amazon returns recovery.');
-                window.location.href =
-                    'mailto:' +
-                    encodeURIComponent(email) +
-                    '?subject=' +
-                    encodeURIComponent('ReturnPal referral') +
-                    '&body=' +
-                    encodeURIComponent(body);
             });
             $(document).on('show.bs.modal', '#referFriendModal', async function() {
                 const $inp = $('#referral-link-input');
@@ -1417,7 +1412,7 @@ const Dashboard = {
 
     injectReferModal() {
         if ($('#referFriendModal').length) return;
-        const html = '<div class="modal fade" id="referFriendModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Refer a seller</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted small">Invite another seller to try ReturnPal.</p><div class="mb-3"><label class="form-label">Their email</label><input type="email" class="form-control" id="refer-email" placeholder="seller@example.com" /></div><div class="mb-3"><label class="form-label">Optional message</label><textarea class="form-control" id="refer-message" rows="2" placeholder="Add a short note..."></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="refer-send-btn">Send invite</button></div></div></div></div>';
+        const html = '<div class="modal fade" id="referFriendModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Refer a seller</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted small">We will send them a branded welcome email with your name and your personal referral link.</p><div class="mb-3"><label class="form-label">Their email</label><input type="email" class="form-control" id="refer-email" placeholder="seller@example.com" /></div><div class="mb-3"><label class="form-label">Optional personal note</label><textarea class="form-control" id="refer-message" rows="2" placeholder="Add a short note they will see in the email…"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="refer-send-btn">Send invite</button></div></div></div></div>';
         $('body').append(html);
     },
     injectSupportModal() {
