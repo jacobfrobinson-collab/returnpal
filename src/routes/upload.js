@@ -97,12 +97,6 @@ router.post('/packages', authMiddleware, upload.single('file'), async (req, res)
                 );
                 const result = db.exec('SELECT last_insert_rowid() as id');
                 packageId = result[0].values[0][0];
-                try {
-                    const { maybeGrantReferralCredit } = require('../utils/referralCredits');
-                    maybeGrantReferralCredit(db, req.user.id);
-                } catch (e) {
-                    console.error('[referral-credit]', e.message || e);
-                }
             }
 
             // Add product

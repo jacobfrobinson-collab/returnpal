@@ -15,7 +15,7 @@ const {
     resolveStatementStatus,
     payoutEtaFields,
 } = require('./payoutEvents');
-const { getPendingReferralCreditsTotal, applyPendingReferralCredits } = require('./referralCredits');
+const { getPendingReferralCreditsForPeriod, applyPendingReferralCredits } = require('./referralCredits');
 
 function parseResults(result) {
     if (!result || !result.length) return [];
@@ -299,7 +299,7 @@ function buildInvoicePeriodPayload(db, userId, p, allSoldCache = null) {
     if (today >= issueStr.slice(0, 10)) {
         referralCredit = applyPendingReferralCredits(db, userId, periodYm);
     } else {
-        referralCredit = getPendingReferralCreditsTotal(db, userId);
+        referralCredit = getPendingReferralCreditsForPeriod(db, userId, periodYm);
     }
     if (referralCredit > 0) {
         gross_net = Math.round((gross_net - referralCredit) * 100) / 100;

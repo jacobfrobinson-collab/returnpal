@@ -59,6 +59,64 @@ function forceReloadDbFromDisk() {
     }
 }
 
+/** One-off → monthly referral credits: add credit_period_ym and rebuild unique index. */
+function migrateReferralCreditsMonthly(database) {
+    try {
+        const info = database.exec(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='referral_credits'"
+        );
+        if (!info.length || !info[0].values.length) return;
+        const createSql = String(info[0].values[0][0] || '');
+        if (
+            createSql.includes('credit_period_ym') &&
+            createSql.includes('UNIQUE(referrer_user_id, referred_user_id, credit_period_ym)')
+        ) {
+            return;
+        }
+        try {
+            database.run(
+                "ALTER TABLE referral_credits ADD COLUMN credit_period_ym TEXT NOT NULL DEFAULT ''"
+            );
+        } catch (e) {
+            // column may already exist from a partial migration
+        }
+        database.run(
+            `UPDATE referral_credits
+             SET credit_period_ym = substr(COALESCE(NULLIF(trim(applied_period_ym), ''), created_at), 1, 7)
+             WHERE credit_period_ym IS NULL OR credit_period_ym = ''`
+        );
+        database.run(`
+            CREATE TABLE referral_credits_v2 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referrer_user_id INTEGER NOT NULL,
+                referred_user_id INTEGER NOT NULL,
+                credit_period_ym TEXT NOT NULL,
+                amount REAL NOT NULL,
+                status TEXT DEFAULT 'pending' CHECK(status IN ('pending','applied')),
+                applied_period_ym TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(referrer_user_id, referred_user_id, credit_period_ym),
+                FOREIGN KEY (referrer_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+        database.run(`
+            INSERT INTO referral_credits_v2 (
+                id, referrer_user_id, referred_user_id, credit_period_ym, amount, status, applied_period_ym, created_at
+            )
+            SELECT id, referrer_user_id, referred_user_id, credit_period_ym, amount, status, applied_period_ym, created_at
+            FROM referral_credits
+        `);
+        database.run('DROP TABLE referral_credits');
+        database.run('ALTER TABLE referral_credits_v2 RENAME TO referral_credits');
+        database.run(
+            'CREATE INDEX IF NOT EXISTS idx_referral_credits_referrer ON referral_credits(referrer_user_id)'
+        );
+    } catch (e) {
+        console.error('[db] migrateReferralCreditsMonthly:', e.message || e);
+    }
+}
+
 async function getDb() {
     if (!sqlInitPromise) sqlInitPromise = initSqlJs();
     const SQL = await sqlInitPromise;
@@ -686,16 +744,18 @@ async function getDb() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             referrer_user_id INTEGER NOT NULL,
             referred_user_id INTEGER NOT NULL,
+            credit_period_ym TEXT NOT NULL DEFAULT '',
             amount REAL NOT NULL,
             status TEXT DEFAULT 'pending' CHECK(status IN ('pending','applied')),
             applied_period_ym TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now')),
-            UNIQUE(referrer_user_id, referred_user_id),
+            UNIQUE(referrer_user_id, referred_user_id, credit_period_ym),
             FOREIGN KEY (referrer_user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     `);
     db.run('CREATE INDEX IF NOT EXISTS idx_referral_credits_referrer ON referral_credits(referrer_user_id)');
+    migrateReferralCreditsMonthly(db);
 
     db.run(`
         CREATE TABLE IF NOT EXISTS client_loyalty_tiers (

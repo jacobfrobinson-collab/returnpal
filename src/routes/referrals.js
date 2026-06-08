@@ -75,7 +75,7 @@ router.get('/', authMiddleware, async (req, res) => {
             r.earned = r.status === 'Active' ? rewardEach : 0;
         });
 
-        const total_earned = referrals.reduce((s, r) => s + (Number(r.earned) || 0), 0);
+        const monthly_reward_estimate = activeCount * rewardEach;
 
         let nextTier = null;
         let activeRequired = 0;
@@ -96,24 +96,26 @@ router.get('/', authMiddleware, async (req, res) => {
 
         const { getReferralCreditsSummary } = require('../utils/referralCredits');
         const credits = getReferralCreditsSummary(db, req.user.id);
-        const creditPerFirst = rewardEach || (TIERS[0] && TIERS[0].reward_per_referral) || 10;
+        const creditPerMonth = rewardEach || (TIERS[0] && TIERS[0].reward_per_referral) || 10;
 
         res.json({
             referral_code: referralCode,
             referral_link: referralLink,
             referrals,
-            total_earned,
+            total_earned: monthly_reward_estimate,
+            monthly_reward_estimate,
             active_count: activeCount,
             tiers: TIERS,
             current_tier: currentTier,
             next_tier: nextTierWithRequired,
             pending_credits: credits.pending_credits,
             applied_credits_total: credits.applied_credits_total,
-            credit_per_first_package: creditPerFirst,
+            credit_per_active_referral_month: creditPerMonth,
+            credit_per_first_package: creditPerMonth,
             credit_message:
                 '£' +
-                creditPerFirst +
-                ' credit is applied on your next monthly statement when a referral sends their first package.',
+                creditPerMonth +
+                ' credit per active referral each month (when they send a package that month), applied on your monthly statement.',
         });
     } catch (err) {
         console.error('Get referrals error:', err);

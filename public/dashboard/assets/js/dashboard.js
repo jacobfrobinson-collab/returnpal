@@ -3638,14 +3638,19 @@ const Dashboard = {
         try {
             const data = await API.getReferrals();
             const list = data.referrals || [];
-            const totalEarned = data.total_earned != null ? data.total_earned : list.reduce((s, r) => s + (Number(r.earned) || 0), 0);
+            const totalEarned =
+                data.monthly_reward_estimate != null
+                    ? data.monthly_reward_estimate
+                    : data.total_earned != null
+                      ? data.total_earned
+                      : list.reduce((s, r) => s + (Number(r.earned) || 0), 0);
             const active = data.active_count != null ? Number(data.active_count) : list.filter(r => r.status === 'Active').length;
             const signedUpOnly = list.filter(r => r.status === 'Signed up').length;
 
             $('#referrals-total').text(list.length);
             $('#referrals-signed-up').text(signedUpOnly);
             $('#referrals-active').text(active);
-            $('#referrals-earned').text('£' + Number(totalEarned).toFixed(2));
+            $('#referrals-earned').text('£' + Number(totalEarned).toFixed(2) + '/mo');
             const link = data.referral_link || '';
             const $input = $('#referral-link-input');
             if ($input.length && link) $input.val(link);
@@ -3662,10 +3667,10 @@ const Dashboard = {
             $('#referrals-active-count').text(active);
             if (currentTier) {
                 $('#referrals-tier-label').text(currentTier.label || '-');
-                $('#referrals-tier-reward').text('£' + (currentTier.reward_per_referral || 0) + ' per active referral');
+                $('#referrals-tier-reward').text('£' + (currentTier.reward_per_referral || 0) + ' per active referral per month');
             } else {
                 $('#referrals-tier-label').text('Unlock rewards');
-                $('#referrals-tier-reward').text('Get your first active referral to earn (Tier 1: £' + (tiers[0] && tiers[0].reward_per_referral != null ? tiers[0].reward_per_referral : 10) + ' each)');
+                $('#referrals-tier-reward').text('Get your first active referral to earn (Tier 1: £' + (tiers[0] && tiers[0].reward_per_referral != null ? tiers[0].reward_per_referral : 10) + '/month each)');
             }
 
             let pct = 100;
@@ -3676,7 +3681,7 @@ const Dashboard = {
                 progLabel = active + ' / ' + goal + ' active toward ' + (nextTier.label || 'next tier');
             }
             if (!nextTier && currentTier) {
-                progLabel = 'Top tier — £' + (currentTier.reward_per_referral || 0) + ' per active referral';
+                progLabel = 'Top tier — £' + (currentTier.reward_per_referral || 0) + ' per active referral per month';
             }
             $('#referrals-tier-progress').css('width', pct + '%').attr('aria-valuenow', pct);
             $('#referrals-tier-progress-label').text(progLabel);
@@ -3704,12 +3709,12 @@ const Dashboard = {
                             (nextTier.label || 'the next tier') +
                             ' (£' +
                             (nextTier.reward_per_referral || 0) +
-                            ' per active referral).'
+                            ' per active referral per month).'
                     )
                     .removeClass('d-none');
             } else if (currentTier && !nextTier) {
                 $('#referrals-tier-next')
-                    .text('You’re in the top tier. Each active referral earns £' + (currentTier.reward_per_referral || 0) + '.')
+                    .text('You’re in the top tier. Each active referral earns £' + (currentTier.reward_per_referral || 0) + ' per month.')
                     .removeClass('d-none');
             } else {
                 $('#referrals-tier-next').addClass('d-none').text('');
@@ -3728,7 +3733,7 @@ const Dashboard = {
                                 range +
                                 ' active): £' +
                                 (t.reward_per_referral || 0) +
-                                ' each</span>'
+                                '/month each</span>'
                             );
                         })
                         .join('')
@@ -3742,7 +3747,12 @@ const Dashboard = {
                 list.forEach(r => {
                     const date = r.referred_at ? RP_DATE.formatOrdinalEnGb(r.referred_at) : '-';
                     const statusClass = r.status === 'Active' ? 'success' : r.status === 'Signed up' ? 'info' : 'secondary';
-                    const earned = r.earned != null ? '£' + Number(r.earned).toFixed(2) : '-';
+                    const earned =
+                        r.status === 'Active' && r.earned != null
+                            ? '£' + Number(r.earned).toFixed(2) + '/mo'
+                            : r.status === 'Active'
+                              ? '-'
+                              : '—';
                     $tbody.append(
                         '<tr><td>' + (r.email || '-') + '</td><td>' + date + '</td><td><span class="badge bg-' + statusClass + '-subtle text-' + statusClass + '">' + (r.status || 'Pending') + '</span></td><td class="text-end">' + earned + '</td></tr>'
                     );

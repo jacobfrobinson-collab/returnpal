@@ -1,5 +1,7 @@
 'use strict';
 
+const { calendarYearMonthFromDbDate } = require('./soldDateCalendar');
+
 const TIERS = [
     { min_active: 1, max_active: 5, reward_per_referral: 10, label: 'Tier 1' },
     { min_active: 6, max_active: 10, reward_per_referral: 15, label: 'Tier 2' },
@@ -37,39 +39,49 @@ function countActiveReferrals(db, referrerUserId) {
     return referred.filter((r) => countPackagesForUser(db, r.id) > 0).length;
 }
 
+function referredUserActiveInPeriod(db, referredUserId, periodYm) {
+    const rows = parseResults(
+        db.exec('SELECT date_added FROM packages WHERE user_id = ?', [referredUserId])
+    );
+    return rows.some((r) => calendarYearMonthFromDbDate(r.date_added) === periodYm);
+}
+
 /**
- * Grant credit when referred user sends first package (idempotent).
+ * Create pending credits for each referred user who sent a package in periodYm.
  * @param {import('sql.js').Database} db
- * @param {number} referredUserId
- * @returns {{ granted: boolean, amount?: number, referrer_user_id?: number }}
+ * @param {number} referrerUserId
+ * @param {string} periodYm
+ * @returns {number} total newly accrued amount
  */
-function maybeGrantReferralCredit(db, referredUserId) {
-    const userRows = parseResults(
-        db.exec('SELECT referred_by FROM users WHERE id = ?', [referredUserId])
+function accrueReferralCreditsForPeriod(db, referrerUserId, periodYm) {
+    const referred = parseResults(
+        db.exec('SELECT id FROM users WHERE referred_by = ?', [referrerUserId])
     );
-    const referrerId = userRows[0]?.referred_by;
-    if (!referrerId) return { granted: false };
+    const activeInPeriod = referred.filter((r) => referredUserActiveInPeriod(db, r.id, periodYm));
+    if (!activeInPeriod.length) return 0;
 
-    const pkgCount = countPackagesForUser(db, referredUserId);
-    if (pkgCount !== 1) return { granted: false };
+    const lifetimeActive = countActiveReferrals(db, referrerUserId);
+    const tier = tierForActiveCount(lifetimeActive);
+    const amountEach = tier ? Number(tier.reward_per_referral) || 0 : 10;
 
-    const existing = parseResults(
-        db.exec(
-            'SELECT id FROM referral_credits WHERE referrer_user_id = ? AND referred_user_id = ?',
-            [referrerId, referredUserId]
-        )
-    );
-    if (existing.length) return { granted: false };
-
-    const activeCount = countActiveReferrals(db, referrerId);
-    const tier = tierForActiveCount(activeCount);
-    const amount = tier ? Number(tier.reward_per_referral) || 0 : 10;
-
-    db.run(
-        `INSERT INTO referral_credits (referrer_user_id, referred_user_id, amount, status) VALUES (?, ?, ?, 'pending')`,
-        [referrerId, referredUserId, amount]
-    );
-    return { granted: true, amount, referrer_user_id: referrerId };
+    let totalAccrued = 0;
+    for (const r of activeInPeriod) {
+        const existing = parseResults(
+            db.exec(
+                `SELECT id FROM referral_credits
+                 WHERE referrer_user_id = ? AND referred_user_id = ? AND credit_period_ym = ?`,
+                [referrerUserId, r.id, periodYm]
+            )
+        );
+        if (existing.length) continue;
+        db.run(
+            `INSERT INTO referral_credits (referrer_user_id, referred_user_id, credit_period_ym, amount, status)
+             VALUES (?, ?, ?, ?, 'pending')`,
+            [referrerUserId, r.id, periodYm, amountEach]
+        );
+        totalAccrued += amountEach;
+    }
+    return Math.round(totalAccrued * 100) / 100;
 }
 
 /**
@@ -82,6 +94,23 @@ function getPendingReferralCreditsTotal(db, userId) {
             `SELECT COALESCE(SUM(amount), 0) AS total FROM referral_credits
              WHERE referrer_user_id = ? AND status = 'pending'`,
             [userId]
+        )
+    );
+    return Number(rows[0]?.total) || 0;
+}
+
+/**
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {string} periodYm
+ */
+function getPendingReferralCreditsForPeriod(db, userId, periodYm) {
+    accrueReferralCreditsForPeriod(db, userId, periodYm);
+    const rows = parseResults(
+        db.exec(
+            `SELECT COALESCE(SUM(amount), 0) AS total FROM referral_credits
+             WHERE referrer_user_id = ? AND status = 'pending' AND credit_period_ym = ?`,
+            [userId, periodYm]
         )
     );
     return Number(rows[0]?.total) || 0;
@@ -114,16 +143,18 @@ function getReferralCreditsSummary(db, userId) {
 }
 
 /**
- * Apply pending credits to a statement period.
+ * Apply pending credits for a statement period.
  * @param {import('sql.js').Database} db
  * @param {number} userId
  * @param {string} periodYm
  */
 function applyPendingReferralCredits(db, userId, periodYm) {
+    accrueReferralCreditsForPeriod(db, userId, periodYm);
     const pending = parseResults(
         db.exec(
-            `SELECT id, amount FROM referral_credits WHERE referrer_user_id = ? AND status = 'pending'`,
-            [userId]
+            `SELECT id, amount FROM referral_credits
+             WHERE referrer_user_id = ? AND status = 'pending' AND credit_period_ym = ?`,
+            [userId, periodYm]
         )
     );
     if (!pending.length) return 0;
@@ -141,9 +172,11 @@ function applyPendingReferralCredits(db, userId, periodYm) {
 module.exports = {
     TIERS,
     tierForActiveCount,
-    maybeGrantReferralCredit,
+    accrueReferralCreditsForPeriod,
     getPendingReferralCreditsTotal,
+    getPendingReferralCreditsForPeriod,
     getReferralCreditsSummary,
     applyPendingReferralCredits,
     countActiveReferrals,
+    referredUserActiveInPeriod,
 };
