@@ -2,6 +2,7 @@
 
 const { sendEmail, publicAppUrl, isTransactionalEmailEnabled, escapeHtml } = require('./emailTransport');
 const {
+    BRAND,
     wrapBrandedEmail,
     paragraphHtml,
     noticeBoxHtml,
@@ -10,6 +11,37 @@ const {
     buildPlainEmail,
     summaryTableHtml,
 } = require('./emailTemplates');
+
+function referralComparisonTableHtml() {
+    const header =
+        `<tr>` +
+        `<th style="padding:12px 16px;background:${BRAND.bg};border-bottom:1px solid ${BRAND.border};font-size:13px;text-align:left;color:${BRAND.textMuted};"></th>` +
+        `<th style="padding:12px 16px;background:#e8f6fc;border-bottom:1px solid ${BRAND.border};font-size:13px;text-align:left;color:${BRAND.primary};font-weight:700;">ReturnPal</th>` +
+        `<th style="padding:12px 16px;background:${BRAND.bg};border-bottom:1px solid ${BRAND.border};font-size:13px;text-align:left;color:${BRAND.textMuted};font-weight:600;">Typical returns services</th>` +
+        `</tr>`;
+    const row = (label, rp, other) =>
+        `<tr>` +
+        `<td style="padding:12px 16px;border-bottom:1px solid ${BRAND.border};font-size:14px;color:${BRAND.textMuted};vertical-align:top;">${escapeHtml(label)}</td>` +
+        `<td style="padding:12px 16px;border-bottom:1px solid ${BRAND.border};font-size:14px;color:${BRAND.text};vertical-align:top;font-weight:600;">${escapeHtml(rp)}</td>` +
+        `<td style="padding:12px 16px;border-bottom:1px solid ${BRAND.border};font-size:14px;color:${BRAND.textMuted};vertical-align:top;">${escapeHtml(other)}</td>` +
+        `</tr>`;
+    const rows =
+        row(
+            'Recovery approach',
+            'Best route for best value: inspect, pursue reimbursements, then resale or liquidation',
+            'Often listed on eBay and left to sell'
+        ) +
+        row('Reimbursement checks', 'Included in the workflow', 'Rarely part of the service') +
+        row('Visibility', 'Dashboard for packages, sales, and payouts', 'Limited reporting');
+    return (
+        `<div style="margin:0 0 24px;">` +
+        `<div style="font-size:13px;font-weight:700;color:${BRAND.text};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;">ReturnPal vs typical returns services</div>` +
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${BRAND.border};border-radius:8px;overflow:hidden;background:${BRAND.white};">` +
+        header +
+        rows +
+        `</table></div>`
+    );
+}
 
 /**
  * @param {object} opts
@@ -44,14 +76,12 @@ function buildReferralInviteEmail(opts) {
         paragraphHtml(
             'ReturnPal manages the work end to end: receiving returns, inspection, reimbursement checks, resale, and liquidation. You get a clear dashboard for every package, with performance-based pricing and no monthly subscription.'
         ) +
-        paragraphHtml(
-            'Many returns services focus mainly on listing stock on marketplaces. ReturnPal is set up for the wider recovery picture, including reimbursement claims and proper inspection, not only reselling items on your behalf.'
-        ) +
         summaryTableHtml('At a glance', [
             { label: 'Pricing', value: 'Performance-based, no setup fees' },
             { label: 'Dashboard', value: 'Track packages, sales, and payouts' },
             { label: 'Turnaround', value: 'Most returns processed in 24 to 72 hours' },
         ]) +
+        referralComparisonTableHtml() +
         noticeBoxHtml(
             `<strong>Create your account</strong><br>Use ${escapeHtml(referrerName)}'s referral link below to sign up. Registration takes a few minutes.`
         ) +
@@ -70,7 +100,7 @@ function buildReferralInviteEmail(opts) {
             referrerName + ' uses ReturnPal for Amazon returns recovery and suggested you take a look.',
             personalPlain,
             'ReturnPal handles receiving, inspection, reimbursement checks, resale, and liquidation, with performance-based pricing and no monthly subscription.',
-            'Many returns services focus mainly on listing stock on marketplaces. ReturnPal covers the wider recovery picture, including reimbursement claims and inspection, not only reselling on your behalf.',
+            'ReturnPal vs typical services: structured recovery (inspect, reimbursements, resale or liquidation) vs often listing on eBay and hoping it sells.',
             'Create your account using the link below:',
         ],
         ctaLabel: 'Sign up',
