@@ -3853,8 +3853,8 @@ const Dashboard = {
         $('#email-payout-sent').prop('checked', p.email_payout_sent !== false);
         $('#email-monthly-invoice').prop('checked', !!p.email_monthly_invoice);
         if ($('#email-digest-preference').length) {
-            const d = p.email_digest || 'off';
-            $('#email-digest-preference').val(d === 'weekly' || d === 'monthly' ? d : 'off');
+            const d = p.email_digest || 'weekly';
+            $('#email-digest-preference').val(d === 'off' ? 'off' : 'weekly');
         }
     },
 

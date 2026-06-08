@@ -39,16 +39,30 @@ function getUserEmailPrefs(db, userId) {
     };
 }
 
+/** Weekly Sunday summary — all clients unless they explicitly opted out. */
+function receivesWeeklySummary(prefs) {
+    if (!prefs) return true;
+    return String(prefs.email_digest).toLowerCase() !== 'off';
+}
+
+/** @deprecated use receivesWeeklySummary */
 function wantsWeeklyDigest(prefs) {
-    return prefs && String(prefs.email_digest).toLowerCase() === 'weekly';
+    return receivesWeeklySummary(prefs);
 }
 
 function wantsMonthlyDigest(prefs) {
-    return prefs && String(prefs.email_digest).toLowerCase() === 'monthly';
+    return receivesMonthlyStatement(prefs);
+}
+
+/** Monthly statement on the 1st — all clients unless digest is off. */
+function receivesMonthlyStatement(prefs) {
+    if (!prefs) return true;
+    if (String(prefs.email_digest).toLowerCase() === 'off') return false;
+    return true;
 }
 
 function wantsMonthlyInvoice(prefs) {
-    return prefs && prefs.email_monthly_invoice === true;
+    return receivesMonthlyStatement(prefs);
 }
 
 function wantsEventEmail(prefs, eventType) {
@@ -74,40 +88,14 @@ function listNonAdminUsersWithEmail(db) {
     );
 }
 
-/** Monday YYYY-MM-DD in Europe/London for weekly digest idempotency. */
-function weeklyDigestRefKey(date = new Date()) {
-    const tz = process.env.WEEKLY_DIGEST_TZ || 'Europe/London';
-    try {
-        const fmt = new Intl.DateTimeFormat('en-CA', {
-            timeZone: tz,
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-        });
-        const parts = fmt.formatToParts(date);
-        const y = Number(parts.find((p) => p.type === 'year').value);
-        const m = Number(parts.find((p) => p.type === 'month').value);
-        const d = Number(parts.find((p) => p.type === 'day').value);
-        const utc = new Date(Date.UTC(y, m - 1, d));
-        const day = utc.getUTCDay();
-        const diff = day === 0 ? -6 : 1 - day;
-        utc.setUTCDate(utc.getUTCDate() + diff);
-        const ym = utc.getUTCFullYear();
-        const mm = String(utc.getUTCMonth() + 1).padStart(2, '0');
-        const dd = String(utc.getUTCDate()).padStart(2, '0');
-        return `week:${ym}-${mm}-${dd}`;
-    } catch {
-        return `week:${date.toISOString().slice(0, 10)}`;
-    }
-}
-
 module.exports = {
     prefsFromUserRow,
     getUserEmailPrefs,
+    receivesWeeklySummary,
+    receivesMonthlyStatement,
     wantsWeeklyDigest,
     wantsMonthlyDigest,
     wantsMonthlyInvoice,
     wantsEventEmail,
     listNonAdminUsersWithEmail,
-    weeklyDigestRefKey,
 };

@@ -246,10 +246,8 @@ async function start() {
 
         try {
             const { startWeeklyDigestScheduler } = require('./jobs/weeklyDigest');
-            const { startMonthlyDigestScheduler } = require('./jobs/monthlyDigest');
             const { startMonthlyInvoiceScheduler } = require('./jobs/monthlyInvoiceEmail');
             startWeeklyDigestScheduler();
-            startMonthlyDigestScheduler();
             startMonthlyInvoiceScheduler();
         } catch (e) {
             console.warn('Email schedulers:', e && e.message);

@@ -332,7 +332,7 @@
                                 <div class="card">
                                     <div class="card-header">Email preferences</div>
                                     <div class="card-body">
-                                        <p class="text-muted small mb-3">Choose when we email you. Preferences are saved to your account.</p>
+                                        <p class="text-muted small mb-3">All clients receive a <strong>Sunday weekly summary</strong> and a <strong>monthly snapshot with invoice</strong> on the 1st. Use the options below for instant alerts and to unsubscribe from scheduled emails.</p>
                                         <div class="form-check form-switch mb-2">
                                             <input class="form-check-input" type="checkbox" id="email-package-delivered" checked>
                                             <label class="form-check-label" for="email-package-delivered">When a package is delivered</label>
@@ -346,19 +346,13 @@
                                             <label class="form-check-label" for="email-payout-sent">Include payout-sent notice in monthly invoice email</label>
                                         </div>
                                         <div class="mb-3 mt-3">
-                                            <label class="form-label">Email digest</label>
-                                            <select class="form-select form-select-sm" id="email-digest-preference" aria-label="Email digest">
-                                                <option value="off">Off</option>
-                                                <option value="weekly">Weekly – summary of items sold and recovered</option>
-                                                <option value="monthly">Monthly – ROI summary and key numbers</option>
+                                            <label class="form-label">Scheduled summary emails</label>
+                                            <select class="form-select form-select-sm" id="email-digest-preference" aria-label="Scheduled summary emails">
+                                                <option value="weekly">On — Sunday weekly + monthly snapshot (1st)</option>
+                                                <option value="off">Off — unsubscribe from scheduled summaries</option>
                                             </select>
-                                            <small class="text-muted">e.g. “This week: X items sold, £Y recovered. [View dashboard]”</small>
+                                            <small class="text-muted">Weekly emails cover Mon–Sun sales recovered. Monthly emails include your invoice and payout schedule.</small>
                                         </div>
-                                        <div class="form-check form-switch mb-2">
-                                            <input class="form-check-input" type="checkbox" id="email-monthly-invoice">
-                                            <label class="form-check-label" for="email-monthly-invoice">Email my monthly invoice at the start of each month</label>
-                                        </div>
-                                        <small class="text-muted d-block mb-2">We'll send your previous month's payout invoice to your account email on the 1st so you can see how much you'll receive.</small>
                                         <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="settings-email-prefs-save">Save email preferences</button>
                                         <p class="text-muted small mt-2 mb-0">Emails are sent only when ReturnPal has outbound mail configured on the server. If you are not receiving mail, contact support.</p>
                                     </div>

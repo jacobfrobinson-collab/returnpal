@@ -17,8 +17,8 @@ const DEFAULT_PREFS = {
     email_package_delivered: true,
     email_item_sold: true,
     email_payout_sent: true,
-    email_monthly_invoice: false,
-    email_digest: 'off',
+    email_monthly_invoice: true,
+    email_digest: 'weekly',
     /** Available to all clients unless admin sets prep_sendback_enabled to false */
     prep_sendback_enabled: true,
 };

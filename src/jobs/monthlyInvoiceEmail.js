@@ -1,11 +1,11 @@
 /**
- * 1st of month invoice email for users with email_monthly_invoice enabled.
+ * 1st-of-month statement email — monthly snapshot + invoice for all clients (opt out via digest Off).
  */
 const { getDb } = require('../database');
 const { isMonthlyInvoiceEmailEnabled, sendEmail, publicAppUrl, escapeHtml } = require('../utils/emailTransport');
 const {
     prefsFromUserRow,
-    wantsMonthlyInvoice,
+    receivesMonthlyStatement,
     wantsEventEmail,
     listNonAdminUsersWithEmail,
 } = require('../utils/emailPreferences');
@@ -28,11 +28,53 @@ const {
     formatGbp,
 } = require('../utils/emailTemplates');
 
+function parseResults(result) {
+    if (!result || !result.length) return [];
+    const cols = result[0].columns;
+    return result[0].values.map((row) => {
+        const obj = {};
+        cols.forEach((col, i) => {
+            obj[col] = row[i];
+        });
+        return obj;
+    });
+}
+
 function periodLabel(periodYm) {
     const p = parsePeriodYm(periodYm);
     if (!p) return periodYm;
     const d = new Date(p.y, p.m - 1, 1);
     return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
+
+function formatDueDate(ymd) {
+    if (!ymd || String(ymd).length < 10) return '';
+    const [y, m, d] = String(ymd)
+        .slice(0, 10)
+        .split('-')
+        .map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
+}
+
+function emptyPeriodDetail() {
+    return {
+        total: 0,
+        status: 'Pending',
+        due_date: '',
+        summary: {
+            sales_profit: 0,
+            refunds_and_returns: 0,
+            fees_deducted: 0,
+            gross_net: 0,
+            net_payout_estimate: 0,
+        },
+        _items_count: 0,
+        _returns_count: 0,
+    };
 }
 
 function statusTone(status) {
@@ -44,10 +86,10 @@ function statusTone(status) {
 function statusHeroLabel(status, amount) {
     if (amount <= 0) return 'No payment due';
     if (status === 'Paid') return 'Payout sent';
-    return 'Payout pending';
+    return 'Payout scheduled';
 }
 
-function buildInvoiceEmailBody(u, periodYm, detail, prefs) {
+function buildInvoiceEmailBody(u, periodYm, detail, prefs, openClaims) {
     const name = u.full_name || u.email || 'there';
     const label = periodLabel(periodYm);
     const amount = Number(detail.total) || 0;
@@ -60,26 +102,45 @@ function buildInvoiceEmailBody(u, periodYm, detail, prefs) {
     const itemsCount = detail._items_count || 0;
     const returnsCount = detail._returns_count || 0;
     const noActivity = itemsCount === 0 && returnsCount === 0;
+    const dueLabel = formatDueDate(detail.due_date);
 
     const url =
         publicAppUrl() +
         '/dashboard/invoices.html' +
         (periodYm ? '?period=' + encodeURIComponent(periodYm) : '');
 
-    const payoutNotice =
-        status === 'Paid' && wantsEventEmail(prefs, 'payout_sent')
+    let payoutScheduleHtml = '';
+    if (amount > 0 && status === 'Pending' && dueLabel) {
+        payoutScheduleHtml = noticeBoxHtml(
+            `<strong>Payout schedule</strong><br>` +
+                `Your net payout of <strong>${escapeHtml(formatGbp(amount))}</strong> for <strong>${escapeHtml(label)}</strong> is scheduled for <strong>${escapeHtml(dueLabel)}</strong> — at the end of the calendar month following your sales period. ` +
+                `We'll pay you via the bank details on your account once the period is finalised.`
+        );
+    } else if (amount > 0 && status === 'Paid') {
+        payoutScheduleHtml = noticeBoxHtml(
+            `<strong>Payout sent</strong><br>` +
+                `Your payout of <strong>${escapeHtml(formatGbp(amount))}</strong> for <strong>${escapeHtml(label)}</strong> has been processed.`
+        );
+    } else if (noActivity) {
+        payoutScheduleHtml = noticeBoxHtml(
+            '<strong>No payment due</strong><br>There were no sales or returns in this billing period, so no payout is scheduled.'
+        );
+    }
+
+    const payoutPrefNotice =
+        status === 'Paid' && wantsEventEmail(prefs, 'payout_sent') && amount > 0
             ? noticeBoxHtml(
-                  '<strong>Your payout has been sent.</strong> Funds for this period should appear in your account according to your usual payment schedule.'
+                  '<strong>Funds on the way.</strong> Your payout should appear in your account according to your usual payment schedule.'
               )
             : '';
 
     const summaryRows = [
+        { label: 'Items sold', value: String(itemsCount) },
         { label: 'Sales profit', value: formatGbp(salesProfit) },
         { label: 'Refunds & returns', value: formatGbp(-Math.abs(refunds)), negative: refunds > 0 },
         { label: 'Fees deducted', value: formatGbp(-Math.abs(fees)), negative: fees > 0 },
         { label: 'Gross net', value: formatGbp(grossNet) },
-        { label: 'Items sold in period', value: String(itemsCount) },
-        { label: 'Returns in period', value: String(returnsCount) },
+        { label: 'Open reimbursement claims', value: String(openClaims) },
         {
             label: amount > 0 ? 'Net payout' : 'Net amount (no payment due)',
             value: formatGbp(amount),
@@ -88,8 +149,8 @@ function buildInvoiceEmailBody(u, periodYm, detail, prefs) {
     ];
 
     const intro = noActivity
-        ? `The billing period for <strong>${escapeHtml(label)}</strong> has ended. There were no sales or returns recorded during this time. You can check your dashboard for the current status of all your products.`
-        : `The billing period for <strong>${escapeHtml(label)}</strong> has ended. Your monthly statement is ready — see the summary below and open your invoices page for the full breakdown.`;
+        ? `Your <strong>monthly snapshot</strong> for <strong>${escapeHtml(label)}</strong> is ready. The billing period has ended and there were no sales or returns recorded — your invoice reflects zero activity.`
+        : `Your <strong>monthly snapshot and invoice</strong> for <strong>${escapeHtml(label)}</strong> are ready. Below is your period summary; your full billing statement is available on the invoices page.`;
 
     const bodyHtml =
         greetingHtml(name) +
@@ -101,37 +162,39 @@ function buildInvoiceEmailBody(u, periodYm, detail, prefs) {
             statusTone: noActivity ? 'muted' : statusTone(status),
             noActivity,
         }) +
-        summaryTableHtml('Period summary', summaryRows) +
+        summaryTableHtml('Monthly snapshot', summaryRows) +
+        payoutScheduleHtml +
         noticeBoxHtml(
-            '<strong>📎 View your full billing statement online</strong><br>' +
-                'Open your invoices page for a detailed breakdown of all sales, returns, and fees for this period.'
+            '<strong>📎 Billing statement</strong><br>' +
+                'Open your invoices page for a line-by-line breakdown of every sale, return, and fee in this period.'
         ) +
-        payoutNotice +
+        payoutPrefNotice +
         paragraphHtml('If you have any questions about this billing period, please contact our support team.') +
         ctaButtonHtml('Go to invoices', url) +
         signOffHtml();
 
     const html = wrapBrandedEmail({
-        title: 'Billing period update',
+        title: 'Monthly account snapshot',
         subtitle: label,
         bodyHtml,
         recipientEmail: u.email,
-        preheader: `${label}: ${formatGbp(amount)} · ${status}`,
+        preheader: `${label}: ${formatGbp(amount)} payout · ${status}`,
     });
 
     const payoutLine =
-        status === 'Paid' && wantsEventEmail(prefs, 'payout_sent')
-            ? 'Your payout for this period has been sent.'
-            : '';
+        amount > 0 && dueLabel && status === 'Pending'
+            ? `Payout of ${formatGbp(amount)} is scheduled for ${dueLabel}.`
+            : status === 'Paid' && amount > 0
+              ? 'Your payout for this period has been sent.'
+              : '';
 
     const text = buildPlainEmail({
-        title: `ReturnPal billing period update — ${label}`,
+        title: `ReturnPal monthly snapshot — ${label}`,
         greeting: `Hello ${name},`,
         paragraphs: [
             noActivity
-                ? `The billing period for ${label} has ended. There were no sales or returns recorded.`
-                : `Your monthly statement for ${label} is ready.`,
-            `Status: ${status}.`,
+                ? `Monthly snapshot for ${label}: no sales or returns recorded.`
+                : `Your monthly snapshot and invoice for ${label} are ready.`,
             payoutLine,
             'View your full statement on the invoices page.',
         ].filter(Boolean),
@@ -141,7 +204,7 @@ function buildInvoiceEmailBody(u, periodYm, detail, prefs) {
         recipientEmail: u.email,
     });
 
-    return { subject: `ReturnPal billing update — ${label}`, text, html };
+    return { subject: `ReturnPal monthly snapshot — ${label}`, text, html };
 }
 
 async function sendMonthlyInvoiceForUser(db, u, periodYm) {
@@ -150,14 +213,25 @@ async function sendMonthlyInvoiceForUser(db, u, periodYm) {
 
     const p = parsePeriodYm(periodYm);
     if (!p) return;
-    const detail = buildInvoicePeriodPayload(db, u.id, p);
-    if (!detail) return;
-    const salesN = detail._items_count || 0;
-    const returnsN = detail._returns_count || 0;
-    if (salesN === 0 && returnsN === 0) return;
+    let detail = buildInvoicePeriodPayload(db, u.id, p);
+    if (!detail) detail = emptyPeriodDetail();
+
+    const openClaims = parseResults(
+        db.exec(
+            `SELECT COUNT(*) AS c FROM reimbursement_claims
+             WHERE user_id = ? AND case_status IN ('draft','ready','submitted')`,
+            [u.id]
+        )
+    );
 
     const prefs = prefsFromUserRow(u);
-    const { subject, text, html } = buildInvoiceEmailBody(u, periodYm, detail, prefs);
+    const { subject, text, html } = buildInvoiceEmailBody(
+        u,
+        periodYm,
+        detail,
+        prefs,
+        openClaims[0]?.c || 0
+    );
     const sent = await sendEmail({ to: u.email, subject, text, html });
     if (sent) recordEmailSent(db, u.id, 'monthly_invoice', refKey);
 }
@@ -167,7 +241,9 @@ async function runMonthlyInvoiceOnce() {
 
     const db = await getDb();
     const periodYm = maxInvoicablePeriodYm();
-    const users = listNonAdminUsersWithEmail(db).filter((u) => wantsMonthlyInvoice(prefsFromUserRow(u)));
+    const users = listNonAdminUsersWithEmail(db).filter((u) =>
+        receivesMonthlyStatement(prefsFromUserRow(u))
+    );
 
     for (const u of users) {
         try {
@@ -188,6 +264,7 @@ function startMonthlyInvoiceScheduler() {
         console.warn('[monthly-invoice] node-cron not installed; scheduler disabled.');
         return;
     }
+    /** 1st of month 09:00 UK — previous month snapshot + invoice. */
     const expr = process.env.MONTHLY_INVOICE_CRON || '0 9 1 * *';
     const tz = process.env.WEEKLY_DIGEST_TZ || 'Europe/London';
     cron.schedule(
