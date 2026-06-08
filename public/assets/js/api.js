@@ -1363,6 +1363,10 @@ const API = {
         return this.request('/client/lost-items', { method: 'POST', body });
     },
 
+    async getReimbursementClaims() {
+        return this.request('/reimbursement/claims');
+    },
+
     async getReimbursementCasePack(id) {
         return this.request('/reimbursement/claims/' + id + '/case-pack');
     },

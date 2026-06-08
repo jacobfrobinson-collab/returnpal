@@ -1207,6 +1207,10 @@ const Dashboard = {
             this.loadScorecard();
         } else if (page.includes('my-clients')) {
             this.loadMyClients();
+        } else if (page.includes('faq')) {
+            try {
+                localStorage.setItem('returnpal_faq_seen', '1');
+            } catch (e) { /* ignore */ }
         }
 
         this.ensureClientPreferences().catch(() => {});
@@ -1244,7 +1248,6 @@ const Dashboard = {
         this.injectLostItemsLink();
         this.injectMyClientsLink();
         this.injectReimbursementLink();
-        this.injectConnectAmazonLink();
         this.highlightSidebarActive();
         $('#navbar-nav a[href="roi-report.html"]').closest('li').remove();
         this.fetchAnnouncementsList()
@@ -1260,8 +1263,6 @@ const Dashboard = {
         this.injectReturnsSettingsLink();
         this.injectReimbursementComingSoonModal();
         this.bindReimbursementNavGuard();
-        this.injectAmazonConnectComingSoonModal();
-        this.bindConnectAmazonNavGuard();
         this.injectSupportModal();
         this.injectCommandPalette();
         this.initCommandPalette();
@@ -1276,21 +1277,45 @@ const Dashboard = {
                     API.logout();
                 }
             });
-            $(document).on('click', '#support-submit-btn', function() {
+            $(document).on('click', '#support-submit-btn', async function() {
+                const $btn = $(this);
                 const regarding = $('#support-regarding').val() || 'general';
                 const ref = $('#support-reference').val().trim();
                 const msg = $('#support-message').val().trim();
-                if (!msg) return alert('Please enter a message.');
-                const subj = 'Support: ' + regarding + (ref ? ' – ' + ref : '');
-                const mailto =
-                    'mailto:support@returnpal.co?subject=' +
-                    encodeURIComponent(subj) +
-                    '&body=' +
-                    encodeURIComponent(msg);
-                const modal = bootstrap.Modal.getInstance(document.getElementById('supportModal'));
-                if (modal) modal.hide();
-                $('#support-reference, #support-message').val('');
-                window.location.href = mailto;
+                if (!msg || msg.length < 5) {
+                    Dashboard.showToast('Please enter at least 5 characters.', 'error');
+                    return;
+                }
+                const labels = {
+                    general: 'General support',
+                    package: 'Package',
+                    invoice: 'Invoice',
+                    payout: 'Payout',
+                };
+                const contextLabel = ref
+                    ? (labels[regarding] || 'General') + ' — ' + ref
+                    : labels[regarding] || 'General support';
+                try {
+                    $btn.prop('disabled', true);
+                    await API.submitQuery({
+                        context_type: regarding,
+                        context_label: contextLabel,
+                        message: msg,
+                    });
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('supportModal'));
+                    if (modal) modal.hide();
+                    $('#support-reference, #support-message').val('');
+                    Dashboard.showToast('Query sent — check My queries for replies.');
+                    if ((window.location.pathname || '').includes('queries')) {
+                        Dashboard.loadQueries();
+                    }
+                    Dashboard.renderAttentionStrip().catch(() => {});
+                    Dashboard.refreshClientAttentionBadges().catch(() => {});
+                } catch (err) {
+                    Dashboard.showToast((err && err.error) || 'Could not send query', 'error');
+                } finally {
+                    $btn.prop('disabled', false);
+                }
             });
             if (localStorage.getItem('returnpal_dismissed_recovery_route_alert') === 'true') {
                 $('#dashboard-recovery-route-alert').remove();
@@ -1397,7 +1422,7 @@ const Dashboard = {
     },
     injectSupportModal() {
         if ($('#supportModal').length) return;
-        const html = '<div class="modal fade" id="supportModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Contact support</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted small">Reference a package or invoice so we can help quickly.</p><div class="mb-3"><label class="form-label">Regarding</label><select class="form-select" id="support-regarding"><option value="general">General</option><option value="package">Package</option><option value="invoice">Invoice</option><option value="payout">Payout</option></select></div><div class="mb-3"><label class="form-label">Reference (optional)</label><input type="text" class="form-control" id="support-reference" placeholder="e.g. TRACK-RP001 or March 2026" /></div><div class="mb-3"><label class="form-label">Message</label><textarea class="form-control" id="support-message" rows="4" placeholder="Describe your question or issue..."></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="support-submit-btn">Send message</button></div></div></div></div>';
+        const html = '<div class="modal fade" id="supportModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Send a query</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted small">This goes to <strong>My queries</strong> — ReturnPal will reply in your dashboard and by email. For missing stock sent 2+ months ago, use <a href="lost-items.html">Missing/Lost Items</a> instead.</p><div class="mb-3"><label class="form-label">Regarding</label><select class="form-select" id="support-regarding"><option value="general">General</option><option value="package">Package</option><option value="invoice">Invoice</option><option value="payout">Payout</option></select></div><div class="mb-3"><label class="form-label">Reference (optional)</label><input type="text" class="form-control" id="support-reference" placeholder="e.g. TRACK-RP001 or March 2026" /></div><div class="mb-3"><label class="form-label">Message</label><textarea class="form-control" id="support-message" rows="4" placeholder="Describe your question or issue..." minlength="5" required></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="support-submit-btn">Send query</button></div></div></div></div>';
         $('body').append(html);
     },
     injectReferSidebarLink() {
@@ -1968,6 +1993,96 @@ const Dashboard = {
     },
 
     // ─── OVERVIEW PAGE ───────────────────────────────────────
+    async renderAttentionStrip() {
+        const $strip = $('#dashboard-attention-strip');
+        const $list = $('#dashboard-attention-list');
+        if (!$strip.length || !$list.length) return;
+        if (API.isDelegateViewing()) {
+            $strip.addClass('d-none');
+            return;
+        }
+
+        const items = [];
+        try {
+            const [queriesData, lostData, reimbData, prefs] = await Promise.all([
+                API.getQueries().catch(() => ({ queries: [] })),
+                API.getLostItems().catch(() => ({ enquiries: [] })),
+                API.getReimbursementClaims().catch(() => ({ claims: [] })),
+                this.ensureClientPreferences(),
+            ]);
+
+            const awaitingReply = (queriesData.queries || []).filter(
+                (q) =>
+                    q.can_client_reply ||
+                    (String(q.last_sender || '') === 'admin' && String(q.status || '') === 'open')
+            );
+            if (awaitingReply.length) {
+                items.push({
+                    href: 'queries.html',
+                    text:
+                        awaitingReply.length === 1
+                            ? 'ReturnPal replied to your query — read and follow up'
+                            : awaitingReply.length + ' queries have replies from ReturnPal',
+                });
+            }
+
+            const pendingLost = (lostData.enquiries || []).filter((e) => e.status === 'pending');
+            if (pendingLost.length) {
+                items.push({
+                    href: 'lost-items.html',
+                    text:
+                        pendingLost.length +
+                        ' missing-item ' +
+                        (pendingLost.length === 1 ? 'enquiry' : 'enquiries') +
+                        ' under review',
+                });
+            }
+
+            const readyClaims = (reimbData.claims || []).filter((c) => (c.case_status || '') === 'ready');
+            if (readyClaims.length) {
+                items.push({
+                    href: 'reimbursement.html',
+                    text:
+                        readyClaims.length +
+                        ' reimbursement ' +
+                        (readyClaims.length === 1 ? 'claim is' : 'claims are') +
+                        ' ready to file in Seller Central',
+                });
+            }
+
+            const billingName = String((prefs && prefs.billing_name) || '').trim();
+            const billingAddr = String((prefs && prefs.billing_address) || '').trim();
+            if (!billingName || !billingAddr) {
+                items.push({
+                    href: 'settings.html',
+                    text: 'Add billing details in Settings so we can pay you on time',
+                });
+            }
+        } catch (e) {
+            /* non-fatal */
+        }
+
+        if (!items.length) {
+            $strip.addClass('d-none');
+            $list.empty();
+            return;
+        }
+
+        let html = '';
+        items.forEach((it) => {
+            html +=
+                '<li class="mb-2">' +
+                '<a href="' +
+                this.escHtml(it.href) +
+                '" class="text-decoration-none">' +
+                '<i class="ri-arrow-right-s-line me-1"></i>' +
+                this.escHtml(it.text) +
+                '</a></li>';
+        });
+        $list.html(html);
+        $strip.removeClass('d-none');
+    },
+
     async loadOverview() {
         const user = API.getUser();
         const firstName = (user && (user.full_name || user.email).split(' ')[0]) || 'there';
@@ -2040,15 +2155,23 @@ const Dashboard = {
             });
 
             // Onboarding checklist checkmarks
-            const amazonConnected = localStorage.getItem('returnpal_amazon_connected') === 'true';
-            const hasPayout = !!(data.latest_payout && data.latest_payout.amount) || (itemsSold > 0);
-            const hasPrepCentre = !!(localStorage.getItem('returnpal_prep_name') || '').trim();
+            await this.ensureClientPreferences();
+            const prefs = this._clientPrefsCache || {};
+            const hasBilling =
+                !!String(prefs.billing_name || '').trim() && !!String(prefs.billing_address || '').trim();
+            const hasPayout = !!(data.latest_payout && data.latest_payout.amount) || itemsSold > 0;
+            const hasPrepCentre = !!String(prefs.prep_name || prefs.prep_address || '').trim();
             this.updateOnboardingCheckmark('#onboarding-1', packagesSent > 0, 'packages.html');
-            this.updateOnboardingCheckmark('#onboarding-2', amazonConnected, null);
+            this.updateOnboardingCheckmark('#onboarding-2', hasBilling, 'settings.html');
             this.updateOnboardingCheckmark('#onboarding-3', hasPayout, 'invoices.html');
             this.updateOnboardingCheckmark('#onboarding-4', hasPrepCentre, 'settings.html');
-            const claimsTotal = Number(data.reimbursement_claims_total) || 0;
-            this.updateOnboardingCheckmark('#onboarding-5', claimsTotal > 0, 'reimbursement.html');
+            this.updateOnboardingCheckmark(
+                '#onboarding-5',
+                localStorage.getItem('returnpal_faq_seen') === '1',
+                'faq.html'
+            );
+
+            this.renderAttentionStrip().catch(() => {});
 
             const $wRec = $('#dash-week-received');
             if ($wRec.length) {

@@ -443,6 +443,86 @@ router.put('/profile', authMiddleware, [
     }
 });
 
+// POST /api/auth/forgot-password — always returns same message (no email enumeration)
+router.post(
+    '/forgot-password',
+    loginLimiter,
+    [body('email').isEmail().normalizeEmail().withMessage('Valid email required')],
+    async (req, res) => {
+        const generic = {
+            message:
+                'If an account exists for that email, we have sent a password reset link. Check your inbox and spam folder.',
+        };
+        try {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                return res.status(400).json({ error: 'Enter a valid email address.' });
+            }
+
+            const db = await getDb();
+            const email = req.body.email;
+            const result = db.exec(
+                'SELECT id, email, full_name FROM users WHERE email = ?',
+                [email]
+            );
+            if (!result.length || !result[0].values.length) {
+                return res.json(generic);
+            }
+
+            const cols = result[0].columns;
+            const row = result[0].values[0];
+            const user = {};
+            cols.forEach((col, i) => {
+                user[col] = row[i];
+            });
+
+            const {
+                createResetToken,
+                sendPasswordResetEmail,
+                ensurePasswordResetSchema,
+            } = require('../utils/passwordReset');
+            ensurePasswordResetSchema(db);
+            const { token, ttlHours } = createResetToken(db, user.id);
+            saveDb();
+            await sendPasswordResetEmail(db, user, token, ttlHours);
+
+            return res.json(generic);
+        } catch (err) {
+            console.error('Forgot password error:', err);
+            return res.json(generic);
+        }
+    }
+);
+
+// POST /api/auth/reset-password — consume token and set new password
+router.post(
+    '/reset-password',
+    loginLimiter,
+    [
+        body('token').trim().notEmpty().withMessage('Reset token is required'),
+        body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    ],
+    async (req, res) => {
+        try {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                return res.status(400).json({ error: errors.array()[0].msg || 'Invalid request' });
+            }
+
+            const db = await getDb();
+            const { applyPasswordReset } = require('../utils/passwordReset');
+            await applyPasswordReset(db, req.body.token, req.body.password);
+            res.json({ message: 'Password updated. You can log in with your new password.' });
+        } catch (err) {
+            if (err.code === 'invalid_token') {
+                return res.status(400).json({ error: err.message });
+            }
+            console.error('Reset password error:', err);
+            res.status(500).json({ error: 'Server error' });
+        }
+    }
+);
+
 // PUT /api/auth/password
 router.put('/password', authMiddleware, [
     body('current_password').notEmpty(),
