@@ -187,7 +187,7 @@
                 <p class="small alert alert-warning border-0 py-2 px-3 mb-3" id="bulk-import-refund-sale-match-note">
                     <strong>Returns / refunds:</strong> Each row must match an existing <strong>sale</strong> on that client’s dashboard (same <code>order_number</code> + product title, or set <code>linked_sold_item_id</code>).
                     Cancelled orders that were never imported as sales are <strong>skipped</strong> so they do not reduce payout.
-                    Import the <strong>gross eBay refund</strong> in <code>amount</code>; client statements deduct proportional <strong>clawback</strong> from their earnings (not ReturnPal’s processing fee).
+                    Import the <strong>gross eBay refund</strong> in <code>amount</code>; client statements deduct proportional <strong>clawback</strong> using the same value-based fee bands as sales (25% up to £50, 20% to £150, 15% above).
                 </p>
                 <details class="mb-3 small border border-success rounded p-2 bg-success-subtle" open>
                     <summary class="fw-semibold mb-2">Payout CSV &amp; eBay marketplace imports</summary>

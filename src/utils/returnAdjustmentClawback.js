@@ -3,8 +3,8 @@
 const {
     computeMonthlyFreeProcessing,
     grossSale,
-    parseFeePercent,
 } = require('./monthlyFreeProcessing');
+const { clientShareRateForValue } = require('./clientFeeTiers');
 
 function parseResults(result) {
     if (!result || !result.length) return [];
@@ -22,34 +22,93 @@ function roundMoney(n) {
     return Math.round((Number(n) || 0) * 100) / 100;
 }
 
+function isFreeProcessingWinner(soldItem, promo) {
+    if (!soldItem || !promo || !promo.winner_by_item_id) return false;
+    return !!promo.winner_by_item_id[String(soldItem.id)];
+}
+
+function earningsOnlyStoredSale(soldItem, gross) {
+    const profit = Number(soldItem.profit) || 0;
+    const total = Number(soldItem.total_revenue) || 0;
+    if (profit <= 0) return false;
+    if (Math.abs(total - profit) < 0.02) return true;
+    if (gross > 0 && Math.abs(gross - profit) < 0.02) return true;
+    return false;
+}
+
 /**
+ * Client share ratio (0..1) for clawback on a linked sale.
  * @param {object|null} soldItem
  * @param {{ fee_percent: number, revenue_interpreted_as_net: boolean, winner_by_item_id: Record<string, object> }} promo
  */
 function clientShareRatioForSold(soldItem, promo) {
-    if (!soldItem) return 1 - (promo.fee_percent || parseFeePercent());
+    if (!soldItem) return null;
+
+    if (isFreeProcessingWinner(soldItem, promo)) return 1;
+
     const profit = Number(soldItem.profit) || 0;
-    const feeP = promo.fee_percent || parseFeePercent();
+    const margin = Number(soldItem.margin) || 0;
+    const feeP = promo.fee_percent || 0.15;
     const netMode = !!promo.revenue_interpreted_as_net;
     const gross = grossSale(soldItem, feeP, netMode);
-    if (gross > 0 && profit > 0) {
+    const soldDate = soldItem.sold_date;
+
+    if (margin > 0 && margin <= 100) {
+        return Math.min(1, margin / 100);
+    }
+
+    if (profit > 0 && gross > profit * 1.01) {
         return Math.min(1, profit / gross);
     }
+
+    const tierBasis = gross > 0 ? gross : profit;
+    if (tierBasis > 0) {
+        return clientShareRateForValue(tierBasis, soldDate);
+    }
+
     if (profit > 0) return 1;
-    return Math.max(0, 1 - feeP);
+    return clientShareRateForValue(0, soldDate);
+}
+
+/**
+ * @param {number} refundGross
+ * @param {string} [dateStr] — refund or sale date for legacy vs tiered bands
+ */
+function clientShareRatioForOrphanRefund(refundGross, dateStr) {
+    const amt = Number(refundGross) || 0;
+    if (amt <= 0) return clientShareRateForValue(0, dateStr);
+    return clientShareRateForValue(amt, dateStr);
 }
 
 /**
  * Uncapped clawback for one adjustment (before per-sale cap).
- * @param {{ amount?: number, linked_sold_item_id?: number|null }} adjustment
+ * @param {{ amount?: number, linked_sold_item_id?: number|null, refund_date?: string, created_at?: string }} adjustment
  * @param {object|null} soldItem
- * @param {{ fee_percent: number, revenue_interpreted_as_net: boolean }} promo
+ * @param {{ fee_percent: number, revenue_interpreted_as_net: boolean, winner_by_item_id?: Record<string, object> }} promo
  */
 function uncappedClientClawback(adjustment, soldItem, promo) {
     const refundGross = Math.abs(Number(adjustment.amount) || 0);
     if (refundGross <= 0) return 0;
-    const ratio = clientShareRatioForSold(soldItem, promo);
-    return roundMoney(refundGross * ratio);
+
+    let ratio;
+    if (soldItem) {
+        if (isFreeProcessingWinner(soldItem, promo)) {
+            ratio = 1;
+        } else {
+            const gross = grossSale(soldItem, promo.fee_percent || 0.15, !!promo.revenue_interpreted_as_net);
+            if (earningsOnlyStoredSale(soldItem, gross)) {
+                ratio = clientShareRateForValue(refundGross, soldItem.sold_date);
+            } else {
+                ratio = clientShareRatioForSold(soldItem, promo);
+            }
+        }
+    } else {
+        const dateStr = adjustment.refund_date || adjustment.created_at || '';
+        ratio = clientShareRatioForOrphanRefund(refundGross, dateStr);
+    }
+
+    if (ratio == null || ratio <= 0) return 0;
+    return roundMoney(refundGross * Math.min(1, ratio));
 }
 
 /**
@@ -136,9 +195,11 @@ function clientClawbackFromContext(adjustment, context, clawbackMap) {
 module.exports = {
     buildClawbackContext,
     clientShareRatioForSold,
+    clientShareRatioForOrphanRefund,
     uncappedClientClawback,
     clientClawbackForAdjustment,
     clientClawbackMapForAdjustments,
     clientClawbackFromContext,
     roundMoney,
+    isFreeProcessingWinner,
 };

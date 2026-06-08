@@ -13,6 +13,7 @@ const {
     clientClawbackFromContext,
     roundMoney,
 } = require('../utils/returnAdjustmentClawback');
+const { FEE_TIERS } = require('../utils/clientFeeTiers');
 
 const router = express.Router();
 
@@ -195,7 +196,8 @@ router.get('/', authMiddleware, async (req, res) => {
                 fee_percent: promo.fee_percent,
                 revenue_interpreted_as_net: promo.revenue_interpreted_as_net,
                 months: promo.months
-            }
+            },
+            fee_tiers: FEE_TIERS
         });
     } catch (err) {
         console.error('Get sold items error:', err);
