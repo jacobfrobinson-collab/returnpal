@@ -15,6 +15,7 @@ const {
 const { getClientActionItems } = require('../utils/clientActionItems');
 const { getClientBenchmarks } = require('../utils/clientBenchmarks');
 const { setClientPayoutNote } = require('../utils/payoutEvents');
+const { ensurePayoutVerificationCode } = require('../utils/payoutVerificationCode');
 
 const router = express.Router();
 
@@ -380,6 +381,20 @@ router.post('/lost-items', authMiddleware, async (req, res) => {
     }
 });
 
+// GET /api/client/payout-bank-details — verification code + Jotform link (auth only)
+router.get('/payout-bank-details', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const info = ensurePayoutVerificationCode(db, req.user.id);
+        if (!info) return res.status(404).json({ error: 'User not found' });
+        saveDb();
+        res.json(info);
+    } catch (err) {
+        console.error('Payout bank details error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // GET /api/client/attention-items
 router.get('/attention-items', authMiddleware, async (req, res) => {
     try {
@@ -400,23 +415,6 @@ router.get('/benchmarks', authMiddleware, async (req, res) => {
         res.json(getClientBenchmarks(db, req.user.id, period || undefined));
     } catch (err) {
         console.error('Benchmarks error:', err);
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-// GET /api/client/prep-partners
-router.get('/prep-partners', authMiddleware, async (req, res) => {
-    try {
-        const db = await getDb();
-        const rows = parseResults(
-            db.exec(
-                `SELECT id, name, region, services, logo_url, contact_url, prep_address_template
-                 FROM prep_partners WHERE active = 1 ORDER BY sort_order ASC, name ASC`
-            )
-        );
-        res.json({ partners: rows });
-    } catch (err) {
-        console.error('Prep partners error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

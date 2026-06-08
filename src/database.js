@@ -643,6 +643,12 @@ async function getDb() {
         /* exists */
     }
 
+    try {
+        db.run('ALTER TABLE users ADD COLUMN payout_verification_code TEXT DEFAULT \'\'');
+    } catch (e) {
+        /* exists */
+    }
+
     db.run(`
         CREATE TABLE IF NOT EXISTS payout_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

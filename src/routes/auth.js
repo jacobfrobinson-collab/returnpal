@@ -177,6 +177,14 @@ router.post(
             return res.status(500).json({ error: 'Could not create account. Please try again.' });
         }
 
+        try {
+            const { ensurePayoutVerificationCode } = require('../utils/payoutVerificationCode');
+            ensurePayoutVerificationCode(db, userId);
+            saveDb();
+        } catch (e) {
+            console.error('Register: payout verification code', e.message || e);
+        }
+
         if (referredById) {
             pushActivity(
                 referredById,

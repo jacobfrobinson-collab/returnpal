@@ -79,9 +79,6 @@ app.get('/dashboard/exports.html', (req, res) => {
 app.get('/dashboard/prep-sendback.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/dashboard/prep-sendback.html'));
 });
-app.get('/dashboard/prep-network.html', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/dashboard/prep-network.html'));
-});
 app.get('/dashboard/roi-report.html', (req, res) => {
     res.redirect(302, '/dashboard/index.html');
 });

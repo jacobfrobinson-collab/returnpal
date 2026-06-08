@@ -1366,13 +1366,13 @@ const API = {
         return this.request('/client/attention-items');
     },
 
+    async getPayoutBankDetails() {
+        return this.request('/client/payout-bank-details');
+    },
+
     async getBenchmarks(period) {
         const q = period ? '?period=' + encodeURIComponent(period) : '';
         return this.request('/client/benchmarks' + q);
-    },
-
-    async getPrepPartners() {
-        return this.request('/client/prep-partners');
     },
 
     async savePayoutNote(periodYm, note) {

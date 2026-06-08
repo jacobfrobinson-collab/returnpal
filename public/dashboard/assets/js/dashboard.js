@@ -724,60 +724,6 @@ const Dashboard = {
         });
     },
 
-    async loadPrepNetwork() {
-        const $grid = $('#prep-network-grid');
-        const $search = $('#prep-network-search');
-        if (!$grid.length) return;
-        $grid.html('<div class="col-12 text-muted">Loading…</div>');
-        try {
-            const data = await API.getPrepPartners();
-            const partners = data.partners || [];
-            const render = (list) => {
-                if (!list.length) {
-                    $grid.html('<div class="col-12 text-muted">No prep partners listed yet. Use Prep send-back with your own address in Settings.</div>');
-                    return;
-                }
-                let html = '';
-                list.forEach((p) => {
-                    html +=
-                        '<div class="col-md-6 col-lg-4 prep-partner-card" data-name="' +
-                        this.escHtml((p.name || '').toLowerCase()) +
-                        '"><div class="rp-card card border-0 h-100 p-3">' +
-                        '<h6 class="mb-1">' +
-                        this.escHtml(p.name) +
-                        '</h6>' +
-                        (p.region ? '<div class="small text-muted mb-2">' + this.escHtml(p.region) + '</div>' : '') +
-                        '<p class="small mb-3">' +
-                        this.escHtml(p.services || 'Prep & fulfilment partner') +
-                        '</p>' +
-                        '<a href="prep-sendback.html" class="btn btn-sm btn-outline-primary">Request send-back</a></div></div>';
-                });
-                $grid.html(html);
-            };
-            render(partners);
-            if ($search.length) {
-                $search.off('input.prepNet').on('input.prepNet', function() {
-                    const q = String($(this).val() || '')
-                        .toLowerCase()
-                        .trim();
-                    const filtered = partners.filter(
-                        (p) =>
-                            !q ||
-                            String(p.name || '')
-                                .toLowerCase()
-                                .includes(q) ||
-                            String(p.region || '')
-                                .toLowerCase()
-                                .includes(q)
-                    );
-                    render(filtered);
-                });
-            }
-        } catch (e) {
-            $grid.html('<div class="col-12 text-danger">Could not load prep network.</div>');
-        }
-    },
-
     async loadPrepSendback() {
         const $list = $('#prep-sendback-list');
         const $addr = $('#prep-sendback-address');
@@ -1253,8 +1199,6 @@ const Dashboard = {
             this.loadQueries();
         } else if (page.includes('exports')) {
             this.loadExportsHub();
-        } else if (page.includes('prep-network')) {
-            this.loadPrepNetwork();
         } else if (page.includes('prep-sendback')) {
             this.loadPrepSendback();
         } else if (page.includes('lost-items')) {
@@ -1437,7 +1381,6 @@ const Dashboard = {
             ['queries.html', 'ri-question-answer-line', 'My queries'],
             ['exports.html', 'ri-download-cloud-2-line', 'Exports hub'],
             ['scorecard.html', 'ri-pie-chart-2-line', 'Recovery scorecard'],
-            ['prep-network.html', 'ri-building-line', 'Prep network'],
             ['prep-sendback.html', 'ri-truck-line', 'Prep send-back'],
             ['lost-items.html', 'ri-search-eye-line', 'Missing/Lost Items'],
             ['reimbursement.html', 'ri-refund-line', 'Reimbursement / Claims'],
@@ -3415,10 +3358,59 @@ const Dashboard = {
         }
     },
 
+    async renderPayoutBankDetailsCard() {
+        const $body = $('#payout-bank-details-body');
+        const $card = $('#payout-bank-details-card');
+        if (!$body.length || !$card.length) return;
+        if (API.isDelegateViewing()) {
+            $card.addClass('d-none');
+            return;
+        }
+        $card.removeClass('d-none');
+        try {
+            const data = await API.getPayoutBankDetails();
+            const code = data.payout_verification_code || '—';
+            const formUrl = data.bank_details_form_url || '';
+            const configured = !!data.form_configured;
+            let actionHtml = '';
+            if (configured && formUrl) {
+                actionHtml =
+                    '<a href="' +
+                    this.escHtml(formUrl) +
+                    '" class="btn btn-primary btn-sm" target="_blank" rel="noopener noreferrer">Open secure bank details form</a>';
+            } else {
+                actionHtml =
+                    '<p class="small text-muted mb-0">The secure form link is not configured yet. Use your code when ReturnPal sends you the form, or contact support.</p>';
+            }
+            $body.html(
+                '<p class="small text-muted mb-3">Enter this code on our secure bank details form so we can link your submission to your account. Keep this code private. Submit your details once; complete the form again only if your bank details change.</p>' +
+                '<div class="mb-2"><span class="text-muted small d-block mb-1">Your payout verification code</span>' +
+                '<div class="d-flex flex-wrap align-items-center gap-2">' +
+                '<code class="fs-5 user-select-all" id="payout-verification-code-display">' +
+                this.escHtml(code) +
+                '</code>' +
+                '<button type="button" class="btn btn-outline-secondary btn-sm" id="payout-verification-code-copy">Copy code</button>' +
+                '</div></div>' +
+                actionHtml
+            );
+            $('#payout-verification-code-copy')
+                .off('click')
+                .on('click', () => {
+                    navigator.clipboard
+                        .writeText(code)
+                        .then(() => this.showToast('Verification code copied', 'success'))
+                        .catch(() => this.showToast('Could not copy', 'error'));
+                });
+        } catch (e) {
+            $body.html('<p class="text-danger small mb-0">Could not load payout verification code.</p>');
+        }
+    },
+
     // ─── INVOICES PAGE ───────────────────────────────────────
     async loadInvoices() {
         const $tbody = $('table tbody');
         if ($tbody.length) $tbody.html('<tr><td colspan="7" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        this.renderPayoutBankDetailsCard().catch(() => {});
         this.renderPayoutForecast($('#invoices-payout-forecast-body'));
         try {
             const data = await API.getInvoices();
@@ -5503,6 +5495,7 @@ const Dashboard = {
             }
             this.applyClientPreferencesToForm(prefs);
             this._clientPrefsCache = prefs;
+            this.renderPayoutBankDetailsCard().catch(() => {});
 
             const savePrefsClick = async function($btn, doneLabel, savingLabel) {
                 try {

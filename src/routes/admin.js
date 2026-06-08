@@ -243,6 +243,13 @@ router.post('/users', async (req, res) => {
         );
         saveDb();
         const userId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        try {
+            const { ensurePayoutVerificationCode } = require('../utils/payoutVerificationCode');
+            ensurePayoutVerificationCode(db, userId);
+            saveDb();
+        } catch (e) {
+            console.error('Admin create user: payout verification code', e.message || e);
+        }
         let pending_auto_applied = 0;
         if (legacy) {
             const auto = await tryAutoApplyPendingForLegacyClient(db, userId, legacy, (d, k, uid, fullRow) =>
