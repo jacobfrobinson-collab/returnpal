@@ -28,8 +28,16 @@ function generatePayoutVerificationCode() {
     return 'RP-' + raw.slice(0, 4) + '-' + raw.slice(4, 8);
 }
 
+function normalizeEnvString(value) {
+    let s = String(value || '').trim();
+    if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+        s = s.slice(1, -1).trim();
+    }
+    return s;
+}
+
 function getBankDetailsFormBaseUrl() {
-    return String(process.env.PAYOUT_BANK_DETAILS_FORM_URL || '').trim();
+    return normalizeEnvString(process.env.PAYOUT_BANK_DETAILS_FORM_URL);
 }
 
 function jotformCodeFieldName() {

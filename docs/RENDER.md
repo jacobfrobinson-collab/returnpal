@@ -113,6 +113,24 @@ See [`EMAIL.md`](EMAIL.md) for full setup. Minimum for digests + transactional m
 
 After deploy, logs should show `[weekly-digest] scheduler started` (and monthly schedulers if enabled). Test with `npm run email:test-weekly -- USER_ID` from Shell.
 
+### Payout bank details (Jotform)
+
+Clients see a private verification code on **Settings** and **Payouts & Invoices**. The “Open secure bank details form” button only appears when the server reads this env var at **startup** (saving it in the dashboard triggers a redeploy).
+
+| Key | Value |
+|-----|--------|
+| **`PAYOUT_BANK_DETAILS_FORM_URL`** | Full Jotform URL, e.g. `https://form.jotform.com/123456789012345` |
+| `PAYOUT_JOTFORM_CODE_FIELD` | Optional — prefill field name (default `payout_verification_code`) |
+| `PAYOUT_JOTFORM_EMAIL_FIELD` | Optional — prefill field name (default `email`) |
+
+Verify after redeploy:
+
+1. `GET https://www.returnpal.co.uk/api/health` → `"payout_bank_form":{"configured":true}`
+2. Render **Logs** on boot → `Payout bank details form URL is configured`
+3. Hard-refresh dashboard (`Ctrl+F5`) on Settings or Invoices
+
+If `configured` is still `false`, the key name must match exactly (`PAYOUT_BANK_DETAILS_FORM_URL`) on the **Web Service** that serves `www.returnpal.co.uk`, with no surrounding quotes in the value.
+
 ### Optional
 
 | Key | Value |

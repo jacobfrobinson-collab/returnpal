@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const pkg = require('../package.json');
 const { getDb } = require('./database');
+const { getBankDetailsFormBaseUrl } = require('./utils/payoutVerificationCode');
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR
     ? path.resolve(process.env.UPLOAD_DIR)
@@ -188,6 +189,9 @@ app.get('/api/health', (req, res) => {
                 process.env.SOURCE_VERSION ||
                 null,
             node: process.version
+        },
+        payout_bank_form: {
+            configured: !!getBankDetailsFormBaseUrl()
         }
     });
 });
@@ -227,6 +231,13 @@ async function start() {
         // Initialize database
         await getDb();
         console.log('Database initialized');
+        if (getBankDetailsFormBaseUrl()) {
+            console.log('[ReturnPal] Payout bank details form URL is configured');
+        } else {
+            console.warn(
+                '[ReturnPal] PAYOUT_BANK_DETAILS_FORM_URL is not set — secure bank form link is hidden on the client dashboard'
+            );
+        }
 
         app.listen(PORT, () => {
             const gitCommit =

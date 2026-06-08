@@ -3371,9 +3371,8 @@ const Dashboard = {
             const data = await API.getPayoutBankDetails();
             const code = data.payout_verification_code || '—';
             const formUrl = data.bank_details_form_url || '';
-            const configured = !!data.form_configured;
             let actionHtml = '';
-            if (configured && formUrl) {
+            if (formUrl) {
                 actionHtml =
                     '<a href="' +
                     this.escHtml(formUrl) +
