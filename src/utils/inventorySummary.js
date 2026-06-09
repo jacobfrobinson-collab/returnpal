@@ -6,6 +6,7 @@ const { normalizeSoldDateForDb } = require('./adminBulkImport');
 const { mapSoldItemDatesForApi } = require('./soldDateDisplayRepair');
 const { inferRefundCategory } = require('./refundInsights');
 const { sortSoldItemsByDateDesc } = require('./sortSoldItemsByDateDesc');
+const { computeClientResaleNetEarnings } = require('./clientNetEarnings');
 
 const INSPECTION_STAGES = new Set(['Initial Inspection', 'Quality Check', 'Return Verification']);
 
@@ -54,15 +55,18 @@ function buildInventorySummaryPayload(db, userId) {
         db.exec('SELECT COUNT(*) AS c FROM pending_items WHERE user_id = ?', [userId])
     )[0]?.c || 0;
 
-    const profitRow = parseResults(
+    const earnings = computeClientResaleNetEarnings(db, userId);
+    const recovered_profit = earnings.net_earnings_after_returns;
+    const returns_applied = earnings.returns_applied;
+    const gross_profit = earnings.gross_profit;
+
+    const revRow = parseResults(
         db.exec(
-            `SELECT COALESCE(SUM(profit), 0) AS p, COALESCE(SUM(total_revenue), 0) AS rev
-             FROM sold_items WHERE user_id = ?`,
+            `SELECT COALESCE(SUM(total_revenue), 0) AS rev FROM sold_items WHERE user_id = ?`,
             [userId]
         )
     )[0];
-    const recovered_profit = Math.round((Number(profitRow?.p) || 0) * 100) / 100;
-    const recovered_revenue = Math.round((Number(profitRow?.rev) || 0) * 100) / 100;
+    const recovered_revenue = Math.round((Number(revRow?.rev) || 0) * 100) / 100;
 
     const avgSaleRow = parseResults(
         db.exec(
@@ -213,6 +217,9 @@ function buildInventorySummaryPayload(db, userId) {
         awaiting_inspection: processingCount,
         awaiting_listing: listingCount,
         recovered_profit,
+        net_earnings_after_returns: recovered_profit,
+        gross_profit,
+        returns_applied,
         recovered_revenue,
         recovered_so_far: recovered_revenue,
         sell_through_pct,

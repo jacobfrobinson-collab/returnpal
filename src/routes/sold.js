@@ -14,6 +14,7 @@ const {
     roundMoney,
 } = require('../utils/returnAdjustmentClawback');
 const { FEE_TIERS } = require('../utils/clientFeeTiers');
+const { computeClientResaleNetEarnings } = require('../utils/clientNetEarnings');
 
 const router = express.Router();
 
@@ -133,33 +134,27 @@ router.get('/', authMiddleware, async (req, res) => {
         );
         items = sortSoldItemsByDateDesc(items);
 
-        // Compute stats
-        const statsResult = parseResults(
-            db.exec(
-                `SELECT 
-                    COALESCE(SUM(profit), 0) as total_earnings,
-                    COUNT(*) as items_sold,
-                    COALESCE(AVG(profit), 0) as avg_earnings,
-                    COALESCE(AVG(margin), 0) as avg_margin
-                FROM sold_items WHERE user_id = ?`,
-                [req.user.id]
-            )
-        );
-
-        const stats = statsResult.length > 0 ? statsResult[0] : {
-            total_earnings: 0, items_sold: 0, avg_earnings: 0, avg_margin: 0
-        };
-
         const appliedReturns = loadAppliedReturnAdjustments(db, req.user.id);
         const clawbackContext = buildClawbackContext(db, req.user.id, items);
         const returnsBySold = computeReturnsBySoldId(appliedReturns, clawbackContext);
         const linkedReturnDetails = computeLinkedReturnDetailsBySoldId(appliedReturns, clawbackContext);
-        const total_returns_applied = totalAppliedClawback(appliedReturns, clawbackContext);
-        const gross = Number(stats.total_earnings) || 0;
-        stats.total_returns_applied = total_returns_applied;
-        stats.net_earnings_after_returns = gross - total_returns_applied;
-        stats.avg_earnings_net =
-            stats.items_sold > 0 ? stats.net_earnings_after_returns / stats.items_sold : 0;
+
+        const earnings = computeClientResaleNetEarnings(db, req.user.id);
+        const marginResult = parseResults(
+            db.exec(
+                `SELECT COALESCE(AVG(margin), 0) as avg_margin FROM sold_items WHERE user_id = ?`,
+                [req.user.id]
+            )
+        );
+        const stats = {
+            total_earnings: earnings.gross_profit,
+            items_sold: earnings.items_sold,
+            avg_earnings: earnings.items_sold > 0 ? earnings.gross_profit / earnings.items_sold : 0,
+            avg_margin: marginResult[0]?.avg_margin || 0,
+            total_returns_applied: earnings.returns_applied,
+            net_earnings_after_returns: earnings.net_earnings_after_returns,
+            avg_earnings_net: earnings.avg_earnings_net,
+        };
 
         const receivedRows = parseResults(
             db.exec('SELECT id, items_description, reference, package_id FROM received_items WHERE user_id = ?', [

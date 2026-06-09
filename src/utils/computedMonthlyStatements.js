@@ -16,6 +16,7 @@ const {
     payoutEtaFields,
 } = require('./payoutEvents');
 const { getPendingReferralCreditsForPeriod, applyPendingReferralCredits } = require('./referralCredits');
+const { computeClientResaleNetEarnings } = require('./clientNetEarnings');
 const {
     buildClawbackContext,
     clientClawbackMapForAdjustments,
@@ -475,12 +476,17 @@ function getComputedMonthlyStatements(db, userId) {
         })
         .filter(Boolean);
 
+    const lifetime = computeClientResaleNetEarnings(db, userId);
+
     return {
         invoices,
         total: invoices.length,
         source: 'computed',
         statement_period_cap_ym: capYm,
-        statement_period_cap_tz: tz
+        statement_period_cap_tz: tz,
+        lifetime_net_earnings: lifetime.net_earnings_after_returns,
+        lifetime_returns_applied: lifetime.returns_applied,
+        lifetime_gross_profit: lifetime.gross_profit,
     };
 }
 

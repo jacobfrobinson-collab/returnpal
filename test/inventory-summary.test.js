@@ -49,7 +49,11 @@ async function createDb() {
         user_id INTEGER NOT NULL,
         product TEXT NOT NULL,
         amount REAL NOT NULL,
-        status TEXT DEFAULT 'applied'
+        status TEXT DEFAULT 'applied',
+        linked_sold_item_id INTEGER,
+        refund_date TEXT,
+        created_at TEXT,
+        order_number TEXT
     )`);
     return db;
 }
@@ -111,7 +115,8 @@ async function testPipelineAndAttention() {
         Array.isArray(data.user_return_categories) && data.user_return_categories.length >= 1,
         'per-user return categories'
     );
-    assert(data.recovered_profit === 10, 'recovered_profit sum');
+    const earnings = require('../src/utils/clientNetEarnings').computeClientResaleNetEarnings(db, uid);
+    assert(data.recovered_profit === earnings.net_earnings_after_returns, 'recovered_profit is net after returns');
 }
 
 async function testRecentSoldSortedBySoldDate() {

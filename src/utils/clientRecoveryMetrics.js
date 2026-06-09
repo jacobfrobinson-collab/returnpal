@@ -4,6 +4,8 @@
  * Unified recovery metrics: sold profit + reimbursement recovered amounts.
  */
 
+const { computeClientResaleNetEarnings } = require('./clientNetEarnings');
+
 const MILESTONE_THRESHOLDS = [
     { id: '10k', label: '£10k recovered', amount: 10000 },
     { id: '50k', label: '£50k recovered', amount: 50000 },
@@ -32,6 +34,23 @@ function round2(n) {
  * @param {{ sinceYmd?: string, untilYmd?: string, periodYm?: string }} [opts]
  */
 function getRecoveredBreakdown(db, userId, opts = {}) {
+    if (!opts.periodYm && !opts.sinceYmd) {
+        const net = computeClientResaleNetEarnings(db, userId);
+        const reimbRows = parseResults(
+            db.exec(
+                'SELECT COALESCE(SUM(recovered_amount), 0) AS total FROM reimbursement_claims WHERE user_id = ?',
+                [userId]
+            )
+        );
+        const reimbursement_recovered = round2(reimbRows[0]?.total);
+        const resale_profit = net.net_earnings_after_returns;
+        return {
+            resale_profit,
+            reimbursement_recovered,
+            total_recovered: round2(resale_profit + reimbursement_recovered),
+        };
+    }
+
     let soldSql = 'SELECT COALESCE(SUM(profit), 0) AS profit FROM sold_items WHERE user_id = ?';
     let reimbSql =
         'SELECT COALESCE(SUM(recovered_amount), 0) AS total FROM reimbursement_claims WHERE user_id = ?';

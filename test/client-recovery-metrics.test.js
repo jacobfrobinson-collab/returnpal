@@ -17,6 +17,10 @@ async function makeDb() {
         id INTEGER PRIMARY KEY, user_id INTEGER, recovered_amount REAL,
         created_at TEXT, submitted_at TEXT, resolved_at TEXT
     )`);
+    db.run(`CREATE TABLE return_adjustments (
+        id INTEGER PRIMARY KEY, user_id INTEGER, product TEXT, amount REAL, status TEXT,
+        linked_sold_item_id INTEGER, refund_date TEXT, created_at TEXT, order_number TEXT
+    )`);
     db.run(`INSERT INTO sold_items (user_id, profit, total_revenue, sold_date) VALUES (1, 100, 200, '2026-01-15')`);
     db.run(`INSERT INTO reimbursement_claims (user_id, recovered_amount, created_at) VALUES (1, 50, '2026-01-10')`);
     return db;

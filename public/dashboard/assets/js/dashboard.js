@@ -3761,6 +3761,11 @@ const Dashboard = {
             const data = await API.getInvoices();
             $tbody.empty();
 
+            const $lifeNet = $('#invoices-lifetime-net');
+            if ($lifeNet.length && data.lifetime_net_earnings != null) {
+                $lifeNet.text('£' + Number(data.lifetime_net_earnings).toFixed(2));
+            }
+
             const rawInvoices = data.invoices || [];
             if (rawInvoices.length === 0) {
                 $('.seco-title').text('0 invoices');
@@ -5096,8 +5101,17 @@ const Dashboard = {
             this._renderInventoryPipeline(data);
             $('#inv-pipeline-updated').text('Updated just now');
 
-            const profit = Number(data.recovered_profit) || 0;
+            const profit = Number(data.net_earnings_after_returns != null ? data.net_earnings_after_returns : data.recovered_profit) || 0;
             $('#inv-kpi-profit').text('£' + profit.toFixed(2));
+            const retApplied = Number(data.returns_applied) || 0;
+            const $profitSub = $('#inv-kpi-profit-sub');
+            if ($profitSub.length) {
+                $profitSub.text(
+                    retApplied > 0
+                        ? 'After £' + retApplied.toFixed(2) + ' returns — matches Sold Items'
+                        : 'After returns — matches Sold Items'
+                );
+            }
             const st = Number(data.sell_through_pct);
             $('#inv-kpi-sellthrough').text(
                 Number.isFinite(st) ? Math.round(st * 100) + '%' : '—'
