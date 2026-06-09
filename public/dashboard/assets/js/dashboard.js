@@ -1651,71 +1651,163 @@ const Dashboard = {
         return (names[m - 1] || ym) + ' ' + y;
     },
 
-    renderHubMonthlySales(salesData) {
+    renderHubMonthlySales(salesData, viewMode) {
         const $sales = $('#hub-monthly-sales-root');
         if (!$sales.length) return;
         const months = (salesData && salesData.months) || [];
-        if (!months.length) {
+        const clients = (salesData && salesData.clients) || [];
+        const mode = viewMode || $sales.data('hub-sales-view') || 'month';
+        $sales.data('hub-sales-data', salesData);
+        $sales.data('hub-sales-view', mode);
+
+        if (!months.length && !clients.some((c) => (c.months || []).length)) {
             $sales.html(
                 '<p class="text-muted mb-0">No sold items recorded yet for your linked clients.</p>'
             );
             return;
         }
+
         const esc = (s) => this.escHtml(s);
+        const self = this;
+        const toggleBtn = (active, label, value) =>
+            '<button type="button" class="btn btn-sm ' +
+            (active ? 'btn-primary' : 'btn-outline-secondary') +
+            ' hub-sales-view-btn" data-view="' +
+            value +
+            '">' +
+            esc(label) +
+            '</button>';
+
         let html =
             '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">' +
+            '<div class="btn-group" role="group" aria-label="Sales breakdown view">' +
+            toggleBtn(mode === 'month', 'By month', 'month') +
+            toggleBtn(mode === 'client', 'By client', 'client') +
+            '</div>' +
             '<span class="text-muted small">All time total: <strong>£' +
             Number(salesData.grand_total || 0).toFixed(2) +
-            '</strong></span></div>' +
-            '<div class="table-responsive"><table class="table table-sm align-middle mb-0 hub-monthly-sales-table"><thead><tr>' +
-            '<th style="width:2rem"></th><th>Month</th><th class="text-end">Total earnings</th><th class="text-end">Items</th><th class="text-end">Clients</th>' +
-            '</tr></thead><tbody>';
-        months.forEach((m, idx) => {
-            const byClient = m.by_client || [];
+            '</strong></span></div>';
+
+        if (mode === 'client') {
             html +=
-                '<tr class="hub-monthly-row" data-month-idx="' +
-                idx +
-                '"><td class="text-muted"><button type="button" class="btn btn-link btn-sm p-0 hub-monthly-toggle" aria-expanded="false" data-month-idx="' +
-                idx +
-                '"><i class="ri-arrow-right-s-line"></i></button></td>' +
-                '<td><strong>' +
-                esc(this.formatHubYmLabel(m.period)) +
-                '</strong></td>' +
-                '<td class="text-end fw-semibold">£' +
-                Number(m.profit_total || 0).toFixed(2) +
-                '</td><td class="text-end">' +
-                (m.item_count || 0) +
-                '</td><td class="text-end">' +
-                (m.clients_with_sales || 0) +
-                '</td></tr>';
-            if (byClient.length) {
+                '<p class="text-muted small mb-2">Expand a client to see their earnings month by month.</p>' +
+                '<div class="table-responsive"><table class="table table-sm align-middle mb-0 hub-monthly-sales-table"><thead><tr>' +
+                '<th style="width:2rem"></th><th>Client</th><th class="text-end">Total earnings</th><th class="text-end">Items</th><th class="text-end">Months</th>' +
+                '</tr></thead><tbody>';
+            clients.forEach((c, idx) => {
+                const clientMonths = c.months || [];
+                const hasMonths = clientMonths.length > 0;
                 html +=
-                    '<tr class="hub-monthly-detail d-none" data-month-idx="' +
+                    '<tr class="hub-client-row" data-client-idx="' +
                     idx +
-                    '"><td></td><td colspan="4" class="pt-0 pb-3"><table class="table table-sm table-borderless mb-0 small"><tbody>';
-                byClient.forEach((c) => {
+                    '"><td class="text-muted">' +
+                    (hasMonths
+                        ? '<button type="button" class="btn btn-link btn-sm p-0 hub-client-toggle" aria-expanded="false" data-client-idx="' +
+                          idx +
+                          '"><i class="ri-arrow-right-s-line"></i></button>'
+                        : '') +
+                    '</td><td><strong>' +
+                    esc(c.name) +
+                    '</strong><br><span class="small text-muted">' +
+                    esc(c.client_code) +
+                    (c.legacy_client_id ? ' · ' + esc(c.legacy_client_id) : '') +
+                    '</span></td>' +
+                    '<td class="text-end fw-semibold">£' +
+                    Number(c.profit_total || 0).toFixed(2) +
+                    '</td><td class="text-end">' +
+                    (c.item_count || 0) +
+                    '</td><td class="text-end">' +
+                    clientMonths.length +
+                    '</td></tr>';
+                if (hasMonths) {
                     html +=
-                        '<tr><td class="ps-3">' +
-                        esc(c.name) +
-                        '<span class="text-muted"> · ' +
-                        esc(c.client_code) +
-                        (c.legacy_client_id ? ' · ' + esc(c.legacy_client_id) : '') +
-                        '</span></td><td class="text-end">£' +
-                        Number(c.profit || 0).toFixed(2) +
-                        '</td><td class="text-end text-muted">' +
-                        (c.item_count || 0) +
-                        ' item' +
-                        (c.item_count !== 1 ? 's' : '') +
-                        '</td></tr>';
-                });
-                html += '</tbody></table></td></tr>';
-            }
-        });
-        html += '</tbody></table></div>';
+                        '<tr class="hub-client-detail d-none" data-client-idx="' +
+                        idx +
+                        '"><td></td><td colspan="4" class="pt-0 pb-3"><table class="table table-sm table-borderless mb-0 small"><thead><tr>' +
+                        '<th class="ps-3">Month</th><th class="text-end">Earnings</th><th class="text-end">Items</th></tr></thead><tbody>';
+                    clientMonths.forEach((m) => {
+                        html +=
+                            '<tr><td class="ps-3">' +
+                            esc(self.formatHubYmLabel(m.period)) +
+                            '</td><td class="text-end">£' +
+                            Number(m.profit || 0).toFixed(2) +
+                            '</td><td class="text-end text-muted">' +
+                            (m.item_count || 0) +
+                            ' item' +
+                            (m.item_count !== 1 ? 's' : '') +
+                            '</td></tr>';
+                    });
+                    html += '</tbody></table></td></tr>';
+                }
+            });
+            html += '</tbody></table></div>';
+        } else {
+            html +=
+                '<p class="text-muted small mb-2">Expand a month to see each client&apos;s share.</p>' +
+                '<div class="table-responsive"><table class="table table-sm align-middle mb-0 hub-monthly-sales-table"><thead><tr>' +
+                '<th style="width:2rem"></th><th>Month</th><th class="text-end">Total earnings</th><th class="text-end">Items</th><th class="text-end">Clients</th>' +
+                '</tr></thead><tbody>';
+            months.forEach((m, idx) => {
+                const byClient = m.by_client || [];
+                html +=
+                    '<tr class="hub-monthly-row" data-month-idx="' +
+                    idx +
+                    '"><td class="text-muted"><button type="button" class="btn btn-link btn-sm p-0 hub-monthly-toggle" aria-expanded="false" data-month-idx="' +
+                    idx +
+                    '"><i class="ri-arrow-right-s-line"></i></button></td>' +
+                    '<td><strong>' +
+                    esc(this.formatHubYmLabel(m.period)) +
+                    '</strong></td>' +
+                    '<td class="text-end fw-semibold">£' +
+                    Number(m.profit_total || 0).toFixed(2) +
+                    '</td><td class="text-end">' +
+                    (m.item_count || 0) +
+                    '</td><td class="text-end">' +
+                    (m.clients_with_sales || 0) +
+                    '</td></tr>';
+                if (byClient.length) {
+                    html +=
+                        '<tr class="hub-monthly-detail d-none" data-month-idx="' +
+                        idx +
+                        '"><td></td><td colspan="4" class="pt-0 pb-3"><table class="table table-sm table-borderless mb-0 small"><thead><tr>' +
+                        '<th class="ps-3">Client</th><th class="text-end">Earnings</th><th class="text-end">Items</th></tr></thead><tbody>';
+                    byClient.forEach((c) => {
+                        html +=
+                            '<tr><td class="ps-3">' +
+                            esc(c.name) +
+                            '<span class="text-muted"> · ' +
+                            esc(c.client_code) +
+                            (c.legacy_client_id ? ' · ' + esc(c.legacy_client_id) : '') +
+                            '</span></td><td class="text-end">£' +
+                            Number(c.profit || 0).toFixed(2) +
+                            '</td><td class="text-end text-muted">' +
+                            (c.item_count || 0) +
+                            ' item' +
+                            (c.item_count !== 1 ? 's' : '') +
+                            '</td></tr>';
+                    });
+                    html += '</tbody></table></td></tr>';
+                }
+            });
+            html += '</tbody></table></div>';
+        }
+
         $sales.html(html);
+        $sales.find('.hub-sales-view-btn').on('click', function() {
+            const next = $(this).data('view');
+            self.renderHubMonthlySales($sales.data('hub-sales-data'), next);
+        });
         $sales.find('.hub-monthly-toggle').on('click', function() {
             const idx = $(this).data('month-idx');
             const $detail = $sales.find('.hub-monthly-detail[data-month-idx="' + idx + '"]');
+            const open = $detail.hasClass('d-none');
+            $detail.toggleClass('d-none', !open);
+            $(this).attr('aria-expanded', open ? 'true' : 'false');
+            $(this).find('i').attr('class', open ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line');
+        });
+        $sales.find('.hub-client-toggle').on('click', function() {
+            const idx = $(this).data('client-idx');
+            const $detail = $sales.find('.hub-client-detail[data-client-idx="' + idx + '"]');
             const open = $detail.hasClass('d-none');
             $detail.toggleClass('d-none', !open);
             $(this).attr('aria-expanded', open ? 'true' : 'false');

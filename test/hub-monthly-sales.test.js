@@ -58,6 +58,7 @@ function test(name, fn) {
         const out = getHubMonthlySales(db, 99);
         assert.strictEqual(out.client_count, 0);
         assert.deepStrictEqual(out.months, []);
+        assert.deepStrictEqual(out.clients, []);
         assert.strictEqual(out.grand_total, 0);
     });
 
@@ -95,6 +96,20 @@ function test(name, fn) {
         const out = getHubMonthlySales(db, 15);
         assert.strictEqual(out.months[0].period, '2026-04');
         assert.strictEqual(out.months[1].period, '2026-03');
+    });
+
+    test('clients array includes per-client monthly breakdown', () => {
+        const out = getHubMonthlySales(db, 15);
+        assert.strictEqual(out.clients.length, 2);
+        const c1 = out.clients.find((c) => c.client_id === 81);
+        const c2 = out.clients.find((c) => c.client_id === 82);
+        assert.strictEqual(c1.profit_total, 180);
+        assert.strictEqual(c1.months.length, 2);
+        assert.strictEqual(c1.months[0].period, '2026-04');
+        assert.strictEqual(c1.months[0].profit, 150);
+        assert.strictEqual(c2.profit_total, 95);
+        assert.strictEqual(c2.months[1].period, '2026-03');
+        assert.strictEqual(c2.months[1].profit, 20);
     });
 
     console.log(process.exitCode ? 'Some tests failed.' : 'All tests passed.');

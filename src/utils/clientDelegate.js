@@ -149,7 +149,7 @@ function getHubOverview(db, hubUserId) {
 function getHubMonthlySales(db, hubUserId) {
     const clients = listLinkedClients(db, hubUserId);
     if (!clients.length) {
-        return { months: [], client_count: 0, grand_total: 0 };
+        return { months: [], clients: [], client_count: 0, grand_total: 0 };
     }
 
     const clientMeta = new Map();
@@ -200,6 +200,11 @@ function getHubMonthlySales(db, hubUserId) {
 
     const round2 = (n) => Math.round(n * 100) / 100;
 
+    const clientMonthMap = new Map();
+    for (const c of clients) {
+        clientMonthMap.set(c.id, { profit_total: 0, item_count: 0, months: new Map() });
+    }
+
     const months = [...monthMap.entries()]
         .sort((a, b) => b[0].localeCompare(a[0]))
         .map(([period, data]) => {
@@ -211,6 +216,15 @@ function getHubMonthlySales(db, hubUserId) {
                         legacy_client_id: '',
                         client_code: 'RP' + clientId,
                     };
+                    const clientEntry = clientMonthMap.get(clientId);
+                    if (clientEntry) {
+                        clientEntry.profit_total += stats.profit;
+                        clientEntry.item_count += stats.item_count;
+                        clientEntry.months.set(period, {
+                            profit: round2(stats.profit),
+                            item_count: stats.item_count,
+                        });
+                    }
                     return {
                         client_id: meta.client_id,
                         name: meta.name,
@@ -231,9 +245,32 @@ function getHubMonthlySales(db, hubUserId) {
             };
         });
 
+    const clientsOut = clients
+        .map((c) => {
+            const stats = clientMonthMap.get(c.id) || { profit_total: 0, item_count: 0, months: new Map() };
+            const monthsForClient = [...stats.months.entries()]
+                .sort((a, b) => b[0].localeCompare(a[0]))
+                .map(([period, m]) => ({
+                    period,
+                    profit: m.profit,
+                    item_count: m.item_count,
+                }));
+            return {
+                client_id: c.id,
+                name: c.full_name || c.company_name || c.email,
+                legacy_client_id: c.legacy_client_id || '',
+                client_code: 'RP' + c.id,
+                profit_total: round2(stats.profit_total),
+                item_count: stats.item_count,
+                months: monthsForClient,
+            };
+        })
+        .sort((a, b) => b.profit_total - a.profit_total);
+
     return {
         client_count: clients.length,
         months,
+        clients: clientsOut,
         grand_total: round2(grandTotal),
     };
 }
