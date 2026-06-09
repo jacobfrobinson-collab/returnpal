@@ -48,6 +48,7 @@
                     <a href="/admin/insights.html" class="small">Client insights</a>
                     <a href="/admin/audit.html" class="small">Audit log</a>
                     <a href="/admin/queries.html" class="small">Open queries</a>
+                    <a href="/admin/index.html#all-clients-section" class="small" id="admin-sale-match-nav">Sales to match <span class="badge bg-warning text-dark d-none" id="admin-global-sale-match-badge">0</span></a>
                     <a href="/admin/prep-sendback.html" class="small">Prep send-back</a>
                     <a href="/admin/lost-items.html" class="small">Missing/Lost Items</a>
                     <a href="/admin/reimbursement-photos.html" class="small">Reimbursement photos</a>
@@ -555,6 +556,16 @@
         }
 
         loadPendingRegistrations();
+        API.request('/admin/sale-match-queue-summary')
+            .then(function(data) {
+                var n = Number(data.total) || 0;
+                var $b = $('#admin-global-sale-match-badge');
+                if ($b.length && n > 0) {
+                    $b.text(n).removeClass('d-none');
+                    $('#admin-sale-match-nav').attr('title', n + ' sale(s) need matching — open a client to review');
+                }
+            })
+            .catch(function() {});
         var user = API.getUser();
         $('#admin-user-email').text((user && user.email) || '');
 

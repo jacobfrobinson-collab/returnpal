@@ -88,16 +88,27 @@ function buildPackageJourney(db, userId, packageId, reference) {
     );
     sold.forEach((s) => {
         const profit = Number(s.profit);
+        const st = String(s.match_status || '').trim();
+        let matchNote = '';
+        if (s.received_item_id && (st === 'linked' || st === 'manual')) {
+            matchNote = ' · Matched to your checked-in stock';
+        } else if (st === 'pending_review' || !st) {
+            matchNote = ' · Matching to received line in progress';
+        }
         events.push({
             stage: 'sold',
             label: 'Sold',
             message:
                 (s.product || 'Item') +
                 ' sold' +
-                (Number.isFinite(profit) ? ' · £' + profit.toFixed(2) + ' profit' : '') +
+                (Number.isFinite(profit) ? ' · £' + profit.toFixed(2) + ' your share' : '') +
+                matchNote +
                 '.',
             timestamp: s.sold_date || null,
             icon: 'ri-money-pound-circle-line',
+            sold_item_id: s.id,
+            received_item_id: s.received_item_id || null,
+            match_status: st || null,
         });
     });
 

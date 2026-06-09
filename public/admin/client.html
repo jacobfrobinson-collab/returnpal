@@ -150,6 +150,37 @@
                     </div>
                 </div>
 
+                <div class="section-card card border-warning" id="sale-match-card">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span>Sales to match <span class="badge bg-warning text-dark d-none" id="sale-match-count">0</span></span>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-success" id="btn-bulk-link-sales" title="Auto-link queue items with a single match at 95%+">Link high-confidence</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-rematch-sales">Re-run matcher</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-refresh-sale-match">Refresh</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <p class="small text-muted px-3 pt-2 mb-0">Sales that could not be auto-linked to a received line. Link manually or mark as no match.</p>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Qty</th>
+                                        <th>£</th>
+                                        <th>Reference</th>
+                                        <th>Suggested matches</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sale-match-tbody">
+                                    <tr><td colspan="6" class="text-muted p-3">Loading…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="section-card card">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <span>Record sale</span>
@@ -451,6 +482,8 @@
                 <div class="modal-body">
                     <input type="hidden" id="sale-edit-id" value="" />
                     <div class="mb-2"><label class="form-label">Sold Date</label><input type="date" class="form-control" id="sale-sold-date" /></div>
+                    <div class="mb-2"><label class="form-label">Parcel reference</label><input type="text" class="form-control" id="sale-reference" placeholder="e.g. RM-1234 (strongly recommended)" /></div>
+                    <div class="alert alert-warning border-0 py-2 px-3 small d-none mb-2" id="sale-no-ref-warn">No parcel reference — auto-matching will be slower and less accurate. Add the reference if you have it.</div>
                     <div class="mb-2"><label class="form-label">Order #</label><input type="text" class="form-control" id="sale-order-number" placeholder="e.g. marketplace order id" /></div>
                     <div class="mb-2"><label class="form-label">Item name</label><input type="text" class="form-control" id="sale-product" placeholder="Product name" /></div>
                     <div class="mb-2"><label class="form-label">Quantity</label><input type="number" class="form-control" id="sale-qty" value="1" min="1" /></div>
@@ -1422,17 +1455,134 @@
             });
         }
 
+        function formatMatchReasons(c) {
+            var reasons = c.match_reasons || [];
+            if (!reasons.length) return '(' + c.score + '%)';
+            return escapeHtml((c.items_description || '').slice(0, 36)) + ' — ' + escapeHtml(reasons.join('; '));
+        }
+
+        function loadSaleMatchQueue() {
+            return API.request('/admin/users/' + clientId + '/sale-match-queue').then(function(data) {
+                var queue = data.queue || [];
+                var unlinked = data.unlinked || [];
+                var $tb = $('#sale-match-tbody');
+                var $badge = $('#sale-match-count');
+                if ($badge.length) {
+                    if (queue.length) {
+                        $badge.text(queue.length).removeClass('d-none');
+                    } else {
+                        $badge.addClass('d-none');
+                    }
+                }
+                $tb.empty();
+                if (!queue.length && !unlinked.length) {
+                    $tb.append('<tr><td colspan="6" class="text-muted p-3">All sales matched — nothing to review.</td></tr>');
+                    return;
+                }
+                queue.forEach(function(row) {
+                    var s = row.sold_item || {};
+                    var cands = row.candidates || [];
+                    var $tr = $('<tr>');
+                    $tr.append('<td>' + escapeHtml(s.product || '') + '</td>');
+                    $tr.append('<td>' + escapeHtml(String(s.quantity != null ? s.quantity : '')) + '</td>');
+                    $tr.append('<td>£' + (Number(s.profit != null ? s.profit : 0)).toFixed(2) + '</td>');
+                    var refCell = escapeHtml(s.reference || '—');
+                    if (s.missing_reference) {
+                        refCell = '<span class="text-danger" title="Add reference when recording sales">⚠ No ref</span>';
+                    }
+                    $tr.append('<td class="small text-muted">' + refCell + '</td>');
+                    var sug = cands.map(function(c) {
+                        return '<div class="mb-1"><strong>' + c.score + '%</strong> ' + formatMatchReasons(c) + '</div>';
+                    }).join('') || '<span class="text-muted">—</span>';
+                    $tr.append('<td class="small">' + sug + '</td>');
+                    var $td = $('<td class="text-end text-nowrap"></td>');
+                    var $sel = $('<select class="form-select form-select-sm d-inline-block" style="max-width:180px"></select>');
+                    $sel.append('<option value="">Link to…</option>');
+                    cands.forEach(function(c) {
+                        var label = (c.items_description || '').slice(0, 28) + ' (' + c.score + '%, ' + c.remaining_qty + ' open)';
+                        $sel.append('<option value="' + c.received_item_id + '">' + escapeHtml(label) + '</option>');
+                    });
+                    var $link = $('<button type="button" class="btn btn-sm btn-primary ms-1">Link</button>');
+                    $link.on('click', function() {
+                        var rid = $sel.val();
+                        if (!rid) return alert('Choose a received line');
+                        API.request('/admin/sold/' + s.id + '/link-received', { method: 'PUT', body: { received_item_id: parseInt(rid, 10) } })
+                            .then(function() { refreshAll(); })
+                            .catch(function(e) { alert(e.error || 'Failed'); });
+                    });
+                    var $skip = $('<button type="button" class="btn btn-sm btn-outline-secondary ms-1">No match</button>');
+                    $skip.on('click', function() {
+                        if (!confirm('Mark this sale as having no received line match?')) return;
+                        API.request('/admin/sold/' + s.id + '/skip-match', { method: 'PUT' })
+                            .then(function() { refreshAll(); })
+                            .catch(function(e) { alert(e.error || 'Failed'); });
+                    });
+                    $td.append($sel).append($link).append($skip);
+                    $tr.append($td);
+                    $tb.append($tr);
+                });
+                unlinked.forEach(function(s) {
+                    var $tr = $('<tr class="table-secondary">');
+                    $tr.append('<td colspan="4" class="small"><em>Skipped:</em> ' + escapeHtml(s.product || '') + ' · £' + (Number(s.profit) || 0).toFixed(2) + (s.reference ? ' · ' + escapeHtml(s.reference) : '') + '</td>');
+                    $tr.append('<td class="small text-muted">Marked no match</td>');
+                    var $td = $('<td class="text-end"></td>');
+                    var $reopen = $('<button type="button" class="btn btn-sm btn-outline-primary">Try again</button>');
+                    $reopen.on('click', function() {
+                        API.request('/admin/sold/' + s.id + '/reopen-match', { method: 'PUT' })
+                            .then(function() { refreshAll(); })
+                            .catch(function(e) { alert(e.error || 'Failed'); });
+                    });
+                    $td.append($reopen);
+                    $tr.append($td);
+                    $tb.append($tr);
+                });
+            }).catch(function(e) {
+                $('#sale-match-tbody').html('<tr><td colspan="6" class="text-danger p-3">' + escapeHtml((e && e.error) || 'Failed to load') + '</td></tr>');
+            });
+        }
+
         function refreshAll() {
             loadReceiveQueue()
                 .catch(function() {})
                 .then(function() {
                     loadPackages();
                     loadReceived();
+                    loadSaleMatchQueue();
                     loadSold();
                     loadPending();
                     loadReimbursementClaims();
                 });
         }
+
+        $('#btn-rematch-sales').on('click', function() {
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('Running…');
+            API.request('/admin/users/' + clientId + '/rematch-sales', { method: 'POST' })
+                .then(function(res) {
+                    alert((res.message || 'Done') + ' — linked: ' + (res.linked || 0) + ', queued: ' + (res.queued || 0));
+                    refreshAll();
+                })
+                .catch(function(e) { alert(e.error || 'Failed'); })
+                .finally(function() { $btn.prop('disabled', false).text('Re-run matcher'); });
+        });
+        $('#btn-bulk-link-sales').on('click', function() {
+            if (!confirm('Auto-link all queue items with a single 95%+ match?')) return;
+            var $btn = $(this);
+            $btn.prop('disabled', true);
+            API.request('/admin/users/' + clientId + '/bulk-link-high-confidence-sales', { method: 'POST', body: { min_score: 95 } })
+                .then(function(res) {
+                    alert('Linked ' + (res.linked || 0) + ' sale(s); skipped ' + (res.skipped || 0) + '.');
+                    refreshAll();
+                })
+                .catch(function(e) { alert(e.error || 'Failed'); })
+                .finally(function() { $btn.prop('disabled', false); });
+        });
+        $('#btn-refresh-sale-match').on('click', function() { loadSaleMatchQueue(); });
+
+        $('#sale-reference').on('input', function() {
+            var has = ($(this).val() || '').trim().length > 0;
+            $('#sale-no-ref-warn').toggleClass('d-none', has);
+        });
 
         $('#btn-mark-delivered').on('click', function() {
             var id = $('#deliver-package-id').val();
@@ -1821,7 +1971,8 @@
             $('#sale-edit-id').val('');
             $('#sale-modal-title').text('Record sale');
             $('#sale-btn-label').text('Record sale');
-            $('#sale-order-number, #sale-product').val('');
+            $('#sale-order-number, #sale-product, #sale-reference').val('');
+            $('#sale-no-ref-warn').addClass('d-none');
             $('#sale-qty').val(1);
             $('#sale-earnings').val('');
             $('#sale-sold-date').val(todayISODate());
@@ -1843,31 +1994,40 @@
             var qty = parseInt($('#sale-qty').val(), 10) || 1;
             var earnings = parseFloat($('#sale-earnings').val());
             var soldDate = ($('#sale-sold-date').val() || '').trim();
+            var saleRef = ($('#sale-reference').val() || '').trim();
             if (!product) return alert('Item name required');
             if (!Number.isFinite(earnings)) return alert('Earnings required (valid number)');
             var editId = $('#sale-edit-id').val();
             var saleOn = ($('#sale-order-number').val() || '').trim();
-            if (editId) {
-                var b = { product: product, quantity: qty, earnings: earnings, order_number: saleOn };
-                if (soldDate) b.sold_date = soldDate;
-                API.request('/sold/' + editId, { method: 'PUT', body: b })
-                    .then(function() {
-                        bootstrap.Modal.getInstance(document.getElementById('modal-record-sale')).hide();
-                        resetSaleModalForNew();
-                        refreshAll();
-                    })
-                    .catch(function(e) { alert(e.error || 'Failed'); });
-            } else {
-                var body = { user_id: parseInt(clientId, 10), product: product, quantity: qty, earnings: earnings, order_number: saleOn };
-                if (soldDate) body.sold_date = soldDate;
-                API.request('/sold', { method: 'POST', body: body })
-                    .then(function() {
-                        bootstrap.Modal.getInstance(document.getElementById('modal-record-sale')).hide();
-                        resetSaleModalForNew();
-                        refreshAll();
-                    })
-                    .catch(function(e) { alert(e.error || 'Failed'); });
+            function submitSale() {
+                if (editId) {
+                    var b = { product: product, quantity: qty, earnings: earnings, order_number: saleOn };
+                    if (soldDate) b.sold_date = soldDate;
+                    if (saleRef) b.reference = saleRef;
+                    API.request('/sold/' + editId, { method: 'PUT', body: b })
+                        .then(function() {
+                            bootstrap.Modal.getInstance(document.getElementById('modal-record-sale')).hide();
+                            resetSaleModalForNew();
+                            refreshAll();
+                        })
+                        .catch(function(e) { alert(e.error || 'Failed'); });
+                } else {
+                    var body = { user_id: parseInt(clientId, 10), product: product, quantity: qty, earnings: earnings, order_number: saleOn };
+                    if (soldDate) body.sold_date = soldDate;
+                    if (saleRef) body.reference = saleRef;
+                    API.request('/sold', { method: 'POST', body: body })
+                        .then(function() {
+                            bootstrap.Modal.getInstance(document.getElementById('modal-record-sale')).hide();
+                            resetSaleModalForNew();
+                            refreshAll();
+                        })
+                        .catch(function(e) { alert(e.error || 'Failed'); });
+                }
             }
+            if (!editId && !saleRef) {
+                if (!confirm('No parcel reference — matching may be inaccurate. Record anyway?')) return;
+            }
+            submitSale();
         });
 
         function resetPendingModalForNew() {

@@ -204,12 +204,49 @@ async function sendItemSoldEmail(db, userId, soldItemId, product, amount) {
     const itemName = String(product || 'Item').trim();
     const amt = Number(amount) || 0;
     const url = publicAppUrl() + '/dashboard/sold-items.html';
+    const receivedUrl = publicAppUrl() + '/dashboard/received.html';
+
+    let matchLine = '';
+    try {
+        const rows = db.exec(
+            `SELECT s.reference, s.match_status, s.received_item_id, r.items_description, r.package_id
+             FROM sold_items s
+             LEFT JOIN received_items r ON r.id = s.received_item_id
+             WHERE s.id = ? AND s.user_id = ?`,
+            [soldItemId, userId]
+        );
+        if (rows.length && rows[0].values.length) {
+            const cols = rows[0].columns;
+            const row = rows[0].values[0];
+            const obj = {};
+            cols.forEach((c, i) => {
+                obj[c] = row[i];
+            });
+            const ref = String(obj.reference || '').trim();
+            const st = String(obj.match_status || '').trim();
+            if (obj.received_item_id && (st === 'linked' || st === 'manual')) {
+                const desc = String(obj.items_description || '').trim();
+                matchLine =
+                    'Matched to your checked-in stock' +
+                    (ref ? ' on parcel <strong>' + ref + '</strong>' : '') +
+                    (desc ? ' (' + desc.slice(0, 80) + ')' : '') +
+                    '.';
+            } else if (st === 'pending_review' || !st) {
+                matchLine = ref
+                    ? 'We are matching this sale to your checked-in items on parcel <strong>' + ref + '</strong>. See <strong>Received</strong> for progress.'
+                    : 'We are matching this sale to your checked-in items — see <strong>Received</strong> for progress.';
+            }
+        }
+    } catch (e) {
+        /* ignore lookup errors */
+    }
 
     const bodyHtml =
         greetingHtml(name || 'there') +
         paragraphHtml(
             `An item on your account has been recorded as <strong>sold</strong>. Recovery has been updated on your dashboard.`
         ) +
+        (matchLine ? paragraphHtml(matchLine) : '') +
         heroAmountBlock({
             label: itemName,
             amount: amt,
@@ -217,6 +254,7 @@ async function sendItemSoldEmail(db, userId, soldItemId, product, amount) {
             statusTone: 'success',
         }) +
         ctaButtonHtml('View sold items', url) +
+        (matchLine ? ctaButtonHtml('View received parcels', receivedUrl) : '') +
         signOffHtml();
 
     const html = wrapBrandedEmail({

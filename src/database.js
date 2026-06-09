@@ -434,6 +434,10 @@ async function getDb() {
         "ALTER TABLE packages ADD COLUMN order_number TEXT DEFAULT ''",
         "ALTER TABLE received_items ADD COLUMN order_number TEXT DEFAULT ''",
         "ALTER TABLE sold_items ADD COLUMN order_number TEXT DEFAULT ''",
+        "ALTER TABLE sold_items ADD COLUMN received_item_id INTEGER",
+        "ALTER TABLE sold_items ADD COLUMN match_status TEXT DEFAULT 'pending_review'",
+        "ALTER TABLE sold_items ADD COLUMN match_confidence INTEGER DEFAULT 0",
+        "ALTER TABLE sold_items ADD COLUMN match_source TEXT DEFAULT 'none'",
         "ALTER TABLE pending_items ADD COLUMN order_number TEXT DEFAULT ''",
         "ALTER TABLE reimbursement_claims ADD COLUMN order_number TEXT DEFAULT ''",
         "ALTER TABLE return_adjustments ADD COLUMN order_number TEXT DEFAULT ''",
@@ -453,6 +457,7 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_received_package ON received_items(package_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_sold_user ON sold_items(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_sold_user_order_num ON sold_items(user_id, order_number)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_sold_received_item ON sold_items(received_item_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_pending_user ON pending_items(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_activities_user ON activities(user_id)');

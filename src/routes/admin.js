@@ -709,6 +709,127 @@ router.get('/users/:id/sold', async (req, res) => {
     }
 });
 
+// GET /api/admin/sale-match-queue-summary — global pending match counts
+router.get('/sale-match-queue-summary', async (req, res) => {
+    try {
+        const db = await getDb();
+        const {
+            getGlobalSaleMatchQueueCount,
+            getSaleMatchQueueCountsByUser,
+        } = require('../utils/saleReceivedMatch');
+        const total = getGlobalSaleMatchQueueCount(db);
+        const by_user = getSaleMatchQueueCountsByUser(db).map((r) => ({
+            user_id: r.user_id,
+            count: Number(r.c) || 0,
+        }));
+        res.json({ total, by_user });
+    } catch (err) {
+        console.error('Admin sale match summary error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/users/:id/sale-match-queue
+router.get('/users/:id/sale-match-queue', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
+        const db = await getDb();
+        const { getSaleMatchQueue, getUnlinkedSalesForUser } = require('../utils/saleReceivedMatch');
+        const queue = getSaleMatchQueue(db, userId);
+        const unlinked = getUnlinkedSalesForUser(db, userId);
+        res.json({ queue, count: queue.length, unlinked });
+    } catch (err) {
+        console.error('Admin sale match queue error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/users/:id/rematch-sales — re-run auto matcher for client
+router.post('/users/:id/rematch-sales', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
+        const db = await getDb();
+        const { rematchSalesForUser } = require('../utils/saleReceivedMatch');
+        const result = rematchSalesForUser(db, userId);
+        saveDb();
+        res.json({ message: 'Rematch complete', ...result });
+    } catch (err) {
+        console.error('Admin rematch sales error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PUT /api/admin/sold/:id/link-received
+router.put('/sold/:id/link-received', async (req, res) => {
+    try {
+        const soldId = parseInt(req.params.id, 10);
+        const receivedItemId = parseInt(req.body.received_item_id, 10);
+        if (isNaN(soldId) || isNaN(receivedItemId)) {
+            return res.status(400).json({ error: 'sold id and received_item_id are required' });
+        }
+        const db = await getDb();
+        const { manualLinkSaleToReceived } = require('../utils/saleReceivedMatch');
+        manualLinkSaleToReceived(db, soldId, receivedItemId);
+        saveDb();
+        res.json({ message: 'Sale linked to received line' });
+    } catch (err) {
+        console.error('Admin link sale error:', err);
+        res.status(400).json({ error: err.message || 'Server error' });
+    }
+});
+
+// PUT /api/admin/sold/:id/skip-match
+router.put('/sold/:id/skip-match', async (req, res) => {
+    try {
+        const soldId = parseInt(req.params.id, 10);
+        if (isNaN(soldId)) return res.status(400).json({ error: 'Invalid sold id' });
+        const db = await getDb();
+        const { skipSaleMatch } = require('../utils/saleReceivedMatch');
+        skipSaleMatch(db, soldId);
+        saveDb();
+        res.json({ message: 'Sale marked as no match' });
+    } catch (err) {
+        console.error('Admin skip sale match error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// PUT /api/admin/sold/:id/reopen-match — undo "no match" and queue again
+router.put('/sold/:id/reopen-match', async (req, res) => {
+    try {
+        const soldId = parseInt(req.params.id, 10);
+        if (isNaN(soldId)) return res.status(400).json({ error: 'Invalid sold id' });
+        const db = await getDb();
+        const { reopenSaleMatch, applySaleReceivedMatch } = require('../utils/saleReceivedMatch');
+        reopenSaleMatch(db, soldId);
+        applySaleReceivedMatch(db, soldId);
+        saveDb();
+        res.json({ message: 'Sale re-queued for matching' });
+    } catch (err) {
+        console.error('Admin reopen sale match error:', err);
+        res.status(400).json({ error: err.message || 'Server error' });
+    }
+});
+
+// POST /api/admin/users/:id/bulk-link-high-confidence-sales
+router.post('/users/:id/bulk-link-high-confidence-sales', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
+        const minScore = req.body && req.body.min_score != null ? parseInt(req.body.min_score, 10) : 95;
+        const db = await getDb();
+        const { bulkAutoLinkHighConfidence } = require('../utils/saleReceivedMatch');
+        const result = bulkAutoLinkHighConfidence(db, userId, minScore);
+        saveDb();
+        res.json({ message: 'Bulk link complete', ...result });
+    } catch (err) {
+        console.error('Admin bulk link sales error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // GET /api/admin/users/:id/pending
 router.get('/users/:id/pending', async (req, res) => {
     try {

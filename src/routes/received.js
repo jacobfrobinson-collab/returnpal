@@ -101,7 +101,9 @@ router.get('/', authMiddleware, async (req, res) => {
         const items = parseResults(
             db.exec('SELECT * FROM received_items WHERE user_id = ? ORDER BY date_received DESC', [req.user.id])
         );
-        const packages = buildPackages(db, req.user.id, items);
+        let packages = buildPackages(db, req.user.id, items);
+        const { enrichPackagesWithOutcomes } = require('../utils/receivedOutcomes');
+        packages = enrichPackagesWithOutcomes(db, req.user.id, packages);
         const itemsOut = clientIsAdmin(req) ? items : redactOrderNumberForClientRows(items);
         res.json({
             items: itemsOut,

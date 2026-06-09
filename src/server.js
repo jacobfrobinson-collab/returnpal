@@ -5,7 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const pkg = require('../package.json');
-const { getDb } = require('./database');
+const { getDb, saveDb } = require('./database');
 const { getBankDetailsFormBaseUrl } = require('./utils/payoutVerificationCode');
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR
@@ -230,8 +230,23 @@ app.use((err, req, res, next) => {
 async function start() {
     try {
         // Initialize database
-        await getDb();
+        const db = await getDb();
         console.log('Database initialized');
+        try {
+            const { runSaleMatchBackfillIfNeeded } = require('./utils/saleReceivedMatch');
+            const backfill = runSaleMatchBackfillIfNeeded(db);
+            if (backfill.ran) {
+                saveDb();
+                console.log(
+                    '[sale-match] One-time backfill complete — users:',
+                    backfill.users,
+                    'linked:',
+                    backfill.linked
+                );
+            }
+        } catch (e) {
+            console.warn('[sale-match] Backfill skipped:', e && e.message);
+        }
         if (getBankDetailsFormBaseUrl()) {
             console.log('[ReturnPal] Payout bank details form URL is configured');
         } else {

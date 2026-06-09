@@ -2,6 +2,12 @@
  * Link return_adjustments to sold_items without requiring order_number on sales.
  */
 
+const {
+    normalizeProductKey,
+    productTokens,
+    productMatchScore,
+} = require('./productTitleMatch');
+
 function parseResults(result) {
     if (!result || !result.length) return [];
     const cols = result[0].columns;
@@ -12,49 +18,6 @@ function parseResults(result) {
         });
         return obj;
     });
-}
-
-/** @param {string} s */
-function normalizeProductKey(s) {
-    return String(s || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-/**
- * @param {import('sql.js').Database} db
- * @param {number} userId
- * @param {string} product
- * @returns {number|null}
- */
-function productTokens(s) {
-    return normalizeProductKey(s)
-        .split(' ')
-        .filter((w) => w.length > 1);
-}
-
-/** @returns {number} 0 = no match, 100 = exact */
-function productMatchScore(refundProduct, soldProduct) {
-    const key = normalizeProductKey(refundProduct);
-    const pk = normalizeProductKey(soldProduct);
-    if (!key || !pk || key.length < 10) return 0;
-    if (pk === key) return 100;
-    if (key.length >= 18 && pk.length >= 18) {
-        if (pk.includes(key) || key.includes(pk)) return 60;
-    }
-    const rt = productTokens(refundProduct);
-    const st = productTokens(soldProduct);
-    if (rt.length < 4 || st.length < 4) return 0;
-    const [shorter, longer] = rt.length <= st.length ? [rt, st] : [st, rt];
-    const longerSet = new Set(longer);
-    let hit = 0;
-    for (const w of shorter) {
-        if (longerSet.has(w)) hit++;
-    }
-    if (hit / shorter.length >= 0.8) return 60;
-    return 0;
 }
 
 function findSoldItemIdByProduct(db, userId, product) {

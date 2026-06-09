@@ -739,6 +739,12 @@ function importSoldRow(db, userId, row) {
         [userId, reference, product, qty, unit, total, profit, margin, soldDateParam, orderNumber]
     );
     const id = parseResults(db.exec('SELECT last_insert_rowid() as id'))[0].id;
+    try {
+        const { applySaleReceivedMatch } = require('./saleReceivedMatch');
+        applySaleReceivedMatch(db, id);
+    } catch (e) {
+        console.error('[sale-received-match]', e.message || e);
+    }
     const amount = total || unit * qty;
     const msg = 'Item "' + product + '" sold for £' + amount.toFixed(2);
     const soldId = id;

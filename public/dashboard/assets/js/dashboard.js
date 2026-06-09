@@ -3119,13 +3119,36 @@ const Dashboard = {
             '<div class="d-flex align-items-center gap-2 flex-wrap">' +
             '<div class="progress flex-grow-1" style="height:10px;min-width:100px;max-width:240px;">' +
             '<div class="progress-bar bg-success" role="progressbar" style="width:' + pct + '%" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"></div></div>' +
-            '<span class="small text-nowrap"><strong>' + esc(pkg.processed_units) + '</strong>/' + esc(pkg.total_units) + ' units processed</span>' +
-            (pkg.pending_units > 0 ? ' <span class="small text-muted">(' + esc(pkg.pending_units) + ' still pending)</span>' : '') +
+            '<span class="small text-nowrap"><strong>' + esc(pkg.processed_units) + '</strong>/' + esc(pkg.total_units) + ' at warehouse</span>' +
+            (pkg.pending_units > 0 ? ' <span class="small text-muted">(' + esc(pkg.pending_units) + ' in QC)</span>' : '') +
             '</div>';
+        const soldUnits = Number(pkg.sold_units) || 0;
+        const soldProfit = Number(pkg.sold_profit) || 0;
+        const totalUnits = Number(pkg.total_units) || 0;
+        const openUnits = Math.max(0, totalUnits - soldUnits);
+        let soldHtml = '—';
+        if (soldUnits > 0) {
+            soldHtml =
+                '<span class="small"><strong>' +
+                esc(soldUnits) +
+                '</strong>/' +
+                esc(totalUnits) +
+                ' sold';
+            if (soldProfit > 0) soldHtml += ' · £' + soldProfit.toFixed(2);
+            if (openUnits > 0) soldHtml += ' · <span class="text-muted">' + esc(openUnits) + ' open</span>';
+            soldHtml += '</span>';
+        } else if (pkg.has_unlinked_sales) {
+            soldHtml = '<span class="small text-muted">Sale recorded — matching…</span>';
+        }
+        const pkgDetailLink =
+            pkg.package_id
+                ? ' <a href="package-detail.html?id=' + escAttr(pkg.package_id) + '" class="small">Journey</a>'
+                : '';
         return '<tr>' +
-            '<td><strong>' + esc(pkg.reference) + '</strong></td>' +
+            '<td><strong>' + esc(pkg.reference) + '</strong>' + pkgDetailLink + '</td>' +
             '<td>' + this.deliveryStatusBadge(pkg.delivery_status) + '</td>' +
             '<td>' + progressHtml + '</td>' +
+            '<td>' + soldHtml + '</td>' +
             '<td>' + esc(this.formatDate(pkg.date_received)) + '</td>' +
             '<td><span class="text-muted">—</span></td>' +
             '<td class="small">' + (pkg.notes ? esc(pkg.notes) : '—') + '</td>' +
@@ -3141,19 +3164,58 @@ const Dashboard = {
         const body = document.getElementById('received-units-modal-body');
         if (title) title.textContent = 'Package ' + (pkg.reference || '');
         if (!body) return;
-        const rows = (pkg.items || []).map((it) =>
-            '<tr><td>' + esc(it.items_description) + '</td><td class="text-center">' + esc(it.quantity) + '</td><td>' + this.statusBadge(it.status) + '</td></tr>'
-        ).join('');
+        const rows = (pkg.items || []).map((it) => {
+            const soldLines = it.sold_lines || [];
+            let soldCell = '—';
+            if (soldLines.length) {
+                soldCell = soldLines
+                    .map((s) => {
+                        const d = s.sold_date ? RP_DATE.formatOrdinalEnGb(s.sold_date) : '';
+                        const p = Number(s.profit) || 0;
+                        return esc(s.product || '') + ' ×' + esc(s.quantity) + (p ? ' · £' + p.toFixed(2) : '') + (d ? ' · ' + d : '');
+                    })
+                    .join('<br>');
+            } else if (it.matching_in_progress) {
+                soldCell =
+                    '<span class="text-muted small">Sale recorded — matching to this line…</span>' +
+                    (it.unlinked_sale_count > 1 ? ' <span class="text-muted">(' + esc(it.unlinked_sale_count) + ' sales on parcel)</span>' : '');
+            }
+            const pending = it.pending_stage ? esc(it.pending_stage) : '—';
+            const openQty = it.remaining_qty != null ? esc(it.remaining_qty) : '—';
+            return (
+                '<tr><td>' +
+                esc(it.items_description) +
+                '</td><td class="text-center">' +
+                esc(it.quantity) +
+                '</td><td>' +
+                this.statusBadge(it.status) +
+                '</td><td class="small">' +
+                pending +
+                '</td><td class="small">' +
+                soldCell +
+                '</td><td class="text-center">' +
+                openQty +
+                '</td></tr>'
+            );
+        }).join('');
         const summary =
-            '<p class="small text-muted mb-2">Processed: <strong>' + esc(pkg.processed_units) + '</strong> of <strong>' + esc(pkg.total_units) + '</strong> units · ' +
-            'Pending: <strong>' + esc(pkg.pending_units) + '</strong>' +
-            (pkg.rejected_units > 0 ? ' · Rejected: <strong>' + esc(pkg.rejected_units) + '</strong>' : '') +
+            '<p class="small text-muted mb-2">Warehouse: <strong>' +
+            esc(pkg.processed_units) +
+            '</strong> of <strong>' +
+            esc(pkg.total_units) +
+            '</strong> · Sold: <strong>' +
+            esc(pkg.sold_units || 0) +
+            '</strong>' +
+            (pkg.sold_profit > 0 ? ' · £' + Number(pkg.sold_profit).toFixed(2) + ' your share' : '') +
+            (pkg.has_unlinked_sales ? ' · <span class="text-warning">Some sales still being matched</span>' : '') +
             '</p>';
         body.innerHTML =
             summary +
             '<div class="table-responsive"><table class="table table-sm table-bordered mb-0">' +
-            '<thead><tr><th>Line / product</th><th class="text-center">Qty</th><th>Status</th></tr></thead>' +
-            '<tbody>' + (rows || '<tr><td colspan="3" class="text-muted text-center">No lines recorded yet.</td></tr>') + '</tbody></table></div>';
+            '<thead><tr><th>Line / product</th><th class="text-center">Qty</th><th>Warehouse</th><th>Pending stage</th><th>Sold</th><th class="text-center">Open qty</th></tr></thead>' +
+            '<tbody>' +
+            (rows || '<tr><td colspan="6" class="text-muted text-center">No lines recorded yet.</td></tr>') +
+            '</tbody></table></div>';
         const el = document.getElementById('received-units-modal');
         if (el && window.bootstrap) {
             const inst = bootstrap.Modal.getInstance(el);
@@ -3164,7 +3226,7 @@ const Dashboard = {
     async loadReceived() {
         const $tbody = $('#received-table tbody');
         if (!$tbody.length) return;
-        $tbody.html('<tr><td colspan="7" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        $tbody.html('<tr><td colspan="8" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getReceived();
             $tbody.empty();
@@ -3173,7 +3235,7 @@ const Dashboard = {
             $('.seco-title').text(totalLabel + ' packages');
 
             if (!packages.length) {
-                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No received packages yet. Add a package and we’ll list it here once it arrives.</p><a href="packages.html" class="btn btn-primary">Go to Packages</a></td></tr>');
+                $tbody.html('<tr><td colspan="8" class="text-center py-5"><p class="text-muted mb-3">No received packages yet. Add a package and we’ll list it here once it arrives.</p><a href="packages.html" class="btn btn-primary">Go to Packages</a></td></tr>');
                 return;
             }
 
@@ -3257,7 +3319,7 @@ const Dashboard = {
         } catch (err) {
             console.error('Load received error:', err);
             const msg = err.error || 'Unable to load received items.';
-            $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
+            $tbody.html('<tr><td colspan="8" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
             $tbody.find('.btn').on('click', () => this.loadReceived());
         }
     },
@@ -3294,7 +3356,7 @@ const Dashboard = {
     },
     async loadSold() {
         const $tbody = $('#sold-items-tbody');
-        if ($tbody.length) $tbody.html('<tr><td colspan="6" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        if ($tbody.length) $tbody.html('<tr><td colspan="7" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
         try {
             const data = await API.getSold();
 
@@ -3319,6 +3381,18 @@ const Dashboard = {
                     badge = '<span class="badge bg-info-subtle text-info ms-1" title="' + escAttr(title) + '">Fee waived</span>';
                 }
                 return esc(item.product) + badge;
+            };
+            const parcelCell = (item) => {
+                const ref = String(item.matched_reference || item.reference || '').trim();
+                if (!ref && !item.matched_package_id) return '<span class="text-muted">—</span>';
+                const label = esc(ref || 'Parcel');
+                if (item.matched_package_id) {
+                    return '<a href="package-detail.html?id=' + escAttr(String(item.matched_package_id)) + '" class="small">' + label + '</a>';
+                }
+                if (ref) {
+                    return '<a href="received.html" class="small" title="View on Received">' + label + '</a>';
+                }
+                return label;
             };
             const soldRowHtml = (item) => {
                 const gross = Number(item.profit != null ? item.profit : 0);
@@ -3347,10 +3421,20 @@ const Dashboard = {
                     ? '<td class="text-danger"' + retTitle + '>£' + ret.toFixed(2) + '</td>'
                     : '<td class="text-muted">—</td>';
                 const netClass = net < 0 ? 'text-danger' : 'text-success';
+                let matchHint = '';
+                if (item.match_pending && item.matched_reference) {
+                    matchHint = ' <span class="badge bg-warning-subtle text-warning" title="Matching to received line in progress">Matching</span>';
+                } else if (item.received_description) {
+                    matchHint =
+                        ' <span class="small text-muted d-block" title="Matched received line">' +
+                        esc(String(item.received_description).slice(0, 60)) +
+                        '</span>';
+                }
                 return (
                     '<tr>' +
                     '<td>' + this.soldDateDisplayValue(item) + '</td>' +
-                    '<td>' + productCell(item) + '</td>' +
+                    '<td>' + productCell(item) + matchHint + '</td>' +
+                    '<td>' + parcelCell(item) + '</td>' +
                     '<td>' + esc(String(item.quantity)) + '</td>' +
                     '<td class="text-success">£' + gross.toFixed(2) + '</td>' +
                     retCell +
@@ -3429,7 +3513,7 @@ const Dashboard = {
             }
 
             if (items.length === 0) {
-                $tbody.html('<tr><td colspan="6" class="text-center py-5"><p class="text-muted mb-3">No sold items match this filter. Change the recovery route filter or send more packages.</p><a href="packages.html" class="btn btn-primary">Send packages</a></td></tr>');
+                $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-muted mb-3">No sold items match this filter. Change the recovery route filter or send more packages.</p><a href="packages.html" class="btn btn-primary">Send packages</a></td></tr>');
                 return;
             }
 
@@ -3455,7 +3539,7 @@ const Dashboard = {
         } catch(err) {
             console.error('Load sold error:', err);
             const msg = err.error || 'Unable to load sold items.';
-            $tbody.html('<tr><td colspan="6" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
+            $tbody.html('<tr><td colspan="7" class="text-center py-5"><p class="text-danger mb-2">' + msg + '</p><button type="button" class="btn btn-outline-primary btn-sm">Try again</button></td></tr>');
             $tbody.find('.btn').on('click', () => this.loadSold());
         }
     },
@@ -5631,7 +5715,7 @@ const Dashboard = {
             items.forEach(it => {
                 $list.append('<li class="list-group-item d-flex justify-content-between"><a href="item-detail.html?id=' + (it.id || '') + '">' + (it.title || it.reference) + '</a>' + this.statusBadge(it.status || '') + '</li>');
             });
-            const timeline = data.timeline || (data.journey && data.journey.events) || [];
+            const timeline = (data.journey && data.journey.events) || data.timeline || [];
             const $tl = $('#pkg-timeline');
             $tl.empty();
             if (!timeline.length) {
@@ -5642,6 +5726,12 @@ const Dashboard = {
                     const msg = t.message || '';
                     const label = t.stage ? String(t.stage).replace(/_/g, ' ') : '';
                     const when = t.timestamp ? RP_DATE.formatOrdinalEnGb(t.timestamp) : '';
+                    let extraLink = '';
+                    if (t.stage === 'sold') {
+                        extraLink =
+                            ' <a href="received.html" class="small">Received</a>' +
+                            (t.received_item_id ? ' · <a href="sold-items.html" class="small">Sold items</a>' : '');
+                    }
                     $tl.append(
                         '<div class="d-flex gap-2 mb-3 pb-2 border-bottom border-light-subtle">' +
                         '<i class="' +
@@ -5652,6 +5742,7 @@ const Dashboard = {
                         '</div>' +
                         '<div class="small">' +
                         msg +
+                        extraLink +
                         '</div>' +
                         (when ? '<small class="text-muted">' + when + '</small>' : '') +
                         '</div></div>'

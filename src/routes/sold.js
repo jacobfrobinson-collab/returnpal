@@ -161,6 +161,13 @@ router.get('/', authMiddleware, async (req, res) => {
         stats.avg_earnings_net =
             stats.items_sold > 0 ? stats.net_earnings_after_returns / stats.items_sold : 0;
 
+        const receivedRows = parseResults(
+            db.exec('SELECT id, items_description, reference, package_id FROM received_items WHERE user_id = ?', [
+                req.user.id,
+            ])
+        );
+        const receivedById = new Map(receivedRows.map((r) => [r.id, r]));
+
         const promo = computeMonthlyFreeProcessing(items);
         const itemsWithPromo = items.map((row) => {
             const w = promo.winner_by_item_id[String(row.id)];
@@ -169,6 +176,8 @@ router.get('/', authMiddleware, async (req, res) => {
             const linkedAdj = linkedReturnDetails[String(row.id)] || [];
             const grossRefunds = linkedAdj.reduce((s, a) => s + (Number(a.amount) || 0), 0);
             const dates = mapSoldItemDatesForApi(row.sold_date, normalizeSoldDateForDb);
+            const rec = row.received_item_id ? receivedById.get(row.received_item_id) : null;
+            const matchSt = String(row.match_status || '').trim();
             return {
                 ...row,
                 sold_date_stored: dates.stored,
@@ -181,6 +190,10 @@ router.get('/', authMiddleware, async (req, res) => {
                 net_after_returns: roundMoney(profit - ret),
                 linked_return_adjustments: linkedAdj,
                 returns_exceed_sale: grossRefunds > profit + 0.01,
+                received_description: rec ? rec.items_description : null,
+                matched_package_id: rec ? rec.package_id : null,
+                matched_reference: rec ? rec.reference : row.reference || null,
+                match_pending: matchSt === 'pending_review' || !matchSt,
             };
         });
 
@@ -248,10 +261,16 @@ router.post('/', authMiddleware, async (req, res) => {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?)`,
             [targetUserId, ref, product, qty, u || 0, total || 0, p || 0, m || 0, soldDateStr, orderNumber]
         );
-        saveDb();
-
         const result = db.exec('SELECT last_insert_rowid() as id');
         const id = result[0].values[0][0];
+
+        try {
+            const { applySaleReceivedMatch } = require('../utils/saleReceivedMatch');
+            applySaleReceivedMatch(db, id);
+        } catch (e) {
+            console.error('[sale-received-match]', e.message || e);
+        }
+        saveDb();
 
         const amount =
             Number.isFinite(earningsNum)
