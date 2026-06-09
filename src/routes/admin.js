@@ -721,6 +721,9 @@ router.get('/sale-match-queue-summary', async (req, res) => {
         const by_user = getSaleMatchQueueCountsByUser(db).map((r) => ({
             user_id: r.user_id,
             count: Number(r.c) || 0,
+            email: r.email || '',
+            full_name: r.full_name || '',
+            company_name: r.company_name || '',
         }));
         res.json({ total, by_user });
     } catch (err) {

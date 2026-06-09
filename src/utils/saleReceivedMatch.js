@@ -468,9 +468,11 @@ function getGlobalSaleMatchQueueCount(db) {
 function getSaleMatchQueueCountsByUser(db) {
     return parseResults(
         db.exec(
-            `SELECT user_id, COUNT(*) AS c FROM sold_items
-             WHERE match_status = 'pending_review' OR match_status IS NULL OR match_status = ''
-             GROUP BY user_id ORDER BY c DESC`
+            `SELECT s.user_id, COUNT(*) AS c, u.email, u.full_name, u.company_name
+             FROM sold_items s
+             JOIN users u ON u.id = s.user_id
+             WHERE s.match_status = 'pending_review' OR s.match_status IS NULL OR s.match_status = ''
+             GROUP BY s.user_id ORDER BY c DESC`
         )
     );
 }

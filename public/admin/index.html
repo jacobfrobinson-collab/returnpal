@@ -48,7 +48,7 @@
                     <a href="/admin/insights.html" class="small">Client insights</a>
                     <a href="/admin/audit.html" class="small">Audit log</a>
                     <a href="/admin/queries.html" class="small">Open queries</a>
-                    <a href="/admin/index.html#all-clients-section" class="small" id="admin-sale-match-nav">Sales to match <span class="badge bg-warning text-dark d-none" id="admin-global-sale-match-badge">0</span></a>
+                    <a href="#sale-match-queue-section" class="small" id="admin-sale-match-nav">Sales to match <span class="badge bg-warning text-dark d-none" id="admin-global-sale-match-badge">0</span></a>
                     <a href="/admin/prep-sendback.html" class="small">Prep send-back</a>
                     <a href="/admin/lost-items.html" class="small">Missing/Lost Items</a>
                     <a href="/admin/reimbursement-photos.html" class="small">Reimbursement photos</a>
@@ -65,6 +65,7 @@
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                 <ul class="nav nav-pills flex-wrap gap-1 mb-0">
                     <li class="nav-item"><a class="nav-link admin-jump-link" href="#pending-registrations-section" data-admin-jump="pending-registrations">Pending <span class="badge bg-warning text-dark d-none" id="nav-pending-badge">0</span></a></li>
+                    <li class="nav-item"><a class="nav-link admin-jump-link" href="#sale-match-queue-section" data-admin-jump="sale-match-queue">Sales to match <span class="badge bg-warning text-dark d-none" id="nav-sale-match-badge">0</span></a></li>
                     <li class="nav-item"><a class="nav-link admin-jump-link" href="#all-clients-section" data-admin-jump="all-clients">All clients</a></li>
                     <li class="nav-item"><a class="nav-link admin-jump-link" href="#admin-create-user-section" data-admin-jump="create-user">Create client</a></li>
                     <li class="nav-item"><a class="nav-link admin-jump-link" href="#hub-access-section" data-admin-jump="hub-access">Hub access</a></li>
@@ -94,6 +95,28 @@
             </div>
             <div class="card-body collapse show" id="pending-registrations-body">
                 <p class="small text-muted mb-0" id="pending-registrations-status"><span class="spinner-border spinner-border-sm me-1"></span>Loading pending signups…</p>
+            </div>
+        </div>
+
+        <div class="section-card card border-warning shadow-sm" id="sale-match-queue-section">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h2 class="h6 mb-0">Sales to match</h2>
+                    <p class="small text-muted mb-0">Sales that could not be auto-linked to a received line — open a client to review.</p>
+                </div>
+                <span class="badge bg-warning text-dark d-none" id="sale-match-queue-total-badge">0</span>
+            </div>
+            <div class="card-body p-0">
+                <div id="sale-match-queue-loading" class="p-3 text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading…</div>
+                <div id="sale-match-queue-empty" class="p-3 text-muted small d-none">All sales matched — nothing to review.</div>
+                <div class="table-responsive d-none" id="sale-match-queue-table-wrap">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr><th>Client</th><th>Email</th><th class="text-end">Queue</th><th class="text-end">Action</th></tr>
+                        </thead>
+                        <tbody id="sale-match-queue-tbody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -556,16 +579,52 @@
         }
 
         loadPendingRegistrations();
-        API.request('/admin/sale-match-queue-summary')
-            .then(function(data) {
-                var n = Number(data.total) || 0;
-                var $b = $('#admin-global-sale-match-badge');
-                if ($b.length && n > 0) {
-                    $b.text(n).removeClass('d-none');
-                    $('#admin-sale-match-nav').attr('title', n + ' sale(s) need matching — open a client to review');
-                }
-            })
-            .catch(function() {});
+        function loadSaleMatchQueueSummary() {
+            return API.request('/admin/sale-match-queue-summary')
+                .then(function(data) {
+                    var n = Number(data.total) || 0;
+                    var rows = data.by_user || [];
+                    var badgeIds = ['#admin-global-sale-match-badge', '#nav-sale-match-badge', '#sale-match-queue-total-badge'];
+                    badgeIds.forEach(function(sel) {
+                        var $b = $(sel);
+                        if (!$b.length) return;
+                        if (n > 0) $b.text(n).removeClass('d-none');
+                        else $b.addClass('d-none');
+                    });
+                    $('#admin-sale-match-nav').attr('title', n > 0 ? (n + ' sale(s) need matching') : 'No sales waiting');
+                    $('#sale-match-queue-loading').addClass('d-none');
+                    var $tb = $('#sale-match-queue-tbody');
+                    var $wrap = $('#sale-match-queue-table-wrap');
+                    var $empty = $('#sale-match-queue-empty');
+                    $tb.empty();
+                    if (!rows.length) {
+                        $wrap.addClass('d-none');
+                        $empty.removeClass('d-none');
+                        return;
+                    }
+                    $empty.addClass('d-none');
+                    $wrap.removeClass('d-none');
+                    rows.forEach(function(row) {
+                        var uid = row.user_id;
+                        var label = (row.full_name || row.company_name || row.email || ('Client ' + uid)).trim();
+                        var href = '/admin/client.html?id=' + encodeURIComponent(uid) + '#sale-match-card';
+                        var $tr = $('<tr></tr>');
+                        $tr.append('<td><strong>' + escapeHtml(label) + '</strong> <span class="text-muted small">ID ' + escapeHtml(String(uid).padStart(4, '0')) + '</span></td>');
+                        $tr.append('<td class="small">' + escapeHtml(row.email || '—') + '</td>');
+                        $tr.append('<td class="text-end"><span class="badge bg-warning text-dark">' + escapeHtml(String(row.count)) + '</span></td>');
+                        $tr.append('<td class="text-end"><a href="' + href + '" class="btn btn-sm btn-primary">Review</a></td>');
+                        $tb.append($tr);
+                    });
+                    if (window.location.hash === '#sale-match-queue-section') {
+                        var el = document.getElementById('sale-match-queue-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                })
+                .catch(function() {
+                    $('#sale-match-queue-loading').text('Could not load sale match queue.');
+                });
+        }
+        loadSaleMatchQueueSummary();
         var user = API.getUser();
         $('#admin-user-email').text((user && user.email) || '');
 
@@ -852,6 +911,7 @@
 
         var ADMIN_SECTION_HASH = {
             'pending-registrations-section': 'pending-registrations',
+            'sale-match-queue-section': 'sale-match-queue',
             'all-clients-section': 'all-clients',
             'admin-create-user-section': 'create-user',
             'hub-access-section': 'hub-access',

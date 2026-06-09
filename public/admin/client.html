@@ -1461,6 +1461,16 @@
             return escapeHtml((c.items_description || '').slice(0, 36)) + ' — ' + escapeHtml(reasons.join('; '));
         }
 
+        function scrollToSaleMatchCard() {
+            if (window.location.hash !== '#sale-match-card') return;
+            var el = document.getElementById('sale-match-card');
+            if (el) {
+                setTimeout(function() {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+        }
+
         function loadSaleMatchQueue() {
             return API.request('/admin/users/' + clientId + '/sale-match-queue').then(function(data) {
                 var queue = data.queue || [];
@@ -1538,6 +1548,8 @@
                 });
             }).catch(function(e) {
                 $('#sale-match-tbody').html('<tr><td colspan="6" class="text-danger p-3">' + escapeHtml((e && e.error) || 'Failed to load') + '</td></tr>');
+            }).finally(function() {
+                scrollToSaleMatchCard();
             });
         }
 
