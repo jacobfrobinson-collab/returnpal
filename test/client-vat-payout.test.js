@@ -17,6 +17,8 @@ assert(NON_VAT_CLIENT_PAYOUT_RATE === 0.8, 'withholding rate');
 assert(clientPayoutFromGrossNet(250, false) === 200, 'non-VAT: 20% withheld');
 assert(clientPayoutFromGrossNet(250, true) === 250, 'VAT registered: full net');
 assert(clientPayoutFromGrossNet(189.58, 1) === 189.58, 'VAT registered preserves amount');
+assert(clientPayoutFromGrossNet(-0.15, false) === -0.15, 'non-VAT: returns pass through without withholding');
+assert(clientPayoutFromGrossNet(-50, false) === -50, 'non-VAT: negative net unchanged');
 assert(invoiceVatOnFees(50, true) === 10, 'VAT on processing fees');
 assert(invoiceVatOnFees(100, false) === 0, 'no VAT on fees when not registered');
 

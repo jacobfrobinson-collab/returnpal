@@ -1641,12 +1641,95 @@ const Dashboard = {
         }
     },
 
+    formatHubYmLabel(ym) {
+        if (!ym || typeof ym !== 'string') return ym || '';
+        const parts = ym.split('-').map(Number);
+        const y = parts[0];
+        const m = parts[1];
+        if (!y || !m) return ym;
+        const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        return (names[m - 1] || ym) + ' ' + y;
+    },
+
+    renderHubMonthlySales(salesData) {
+        const $sales = $('#hub-monthly-sales-root');
+        if (!$sales.length) return;
+        const months = (salesData && salesData.months) || [];
+        if (!months.length) {
+            $sales.html(
+                '<p class="text-muted mb-0">No sold items recorded yet for your linked clients.</p>'
+            );
+            return;
+        }
+        const esc = (s) => this.escHtml(s);
+        let html =
+            '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">' +
+            '<span class="text-muted small">All time total: <strong>£' +
+            Number(salesData.grand_total || 0).toFixed(2) +
+            '</strong></span></div>' +
+            '<div class="table-responsive"><table class="table table-sm align-middle mb-0 hub-monthly-sales-table"><thead><tr>' +
+            '<th style="width:2rem"></th><th>Month</th><th class="text-end">Total earnings</th><th class="text-end">Items</th><th class="text-end">Clients</th>' +
+            '</tr></thead><tbody>';
+        months.forEach((m, idx) => {
+            const byClient = m.by_client || [];
+            html +=
+                '<tr class="hub-monthly-row" data-month-idx="' +
+                idx +
+                '"><td class="text-muted"><button type="button" class="btn btn-link btn-sm p-0 hub-monthly-toggle" aria-expanded="false" data-month-idx="' +
+                idx +
+                '"><i class="ri-arrow-right-s-line"></i></button></td>' +
+                '<td><strong>' +
+                esc(this.formatHubYmLabel(m.period)) +
+                '</strong></td>' +
+                '<td class="text-end fw-semibold">£' +
+                Number(m.profit_total || 0).toFixed(2) +
+                '</td><td class="text-end">' +
+                (m.item_count || 0) +
+                '</td><td class="text-end">' +
+                (m.clients_with_sales || 0) +
+                '</td></tr>';
+            if (byClient.length) {
+                html +=
+                    '<tr class="hub-monthly-detail d-none" data-month-idx="' +
+                    idx +
+                    '"><td></td><td colspan="4" class="pt-0 pb-3"><table class="table table-sm table-borderless mb-0 small"><tbody>';
+                byClient.forEach((c) => {
+                    html +=
+                        '<tr><td class="ps-3">' +
+                        esc(c.name) +
+                        '<span class="text-muted"> · ' +
+                        esc(c.client_code) +
+                        (c.legacy_client_id ? ' · ' + esc(c.legacy_client_id) : '') +
+                        '</span></td><td class="text-end">£' +
+                        Number(c.profit || 0).toFixed(2) +
+                        '</td><td class="text-end text-muted">' +
+                        (c.item_count || 0) +
+                        ' item' +
+                        (c.item_count !== 1 ? 's' : '') +
+                        '</td></tr>';
+                });
+                html += '</tbody></table></td></tr>';
+            }
+        });
+        html += '</tbody></table></div>';
+        $sales.html(html);
+        $sales.find('.hub-monthly-toggle').on('click', function() {
+            const idx = $(this).data('month-idx');
+            const $detail = $sales.find('.hub-monthly-detail[data-month-idx="' + idx + '"]');
+            const open = $detail.hasClass('d-none');
+            $detail.toggleClass('d-none', !open);
+            $(this).attr('aria-expanded', open ? 'true' : 'false');
+            $(this).find('i').attr('class', open ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line');
+        });
+    },
+
     async loadMyClients() {
         const $root = $('#hub-clients-root');
         const $totals = $('#hub-totals-row');
+        const $sales = $('#hub-monthly-sales-root');
         if (!$root.length) return;
         try {
-            const data = await API.getHubOverview();
+            const [data, salesData] = await Promise.all([API.getHubOverview(), API.getHubMonthlySales()]);
             const clients = data.clients || [];
             const t = data.totals || {};
             if ($totals.length) {
@@ -1665,10 +1748,16 @@ const Dashboard = {
                         '</div></div></div>'
                 );
             }
+            this.renderHubMonthlySales(salesData);
             if (!clients.length) {
                 $root.html(
                     '<p class="text-muted mb-0">No linked clients yet. Ask ReturnPal to connect your prep centre account to the client IDs you manage.</p>'
                 );
+                if ($sales.length && !salesData.months.length) {
+                    $sales.html(
+                        '<p class="text-muted mb-0">Link clients to see combined monthly sales here.</p>'
+                    );
+                }
                 return;
             }
             let html =
@@ -1702,7 +1791,6 @@ const Dashboard = {
             });
             html += '</tbody></table></div>';
             $root.html(html);
-            const self = this;
             $root.find('.hub-open-dashboard-btn').on('click', async function() {
                 const id = $(this).data('client-id');
                 $(this).prop('disabled', true);
@@ -1720,6 +1808,9 @@ const Dashboard = {
             });
         } catch (err) {
             $root.html('<p class="text-danger">' + this.escHtml((err && err.error) || 'Failed to load clients') + '</p>');
+            if ($sales.length) {
+                $sales.html('<p class="text-danger">' + this.escHtml((err && err.error) || 'Failed to load monthly sales') + '</p>');
+            }
         }
     },
 
@@ -5173,9 +5264,12 @@ const Dashboard = {
             }
             if (!Number.isFinite(amountDue)) {
                 const grossNet = Number(data.gross_net ?? summary.gross_net);
+                const base = Number.isFinite(grossNet) ? grossNet : subtotalNet;
                 amountDue = isVatRegistered
-                    ? grossNet
-                    : Math.round((Number.isFinite(grossNet) ? grossNet : subtotalNet) * 0.8 * 100) / 100;
+                    ? base
+                    : base <= 0
+                      ? base
+                      : Math.round(base * 0.8 * 100) / 100;
             }
             const colSpan = 4;
             const fmtMoney = (n) => {
@@ -5293,7 +5387,7 @@ const Dashboard = {
                     ? (vatNumber
                         ? '<p><strong>VAT registered.</strong> VAT No. ' + escLite(vatNumber) + '. Amount due is your payout for this period (line items include returns as negative lines where applicable). No 20% withholding.</p>'
                         : '<p><strong>VAT registered.</strong> Amount due is your payout for this period. No 20% withholding is applied.</p>')
-                    : '<p>Amount due is your payout for this period. A 20% deduction applies when you are not VAT registered (see Settings).</p>') +
+                    : '<p>Amount due is your payout for this period. When you are not VAT registered, a 20% deduction applies to positive earnings only; returns and clawbacks match the line amounts shown.</p>') +
                 '<p>For a line-by-line breakdown of each sale and return, use <strong>Statement (each line)</strong> from the payouts table.</p>' +
                 '<p>Payment is due by the date stated above. Thank you for selling with ReturnPal.</p>' +
                 '</div></div></body></html>';

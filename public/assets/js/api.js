@@ -1436,6 +1436,10 @@ const API = {
         return this.request('/client/hub/overview');
     },
 
+    async getHubMonthlySales() {
+        return this.request('/client/hub/monthly-sales');
+    },
+
     async getHubClients() {
         return this.request('/client/hub/clients');
     },

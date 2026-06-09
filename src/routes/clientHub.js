@@ -6,6 +6,7 @@ const {
     countLinkedClients,
     listLinkedClients,
     getHubOverview,
+    getHubMonthlySales,
 } = require('../utils/clientDelegate');
 
 const router = express.Router();
@@ -65,6 +66,17 @@ router.get('/overview', authMiddleware, async (req, res) => {
         res.json(getHubOverview(db, req.user.id));
     } catch (err) {
         console.error('Hub overview error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/hub/monthly-sales — combined client earnings by calendar month
+router.get('/monthly-sales', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        res.json(getHubMonthlySales(db, req.user.id));
+    } catch (err) {
+        console.error('Hub monthly sales error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

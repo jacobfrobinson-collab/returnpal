@@ -1,6 +1,7 @@
 /**
  * Client payout amounts for monthly statements / invoices.
- * Non–VAT-registered clients: 20% withholding on net payout (after returns/fees).
+ * Non–VAT-registered clients: 20% withholding on positive net payout only.
+ * Returns and clawbacks pass through at the line amount (no extra withholding).
  */
 
 const NON_VAT_CLIENT_PAYOUT_RATE = 0.8;
@@ -19,10 +20,9 @@ function isClientVatRegistered(vatRegistered) {
  */
 function clientPayoutFromGrossNet(grossNet, vatRegistered) {
     const net = Math.round((Number(grossNet) || 0) * 100) / 100;
-    if (!isClientVatRegistered(vatRegistered)) {
-        return Math.round(net * NON_VAT_CLIENT_PAYOUT_RATE * 100) / 100;
-    }
-    return net;
+    if (isClientVatRegistered(vatRegistered)) return net;
+    if (net <= 0) return net;
+    return Math.round(net * NON_VAT_CLIENT_PAYOUT_RATE * 100) / 100;
 }
 
 /** VAT on ReturnPal processing fees (not on client sales share). */

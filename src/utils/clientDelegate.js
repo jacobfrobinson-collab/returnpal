@@ -3,6 +3,7 @@
  */
 
 const { getPartnerClientStatus } = require('./partnerClientStatus');
+const { calendarYearMonthFromDbDate } = require('./soldDateCalendar');
 
 function parseResults(result) {
     if (!result || !result.length) return [];
@@ -140,6 +141,103 @@ function getHubOverview(db, hubUserId) {
     return { clients: summaries, totals, client_count: summaries.length };
 }
 
+/**
+ * Combined monthly client earnings (profit) across all linked hub clients.
+ * @param {import('sql.js').Database} db
+ * @param {number} hubUserId
+ */
+function getHubMonthlySales(db, hubUserId) {
+    const clients = listLinkedClients(db, hubUserId);
+    if (!clients.length) {
+        return { months: [], client_count: 0, grand_total: 0 };
+    }
+
+    const clientMeta = new Map();
+    for (const c of clients) {
+        clientMeta.set(c.id, {
+            client_id: c.id,
+            name: c.full_name || c.company_name || c.email,
+            legacy_client_id: c.legacy_client_id || '',
+            client_code: 'RP' + c.id,
+        });
+    }
+
+    const ids = clients.map((c) => c.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const soldRows = parseResults(
+        db.exec(
+            `SELECT user_id, sold_date, profit, quantity
+             FROM sold_items WHERE user_id IN (${placeholders})`,
+            ids
+        )
+    );
+
+    const monthMap = new Map();
+    let grandTotal = 0;
+
+    for (const row of soldRows) {
+        const period = calendarYearMonthFromDbDate(row.sold_date);
+        if (!period) continue;
+        const profit = Number(row.profit) || 0;
+        const qty = Number(row.quantity) > 0 ? Number(row.quantity) : 1;
+
+        if (!monthMap.has(period)) {
+            monthMap.set(period, { profit_total: 0, item_count: 0, byClient: new Map() });
+        }
+        const m = monthMap.get(period);
+        m.profit_total += profit;
+        m.item_count += qty;
+        grandTotal += profit;
+
+        const uid = Number(row.user_id);
+        if (!m.byClient.has(uid)) {
+            m.byClient.set(uid, { profit: 0, item_count: 0 });
+        }
+        const bc = m.byClient.get(uid);
+        bc.profit += profit;
+        bc.item_count += qty;
+    }
+
+    const round2 = (n) => Math.round(n * 100) / 100;
+
+    const months = [...monthMap.entries()]
+        .sort((a, b) => b[0].localeCompare(a[0]))
+        .map(([period, data]) => {
+            const by_client = [...data.byClient.entries()]
+                .map(([clientId, stats]) => {
+                    const meta = clientMeta.get(clientId) || {
+                        client_id: clientId,
+                        name: 'Client ' + clientId,
+                        legacy_client_id: '',
+                        client_code: 'RP' + clientId,
+                    };
+                    return {
+                        client_id: meta.client_id,
+                        name: meta.name,
+                        legacy_client_id: meta.legacy_client_id,
+                        client_code: meta.client_code,
+                        profit: round2(stats.profit),
+                        item_count: stats.item_count,
+                    };
+                })
+                .sort((a, b) => b.profit - a.profit);
+
+            return {
+                period,
+                profit_total: round2(data.profit_total),
+                item_count: data.item_count,
+                clients_with_sales: by_client.length,
+                by_client,
+            };
+        });
+
+    return {
+        client_count: clients.length,
+        months,
+        grand_total: round2(grandTotal),
+    };
+}
+
 module.exports = {
     hubCanAccessClient,
     countLinkedClients,
@@ -149,4 +247,5 @@ module.exports = {
     setClientLinksForHub,
     listHubAccountsSummary,
     getHubOverview,
+    getHubMonthlySales,
 };
