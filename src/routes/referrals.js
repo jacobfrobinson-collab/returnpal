@@ -39,6 +39,9 @@ router.get('/', authMiddleware, async (req, res) => {
         // /register.html redirects to login with ?ref= & openRegister=1 (see server.js)
         const referralLink = baseUrl.replace(/\/$/, '') + '/register.html?ref=' + encodeURIComponent(referralCode);
 
+        const periodYm = new Date().toISOString().slice(0, 7);
+        const { referredUserActiveInPeriod, countActiveReferralsInPeriod } = require('../utils/referralCredits');
+
         const referredRows = parseResults(
             db.exec(
                 'SELECT id, email, full_name, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC',
@@ -50,16 +53,19 @@ router.get('/', authMiddleware, async (req, res) => {
             const uid = row.id;
             const pkgCount = countPackagesForUser(db, uid);
             const status = pkgCount > 0 ? 'Active' : 'Signed up';
+            const activeThisMonth = referredUserActiveInPeriod(db, uid, periodYm);
             return {
                 id: uid,
                 email: row.email,
                 referred_at: row.created_at,
                 status,
-                earned: null
+                active_this_month: activeThisMonth,
+                earned: null,
             };
         });
 
-        const activeCount = referrals.filter(r => r.status === 'Active').length;
+        const activeCount = referrals.filter((r) => r.status === 'Active').length;
+        const activeThisMonthCount = countActiveReferralsInPeriod(db, req.user.id, periodYm);
 
         /** Which reward band applies given number of active referrals (1–5, 6–10, 11+). None if zero actives. */
         function tierForActiveCount(n) {
@@ -72,10 +78,10 @@ router.get('/', authMiddleware, async (req, res) => {
         const currentTier = tierForActiveCount(activeCount);
         const rewardEach = currentTier ? Number(currentTier.reward_per_referral) || 0 : 0;
         referrals.forEach((r) => {
-            r.earned = r.status === 'Active' ? rewardEach : 0;
+            r.earned = r.active_this_month ? rewardEach : 0;
         });
 
-        const monthly_reward_estimate = activeCount * rewardEach;
+        const monthly_reward_estimate = activeThisMonthCount * rewardEach;
 
         let nextTier = null;
         let activeRequired = 0;
@@ -105,6 +111,8 @@ router.get('/', authMiddleware, async (req, res) => {
             total_earned: monthly_reward_estimate,
             monthly_reward_estimate,
             active_count: activeCount,
+            active_this_month_count: activeThisMonthCount,
+            credit_period_ym: periodYm,
             tiers: TIERS,
             current_tier: currentTier,
             next_tier: nextTierWithRequired,

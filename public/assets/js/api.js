@@ -425,6 +425,9 @@ const API = {
     async createPackage(data) {
         return this.request('/packages', { method: 'POST', body: data });
     },
+    async bulkPackages(data) {
+        return this.request('/packages/bulk', { method: 'POST', body: data });
+    },
     async updatePackage(id, data) {
         return this.request('/packages/' + id, { method: 'PUT', body: data });
     },

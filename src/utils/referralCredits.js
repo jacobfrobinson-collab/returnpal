@@ -39,6 +39,13 @@ function countActiveReferrals(db, referrerUserId) {
     return referred.filter((r) => countPackagesForUser(db, r.id) > 0).length;
 }
 
+function countActiveReferralsInPeriod(db, referrerUserId, periodYm) {
+    const referred = parseResults(
+        db.exec('SELECT id FROM users WHERE referred_by = ?', [referrerUserId])
+    );
+    return referred.filter((r) => referredUserActiveInPeriod(db, r.id, periodYm)).length;
+}
+
 function referredUserActiveInPeriod(db, referredUserId, periodYm) {
     const rows = parseResults(
         db.exec('SELECT date_added FROM packages WHERE user_id = ?', [referredUserId])
@@ -178,5 +185,6 @@ module.exports = {
     getReferralCreditsSummary,
     applyPendingReferralCredits,
     countActiveReferrals,
+    countActiveReferralsInPeriod,
     referredUserActiveInPeriod,
 };

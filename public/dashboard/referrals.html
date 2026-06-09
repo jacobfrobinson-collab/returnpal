@@ -121,10 +121,24 @@
                             <div class="card-body">
                                 <div class="d-flex align-items-center">
                                     <div class="flex-grow-1">
-                                        <p class="text-muted mb-1 small">Active (sent package)</p>
+                                        <p class="text-muted mb-1 small">Active (ever sent)</p>
                                         <h4 class="mb-0" id="referrals-active">0</h4>
                                     </div>
                                     <div class="rounded p-2 bg-info bg-opacity-10"><i class="ri-checkbox-circle-line fs-24 text-info"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-3 mb-3">
+                        <div class="rp-card card border-0 h-100 border-primary border-opacity-25">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-grow-1">
+                                        <p class="text-muted mb-1 small">Active this month</p>
+                                        <h4 class="mb-0 text-primary" id="referrals-active-month">0</h4>
+                                        <p class="text-muted mb-0 small" id="referrals-active-month-hint">Sent a package this calendar month</p>
+                                    </div>
+                                    <div class="rounded p-2 bg-primary bg-opacity-10"><i class="ri-calendar-check-line fs-24 text-primary"></i></div>
                                 </div>
                             </div>
                         </div>
@@ -134,7 +148,7 @@
                             <div class="card-body">
                                 <div class="d-flex align-items-center">
                                     <div class="flex-grow-1">
-                                        <p class="text-muted mb-1 small">Est. monthly reward</p>
+                                        <p class="text-muted mb-1 small">Est. credit this month</p>
                                         <h4 class="mb-0" id="referrals-earned">£0</h4>
                                     </div>
                                     <div class="rounded p-2 bg-warning bg-opacity-10"><i class="ri-money-pound-circle-line fs-24 text-warning"></i></div>
@@ -173,7 +187,7 @@
                     <div class="card-body">
                         <h6 class="mb-2"><i class="ri-gift-line me-1"></i>How referral rewards work</h6>
                         <p class="text-muted small mb-2">Use your <strong>unique referral link</strong> (or share by email). When someone signs up via your link, they appear here as <span class="badge bg-info-subtle text-info">Signed up</span> until they send their first package. When they <strong>send their first package</strong>, they become <span class="badge bg-success-subtle text-success">Active</span> and count toward your tier.</p>
-                        <p class="text-muted small mb-2">You earn a <strong>monthly credit</strong> for each active referral who sends a package that month. Rewards use your <strong>current tier</strong> (based on how many active referrals you have). Credits are applied on your monthly statement.</p>
+                        <p class="text-muted small mb-2">You earn a <strong>monthly credit</strong> for each referral who <strong>sends a package that calendar month</strong> — see <strong>Active this month</strong> above. Your <strong>tier</strong> (and £/referral rate) is based on how many referrals have ever sent a package. Credits are applied on your monthly statement.</p>
                         <p class="text-muted small mb-2">Rewards are <strong>tiered</strong>: the more active referrals you have, the more you earn per referral each month. No limit on how many people you refer. Full terms apply.</p>
                         <div class="small text-muted" id="referrals-tier-breakdown">
                             <span class="d-inline-block me-3">Tier 1 (1–5 active): £10/month each</span>

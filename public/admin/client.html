@@ -627,6 +627,16 @@
                 .catch(function(e) { $pre.text(e && e.error ? e.error : String(e)); });
         });
 
+        function fmtDate(s) {
+            if (!s) return '-';
+            try {
+                if (typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb) {
+                    return RP_DATE.formatOrdinalEnGb(s);
+                }
+            } catch (e) { /* fall through */ }
+            return String(s).slice(0, 10);
+        }
+
         function fmtDateSold(s) {
             if (!s) return '-';
             if (typeof RP_SOLD_ISO !== 'undefined' && RP_SOLD_ISO.labelForSoldItem) {
@@ -1310,8 +1320,9 @@
                 });
                 if (list.length === 0) $tb.append('<tr><td colspan="7" class="text-muted">None</td></tr>');
                 updateReceivedSelectionUi();
-            }).catch(function() {
-                $('#received-tbody').html('<tr><td colspan="7" class="text-danger">Failed to load</td></tr>');
+            }).catch(function(e) {
+                var msg = (e && e.error) ? escapeHtml(e.error) : 'Failed to load';
+                $('#received-tbody').html('<tr><td colspan="7" class="text-danger">' + msg + '</td></tr>');
                 updateReceivedSelectionUi();
             });
         }
@@ -1612,7 +1623,7 @@
                     var failures = [];
                     await Promise.all(ids.map(async function(id) {
                         try {
-                            await API.request('/received/' + id, { method: 'PUT', body: { status: st } });
+                            await API.request('/received/' + id + '/status', { method: 'PUT', body: { status: st } });
                         } catch (e) {
                             failures.push(id);
                         }

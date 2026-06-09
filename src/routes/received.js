@@ -176,6 +176,13 @@ router.post('/', authMiddleware, async (req, res) => {
         const msg = 'Package received: ' + ref + (desc ? ' – ' + desc.slice(0, 80) : '');
         await pushActivity(targetUserId, 'package_received', msg, '/dashboard/received.html');
 
+        try {
+            const { sendPackageReceivedEmail } = require('../utils/sendTransactionalEmail');
+            await sendPackageReceivedEmail(db, targetUserId, id, ref, desc);
+        } catch (e) {
+            console.error('[email] package received:', e.message || e);
+        }
+
         if (packageId) {
             try {
                 const costRows = parseResults(

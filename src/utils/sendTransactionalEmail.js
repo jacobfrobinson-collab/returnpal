@@ -6,6 +6,8 @@ const {
     greetingHtml,
     paragraphHtml,
     heroAmountBlock,
+    summaryTableHtml,
+    noticeBoxHtml,
     ctaButtonHtml,
     signOffHtml,
     buildPlainEmail,
@@ -38,6 +40,114 @@ async function maybeSendEventEmail(db, userId, kind, refKey, { subject, text, ht
         html,
     });
     if (sent) recordEmailSent(db, userId, kind, refKey);
+    return sent;
+}
+
+function formatEmailDate(d) {
+    const dt = d instanceof Date && !isNaN(d.getTime()) ? d : new Date();
+    return dt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/**
+ * Branded package checked-in email (HTML + plain text).
+ * @param {object} opts
+ * @param {string} [opts.name]
+ * @param {string} opts.reference
+ * @param {string} [opts.description]
+ * @param {string} [opts.recipientEmail]
+ * @param {Date} [opts.receivedAt]
+ */
+function buildPackageReceivedEmail(opts) {
+    const name = String(opts.name || '').trim();
+    const ref = String(opts.reference || '').trim() || 'your parcel';
+    const desc = String(opts.description || '').trim();
+    const recipientEmail = opts.recipientEmail || '';
+    const receivedAt = opts.receivedAt instanceof Date ? opts.receivedAt : new Date();
+    const receivedLabel = formatEmailDate(receivedAt);
+    const url = publicAppUrl() + '/dashboard/received.html';
+
+    const summaryRows = [
+        { label: 'Parcel reference', value: ref, emphasis: true },
+        { label: 'Status', value: 'Checked in' },
+        { label: 'Date received', value: receivedLabel },
+    ];
+    if (desc) {
+        const preview = desc.length > 140 ? desc.slice(0, 137) + '…' : desc;
+        summaryRows.push({ label: 'Contents', value: preview });
+    }
+
+    const bodyHtml =
+        greetingHtml(name || 'there') +
+        paragraphHtml(
+            `We've <strong>checked in</strong> your parcel at ReturnPal. Our team will inspect the contents, pursue reimbursements where applicable, and route items for resale or liquidation.`
+        ) +
+        heroAmountBlock({
+            label: 'Parcel reference',
+            amount: 0,
+            displayText: ref,
+            statusLabel: 'Checked in',
+            statusTone: 'success',
+        }) +
+        summaryTableHtml('Parcel details', summaryRows) +
+        noticeBoxHtml(
+            `<strong>What happens next</strong><br>` +
+                `You'll see live progress on your <strong>Received</strong> dashboard as items are inspected and processed. ` +
+                `We'll send further updates when items sell or need your attention.`
+        ) +
+        ctaButtonHtml('View received items', url) +
+        signOffHtml();
+
+    const subject = `Parcel checked in — ${ref}`;
+    const preheader = `We've received ${ref} at ReturnPal and started processing`;
+
+    const paragraphs = [
+        `Your parcel (${ref}) was checked in at ReturnPal on ${receivedLabel}.`,
+        'Our team will inspect contents, pursue reimbursements where applicable, and route items for resale or liquidation.',
+    ];
+    if (desc) paragraphs.push(`Contents: ${desc.slice(0, 300)}${desc.length > 300 ? '…' : ''}`);
+    paragraphs.push(
+        "What happens next: track progress on your Received dashboard. We'll notify you when items sell or need attention."
+    );
+
+    const text = buildPlainEmail({
+        title: subject,
+        greeting: `Hello ${name || 'there'},`,
+        paragraphs,
+        summaryLines: summaryRows.map((r) => ({ label: r.label, value: r.value })),
+        ctaLabel: 'View received items',
+        ctaUrl: url,
+        recipientEmail,
+    });
+
+    const html = wrapBrandedEmail({
+        title: 'Parcel checked in',
+        subtitle: ref,
+        bodyHtml,
+        recipientEmail,
+        preheader,
+    });
+
+    return { subject, text, html, preheader };
+}
+
+async function sendPackageReceivedEmail(db, userId, receivedId, reference, description) {
+    const prefs = getUserEmailPrefs(db, userId);
+    const name = (prefs && prefs.billing_name) || '';
+    const { subject, text, html } = buildPackageReceivedEmail({
+        name,
+        reference,
+        description,
+        recipientEmail: prefs?.email,
+    });
+    const ref = String(reference || '').trim() || 'your parcel';
+    const desc = String(description || '').trim();
+
+    const sent = await maybeSendEventEmail(db, userId, 'package_received', `received:${receivedId}`, {
+        subject,
+        text,
+        html,
+    });
+    dispatchClientWebhook(db, userId, 'package_received', { reference: ref, description: desc }).catch(() => {});
     return sent;
 }
 
@@ -249,6 +359,8 @@ async function sendQueryReplyWebhook(db, userId, subject) {
 
 module.exports = {
     maybeSendEventEmail,
+    buildPackageReceivedEmail,
+    sendPackageReceivedEmail,
     sendPackageDeliveredEmail,
     sendItemSoldEmail,
     sendHighValueReceivedEmail,

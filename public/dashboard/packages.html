@@ -10,6 +10,19 @@
         <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
         <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
         <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+        <style>
+            .rp-quick-add-fab {
+                position: fixed;
+                bottom: 1.25rem;
+                right: 1.25rem;
+                z-index: 1040;
+                width: 3.5rem;
+                height: 3.5rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+        </style>
     </head>
 
     <body>
@@ -83,9 +96,12 @@
                                     <h4 class="fw-semibold">Packages Sent</h4>
                                     <p class="mb-0 text-muted">Track packages you've shipped for liquidation</p>
                                 </div>
-                                <div class="d-flex">
-                                    <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#bulkUpload">
-                                        <i class="ri-upload-2-line me-1"></i> Bulk Upload
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#bulkUpload">
+                                        <i class="ri-upload-2-line me-1"></i> Bulk add
+                                    </button>
+                                    <button class="btn btn-outline-success d-md-none" data-bs-toggle="modal" data-bs-target="#quickAddPackage">
+                                        <i class="ri-flashlight-line me-1"></i> Quick add
                                     </button>
                                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPackage">
                                         <i class="ri-add-large-line me-1"></i> Add Package
@@ -133,70 +149,97 @@
                     </div>
                 </div>
 
-                <!-- Bulk Upload Modal -->
+                <!-- Bulk add modal -->
                 <div class="modal fade" id="bulkUpload" tabindex="-1" aria-labelledby="bulkUploadTitle" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered modal-lg">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h5 class="modal-title" id="bulkUploadTitle">Bulk Upload Packages</h5>
+                                <h5 class="modal-title" id="bulkUploadTitle">Bulk add packages</h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
-                                <div class="bg-light rounded mb-3">
-                                    <div class="p-3">
-                                        <div class="d-flex align-items-center justify-content-between">
-                                            <div class="d-flex align-items-center">
-                                                <i class="ri-download-2-line fs-24 text-primary"></i>
-                                                <div class="ms-3">
-                                                    <div class="fs-19 fw-semibold">Download Template</div>
-                                                    <p class="mb-0 text-muted">Get the branded Excel template to fill in</p>
-                                                </div>
-                                            </div>
-                                            <button class="btn btn-success"><i class="ri-download-2-line me-1 fs-18"></i>Download</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="dropzone">
-                                    <div class="fallback">
-                                        <input name="file" type="file" multiple="multiple" />
-                                    </div>
-                                    <div class="dz-message needsclick">
-                                        <i class="h1 ri-upload-cloud-2-line"></i>
-                                        <h4 class="fs-20 mt-2">Drop your Excel file here or click to browse</h4>
-                                        <span class="text-muted">Supports .xlsx and .csv files</span>
-                                    </div>
-                                </div>
-                                <ul class="list-unstyled mb-0" id="dropzone-preview">
-                                    <li class="mt-2" id="dropzone-preview-list">
-                                        <div class="border rounded">
-                                            <div class="d-flex p-2">
-                                                <div class="flex-shrink-0 me-3">
-                                                    <div class="avatar-md bg-light rounded d-flex justify-content-center align-items-center">
-                                                        <i class="ri-file-excel-line fs-24"></i>
-                                                    </div>
-                                                </div>
-                                                <div class="flex-grow-1">
-                                                    <div class="pt-1">
-                                                        <h5 class="fs-14 mb-1" data-dz-name>&nbsp;</h5>
-                                                        <p class="fs-13 text-muted mb-0" data-dz-size></p>
-                                                        <strong class="error text-danger" data-dz-errormessage></strong>
-                                                    </div>
-                                                </div>
-                                                <div class="flex-shrink-0 ms-3">
-                                                    <button data-dz-remove class="btn btn-sm btn-danger">Delete</button>
-                                                </div>
-                                            </div>
-                                        </div>
+                                <ul class="nav nav-tabs mb-3" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active" id="bulk-tab-paste" data-bs-toggle="tab" data-bs-target="#bulk-pane-paste" type="button" role="tab">Paste spreadsheet</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="bulk-tab-file" data-bs-toggle="tab" data-bs-target="#bulk-pane-file" type="button" role="tab">Upload file</button>
                                     </li>
                                 </ul>
-                                <div class="text-end mt-3">
-                                    <button type="button" class="btn btn-dark me-1" data-bs-dismiss="modal">Close</button>
-                                    <button type="button" class="btn btn-primary">Upload</button>
+                                <div class="tab-content">
+                                    <div class="tab-pane fade show active" id="bulk-pane-paste" role="tabpanel">
+                                        <p class="text-muted small">Copy rows from Excel or Google Sheets. Columns: <strong>Reference</strong>, <strong>Product</strong>, <strong>Qty</strong> (optional), <strong>Condition</strong> (optional), <strong>Notes</strong> (optional). Header row is optional.</p>
+                                        <textarea id="bulk-paste-input" class="form-control font-monospace" rows="8" placeholder="TRACK-001&#9;iPhone Case&#9;2&#9;New&#10;TRACK-002&#9;USB Cable&#9;1"></textarea>
+                                        <div class="text-end mt-3">
+                                            <button type="button" class="btn btn-dark me-1" data-bs-dismiss="modal">Close</button>
+                                            <button type="button" class="btn btn-primary" id="bulk-paste-submit">Import rows</button>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="bulk-pane-file" role="tabpanel">
+                                        <div class="bg-light rounded mb-3">
+                                            <div class="p-3">
+                                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="ri-download-2-line fs-24 text-primary"></i>
+                                                        <div class="ms-3">
+                                                            <div class="fs-19 fw-semibold">Download template</div>
+                                                            <p class="mb-0 text-muted">Excel template with the right columns</p>
+                                                        </div>
+                                                    </div>
+                                                    <button type="button" class="btn btn-success"><i class="ri-download-2-line me-1 fs-18"></i>Download</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="border rounded p-4 text-center bg-light-subtle">
+                                            <i class="ri-upload-cloud-2-line fs-1 text-primary"></i>
+                                            <p class="mb-2 mt-2">Choose a .xlsx or .csv file</p>
+                                            <input name="file" type="file" accept=".xlsx,.xls,.csv" class="form-control" />
+                                        </div>
+                                        <div class="text-end mt-3">
+                                            <button type="button" class="btn btn-dark me-1" data-bs-dismiss="modal">Close</button>
+                                            <button type="button" class="btn btn-primary">Upload</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Quick add (mobile-friendly) -->
+                <div class="modal fade" id="quickAddPackage" tabindex="-1" aria-labelledby="quickAddTitle" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="quickAddTitle">Quick add package</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="text-muted small">Log a parcel from your phone — reference plus one product line.</p>
+                                <div class="mb-3">
+                                    <label class="form-label fs-6">Tracking / reference</label>
+                                    <input type="text" class="form-control form-control-lg" id="quick-add-reference" placeholder="e.g. RM123456789GB" autocomplete="off">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fs-6">Product name or SKU</label>
+                                    <input type="text" class="form-control form-control-lg" id="quick-add-product" placeholder="e.g. iPhone Case" autocomplete="off">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fs-6">Item count</label>
+                                    <input type="number" class="form-control form-control-lg" id="quick-add-qty" value="1" min="1" inputmode="numeric">
+                                </div>
+                            </div>
+                            <div class="modal-footer d-grid d-sm-flex gap-2">
+                                <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary btn-lg flex-grow-1" id="quick-add-submit">Save package</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-success rounded-circle shadow rp-quick-add-fab d-md-none" data-bs-toggle="modal" data-bs-target="#quickAddPackage" aria-label="Quick add package">
+                    <i class="ri-add-line fs-24"></i>
+                </button>
 
                 <!-- Add Package Modal -->
                 <div class="modal fade" id="addPackage" tabindex="-1" aria-labelledby="addPackageTitle" aria-hidden="true">

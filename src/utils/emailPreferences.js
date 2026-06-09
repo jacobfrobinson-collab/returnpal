@@ -69,6 +69,7 @@ function wantsEventEmail(prefs, eventType) {
     if (!prefs) return false;
     const map = {
         package_delivered: 'email_package_delivered',
+        package_received: 'email_package_received',
         item_sold: 'email_item_sold',
         payout_sent: 'email_payout_sent',
         high_value_alert: 'email_item_sold',

@@ -15,6 +15,7 @@ const DEFAULT_PREFS = {
     prep_reference: '',
     vat_number: '',
     email_package_delivered: true,
+    email_package_received: true,
     email_item_sold: true,
     email_payout_sent: true,
     email_monthly_invoice: true,
@@ -25,6 +26,7 @@ const DEFAULT_PREFS = {
     webhook_payout_paid: true,
     webhook_query_reply: true,
     webhook_package_delivered: true,
+    webhook_package_received: true,
     webhook_high_value_received: true,
     /** Available to all clients unless admin sets prep_sendback_enabled to false */
     prep_sendback_enabled: true,
@@ -63,6 +65,7 @@ function mergeClientPreferences(existing, patch) {
     }
     const boolKeys = [
         'email_package_delivered',
+        'email_package_received',
         'email_item_sold',
         'email_payout_sent',
         'email_monthly_invoice',
@@ -72,6 +75,7 @@ function mergeClientPreferences(existing, patch) {
         'webhook_payout_paid',
         'webhook_query_reply',
         'webhook_package_delivered',
+        'webhook_package_received',
         'webhook_high_value_received',
     ];
     for (const k of boolKeys) {

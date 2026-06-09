@@ -4,6 +4,7 @@ const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 const { buildPackageJourney } = require('../utils/packageJourney');
+const { parsePackagePaste, normalizeRow, importPackageRowsForUser } = require('../utils/packageBulkImport');
 
 const router = express.Router();
 
@@ -39,6 +40,39 @@ router.get('/', authMiddleware, async (req, res) => {
         res.json({ packages: packagesOut, in_transit_count: inTransitCount, total: packagesOut.length });
     } catch (err) {
         console.error('Get packages error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/packages/bulk — paste from spreadsheet or JSON rows (must be before /:id)
+router.post('/bulk', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const { paste, rows } = req.body || {};
+        let normalizedRows = [];
+
+        if (paste != null && String(paste).trim()) {
+            normalizedRows = parsePackagePaste(paste);
+        } else if (Array.isArray(rows) && rows.length) {
+            normalizedRows = rows.map((r) => normalizeRow(r)).filter(Boolean);
+        } else {
+            return res.status(400).json({ error: 'Provide paste text or a rows array' });
+        }
+
+        if (!normalizedRows.length) {
+            return res.status(400).json({ error: 'No valid package rows found. Each row needs a reference and product name.' });
+        }
+
+        const result = importPackageRowsForUser(db, req.user.id, normalizedRows);
+        saveDb();
+
+        const errNote = result.errors.length ? ' ' + result.errors.length + ' row(s) skipped.' : '';
+        res.status(201).json({
+            message: result.created + ' product line(s) added across ' + result.row_count + ' row(s).' + errNote,
+            ...result,
+        });
+    } catch (err) {
+        console.error('Bulk package import error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

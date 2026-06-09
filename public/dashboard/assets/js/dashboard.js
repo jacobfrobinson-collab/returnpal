@@ -2933,11 +2933,38 @@ const Dashboard = {
             }
         });
 
-        // Bulk upload
-        $(document).on('click', '#bulkUpload .btn-primary', async function() {
+        // Bulk paste import
+        $(document).on('click', '#bulk-paste-submit', async function() {
             const $btn = $(this);
             if ($btn.prop('disabled')) return;
-            const fileInput = $('#bulkUpload input[type="file"]')[0];
+            const paste = $('#bulk-paste-input').val();
+            if (!paste || !String(paste).trim()) {
+                return alert('Paste at least one row from your spreadsheet.');
+            }
+            try {
+                $btn.prop('disabled', true).text('Importing...');
+                const result = await API.bulkPackages({ paste });
+                let msg = result.message || 'Import complete.';
+                if (result.errors && result.errors.length) {
+                    msg += '\n\n' + result.errors.slice(0, 5).join('\n');
+                }
+                alert(msg);
+                $('#bulk-paste-input').val('');
+                const inst = bootstrap.Modal.getInstance($('#bulkUpload')[0]);
+                if (inst) inst.hide();
+                self.loadPackages();
+            } catch (err) {
+                alert(err.error || 'Import failed.');
+            } finally {
+                $btn.prop('disabled', false).text('Import rows');
+            }
+        });
+
+        // Bulk file upload
+        $(document).on('click', '#bulk-pane-file .btn-primary', async function() {
+            const $btn = $(this);
+            if ($btn.prop('disabled')) return;
+            const fileInput = $('#bulk-pane-file input[type="file"]')[0];
             if (!fileInput || !fileInput.files || !fileInput.files[0]) {
                 return alert('Please select a file first.');
             }
@@ -2946,10 +2973,11 @@ const Dashboard = {
                 $btn.prop('disabled', true).text('Uploading...');
                 const result = await API.uploadPackages(fileInput.files[0]);
                 alert(result.message || 'Upload complete.');
+                fileInput.value = '';
                 const inst = bootstrap.Modal.getInstance($('#bulkUpload')[0]);
                 if (inst) inst.hide();
                 self.loadPackages();
-            } catch(err) {
+            } catch (err) {
                 alert(err.error || 'Upload failed.');
             } finally {
                 $btn.prop('disabled', false).text('Upload');
@@ -2960,6 +2988,34 @@ const Dashboard = {
         $(document).on('click', '#bulkUpload .btn-success', function(e) {
             e.preventDefault();
             window.location.href = '/api/upload/template?token=' + API.getToken();
+        });
+
+        // Quick add (mobile)
+        $(document).on('click', '#quick-add-submit', async function() {
+            const $btn = $(this);
+            if ($btn.prop('disabled')) return;
+            const reference = $('#quick-add-reference').val().trim();
+            const product_name = $('#quick-add-product').val().trim();
+            const quantity = Math.max(1, parseInt($('#quick-add-qty').val(), 10) || 1);
+            if (!reference || !product_name) {
+                return alert('Enter a reference and product name.');
+            }
+            try {
+                $btn.prop('disabled', true).text('Saving...');
+                await API.createPackage({
+                    reference,
+                    products: [{ product_name, quantity, condition: 'New' }],
+                });
+                $('#quick-add-reference, #quick-add-product').val('');
+                $('#quick-add-qty').val(1);
+                const inst = bootstrap.Modal.getInstance($('#quickAddPackage')[0]);
+                if (inst) inst.hide();
+                self.loadPackages();
+            } catch (err) {
+                alert(err.error || 'Failed to save package.');
+            } finally {
+                $btn.prop('disabled', false).text('Save package');
+            }
         });
     },
 
@@ -3839,12 +3895,25 @@ const Dashboard = {
                       ? data.total_earned
                       : list.reduce((s, r) => s + (Number(r.earned) || 0), 0);
             const active = data.active_count != null ? Number(data.active_count) : list.filter(r => r.status === 'Active').length;
+            const activeThisMonth =
+                data.active_this_month_count != null
+                    ? Number(data.active_this_month_count)
+                    : list.filter((r) => r.active_this_month).length;
             const signedUpOnly = list.filter(r => r.status === 'Signed up').length;
 
             $('#referrals-total').text(list.length);
             $('#referrals-signed-up').text(signedUpOnly);
             $('#referrals-active').text(active);
-            $('#referrals-earned').text('£' + Number(totalEarned).toFixed(2) + '/mo');
+            $('#referrals-active-month').text(activeThisMonth);
+            const periodYm = data.credit_period_ym || '';
+            if (periodYm && $('#referrals-active-month-hint').length) {
+                const [y, m] = periodYm.split('-');
+                const monthName = m ? new Date(Number(y), Number(m) - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' }) : '';
+                $('#referrals-active-month-hint').text(
+                    monthName ? 'Sent a package in ' + monthName : 'Sent a package this calendar month'
+                );
+            }
+            $('#referrals-earned').text('£' + Number(totalEarned).toFixed(2));
             const link = data.referral_link || '';
             const $input = $('#referral-link-input');
             if ($input.length && link) $input.val(link);
@@ -3941,14 +4010,17 @@ const Dashboard = {
                 list.forEach(r => {
                     const date = r.referred_at ? RP_DATE.formatOrdinalEnGb(r.referred_at) : '-';
                     const statusClass = r.status === 'Active' ? 'success' : r.status === 'Signed up' ? 'info' : 'secondary';
+                    const monthBadge = r.active_this_month
+                        ? ' <span class="badge bg-primary-subtle text-primary ms-1">This month</span>'
+                        : '';
                     const earned =
-                        r.status === 'Active' && r.earned != null
-                            ? '£' + Number(r.earned).toFixed(2) + '/mo'
+                        r.active_this_month && r.earned != null
+                            ? '£' + Number(r.earned).toFixed(2)
                             : r.status === 'Active'
-                              ? '-'
+                              ? '—'
                               : '—';
                     $tbody.append(
-                        '<tr><td>' + (r.email || '-') + '</td><td>' + date + '</td><td><span class="badge bg-' + statusClass + '-subtle text-' + statusClass + '">' + (r.status || 'Pending') + '</span></td><td class="text-end">' + earned + '</td></tr>'
+                        '<tr><td>' + (r.email || '-') + '</td><td>' + date + '</td><td><span class="badge bg-' + statusClass + '-subtle text-' + statusClass + '">' + (r.status || 'Pending') + '</span>' + monthBadge + '</td><td class="text-end">' + earned + '</td></tr>'
                     );
                 });
             }
@@ -4572,6 +4644,7 @@ const Dashboard = {
         $('#settings-prep-reference').val(p.prep_reference || '');
         $('#settings-vat-number').val(p.vat_number || '');
         $('#email-package-delivered').prop('checked', p.email_package_delivered !== false);
+        $('#email-package-received').prop('checked', p.email_package_received !== false);
         $('#email-item-sold').prop('checked', p.email_item_sold !== false);
         $('#email-payout-sent').prop('checked', p.email_payout_sent !== false);
         $('#email-monthly-invoice').prop('checked', !!p.email_monthly_invoice);
@@ -4581,6 +4654,7 @@ const Dashboard = {
         $('#webhook-payout-paid').prop('checked', p.webhook_payout_paid !== false);
         $('#webhook-query-reply').prop('checked', p.webhook_query_reply !== false);
         $('#webhook-package-delivered').prop('checked', p.webhook_package_delivered !== false);
+        $('#webhook-package-received').prop('checked', p.webhook_package_received !== false);
         $('#webhook-high-value').prop('checked', p.webhook_high_value_received !== false);
         if ($('#email-digest-preference').length) {
             const d = p.email_digest || 'weekly';
@@ -4602,6 +4676,7 @@ const Dashboard = {
             prep_reference: $('#settings-prep-reference').val().trim(),
             vat_number: $('#settings-vat-number').val().trim(),
             email_package_delivered: $('#email-package-delivered').is(':checked'),
+            email_package_received: $('#email-package-received').is(':checked'),
             email_item_sold: $('#email-item-sold').is(':checked'),
             email_payout_sent: $('#email-payout-sent').is(':checked'),
             email_monthly_invoice: $('#email-monthly-invoice').is(':checked'),
@@ -4612,6 +4687,7 @@ const Dashboard = {
             webhook_payout_paid: $('#webhook-payout-paid').is(':checked'),
             webhook_query_reply: $('#webhook-query-reply').is(':checked'),
             webhook_package_delivered: $('#webhook-package-delivered').is(':checked'),
+            webhook_package_received: $('#webhook-package-received').is(':checked'),
             webhook_high_value_received: $('#webhook-high-value').is(':checked'),
         };
     },
@@ -5623,9 +5699,17 @@ const Dashboard = {
             } catch (e) { /* ignore */ }
             // Profile details (name, email from user; company from profile or billing)
             const user = API.getUser();
-            const profileName = localStorage.getItem('returnpal_profile_name') || (user && user.full_name) || '';
+            const viewingAsClient = !!API.getSessionToken();
+            const profileName = viewingAsClient
+                ? ((user && user.full_name) || '')
+                : (localStorage.getItem('returnpal_profile_name') || (user && user.full_name) || '');
             const profileEmail = (user && user.email) || '';
-            const profileCompany = localStorage.getItem('returnpal_profile_company') || localStorage.getItem('returnpal_billing_company') || '';
+            const profileCompany = viewingAsClient
+                ? ((user && user.company_name) || '')
+                : (localStorage.getItem('returnpal_profile_company') ||
+                      localStorage.getItem('returnpal_billing_company') ||
+                      (user && user.company_name) ||
+                      '');
             const legacyId = (user && user.legacy_client_id) || (data.settings && data.settings.legacy_client_id) || '';
             $('#settings-profile-name').val(profileName);
             $('#settings-profile-email').val(profileEmail);
@@ -5667,8 +5751,10 @@ const Dashboard = {
                         company_name: company,
                         legacy_client_id: legacy
                     });
-                    localStorage.setItem('returnpal_profile_name', name);
-                    localStorage.setItem('returnpal_profile_company', company);
+                    if (!API.getSessionToken()) {
+                        localStorage.setItem('returnpal_profile_name', name);
+                        localStorage.setItem('returnpal_profile_company', company);
+                    }
                     try {
                         const me = await API.getProfile({ skipAuthRedirect: true });
                         if (me && me.user) {
@@ -5689,6 +5775,7 @@ const Dashboard = {
             const billingKeys = { name: 'returnpal_billing_name', company: 'returnpal_billing_company', address: 'returnpal_billing_address', phone: 'returnpal_billing_phone' };
             const prepKeys = { name: 'returnpal_prep_name', address: 'returnpal_prep_address', contact: 'returnpal_prep_contact', phone: 'returnpal_prep_phone', email: 'returnpal_prep_email', reference: 'returnpal_prep_reference' };
             const needsMigrate =
+                !viewingAsClient &&
                 !prefs.billing_name &&
                 !prefs.billing_company &&
                 (localStorage.getItem(billingKeys.name) || localStorage.getItem(prepKeys.name) || localStorage.getItem('returnpal_vat_number'));

@@ -229,8 +229,10 @@ async function receivePackagesFromDeclared(db, userId, packageIds, opts = {}) {
         }
 
         const orderNumber = pkg.order_number || '';
+        let firstReceivedId = null;
         for (const line of toReceive) {
-            await insertReceivedLine(db, userId, pkg, line, orderNumber);
+            const receivedId = await insertReceivedLine(db, userId, pkg, line, orderNumber);
+            if (firstReceivedId == null) firstReceivedId = receivedId;
             received_lines += 1;
         }
 
@@ -240,6 +242,20 @@ async function receivePackagesFromDeclared(db, userId, packageIds, opts = {}) {
             (pkg.reference || '') +
             (descPreview ? ' – ' + descPreview.slice(0, 80) : '');
         await pushActivity(userId, 'package_received', msg, '/dashboard/received.html');
+        if (firstReceivedId != null) {
+            try {
+                const { sendPackageReceivedEmail } = require('./sendTransactionalEmail');
+                await sendPackageReceivedEmail(
+                    db,
+                    userId,
+                    firstReceivedId,
+                    pkg.reference,
+                    descPreview
+                );
+            } catch (e) {
+                console.error('[email] package received:', e.message || e);
+            }
+        }
         received_packages += 1;
     }
 

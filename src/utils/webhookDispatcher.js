@@ -15,6 +15,9 @@ const TEMPLATES = {
     package_delivered: (p) => ({
         content: `**Package delivered** — ${p.reference || 'Package'} received at ReturnPal`,
     }),
+    package_received: (p) => ({
+        content: `**Package checked in** — ${p.reference || 'Package'}${p.description ? `: ${p.description}` : ''}`,
+    }),
     high_value_received: (p) => ({
         content: `**High-value item received** — ${p.product || 'Item'} (${p.amount_label || ''})`,
     }),
