@@ -583,6 +583,57 @@ router.delete('/users/:id', async (req, res) => {
     }
 });
 
+// GET /api/admin/users/:id/receive-queue — packages awaiting check-in from declared products
+router.get('/users/:id/receive-queue', async (req, res) => {
+    try {
+        const { getReceiveQueue } = require('../utils/packageReceive');
+        const db = await getDb();
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
+        const includeFullyReceived = String(req.query.include_fully_received || '') === '1';
+        const out = getReceiveQueue(db, userId, { includeFullyReceived });
+        res.json(out);
+    } catch (err) {
+        console.error('Admin receive queue error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/admin/users/:id/receive-packages — package-first check-in
+router.post('/users/:id/receive-packages', async (req, res) => {
+    try {
+        const { receivePackagesFromDeclared } = require('../utils/packageReceive');
+        const db = await getDb();
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user id' });
+
+        const packageIds = Array.isArray(req.body.package_ids)
+            ? req.body.package_ids
+            : req.body.package_id != null
+              ? [req.body.package_id]
+              : [];
+        if (!packageIds.length) {
+            return res.status(400).json({ error: 'package_ids is required' });
+        }
+
+        const markDelivered = req.body.mark_delivered !== false;
+        const result = await receivePackagesFromDeclared(db, userId, packageIds, {
+            mark_delivered: markDelivered,
+        });
+        saveDb();
+        res.json({
+            message:
+                result.received_lines > 0
+                    ? `Received ${result.received_lines} line(s) across ${result.received_packages} package(s).`
+                    : 'No new lines to receive.',
+            ...result,
+        });
+    } catch (err) {
+        console.error('Admin receive packages error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // GET /api/admin/users/:id/packages
 router.get('/users/:id/packages', async (req, res) => {
     try {

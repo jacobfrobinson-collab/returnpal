@@ -91,6 +91,34 @@
 
                 <div class="section-card card">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span>Receive queue</span>
+                            <span class="badge bg-primary" id="receive-queue-count">0</span>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="receive-queue-show-all" />
+                            <label class="form-check-label small" for="receive-queue-show-all">Show fully received</label>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <span class="small fw-semibold text-secondary text-nowrap">Bulk actions</span>
+                                <button type="button" class="btn btn-sm btn-primary" id="btn-receive-selected" disabled>Receive selected</button>
+                                <span class="small text-muted ms-auto" id="receive-queue-selected-count">0 selected</span>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="receive-queue-select-all" aria-label="Select all in receive queue"></th><th>Reference</th><th>Status</th><th class="text-end">Declared</th><th class="text-end">Received</th><th class="text-end">Remaining</th><th>Products</th><th class="text-end">Actions</th></tr></thead>
+                                <tbody id="receive-queue-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-card card">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <span>Check in (Received)</span>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="export-received-csv">Export CSV</button>
@@ -357,6 +385,32 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="btn-mark-delivered">Mark delivered</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modal-receive-package" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header"><h6 class="modal-title">Receive package</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <p class="mb-2"><strong id="receive-modal-reference"></strong> <span class="badge bg-secondary" id="receive-modal-status"></span></p>
+                    <p class="small text-muted mb-3" id="receive-modal-hint"></p>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Product</th><th>Qty</th><th>Condition</th></tr></thead>
+                            <tbody id="receive-modal-lines"></tbody>
+                        </table>
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="receive-modal-mark-delivered" checked />
+                        <label class="form-check-label" for="receive-modal-mark-delivered">Mark as delivered if still in transit</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btn-confirm-receive-package">Confirm receive</button>
                 </div>
             </div>
         </div>
@@ -828,10 +882,13 @@
         $('#admin-payouts-refresh').on('click', loadAdminPayoutsTable);
 
         var selectedPackageIds = new Set();
+        var selectedReceiveQueueIds = new Set();
+        var receiveModalPackageIds = [];
         var selectedReceivedIds = new Set();
         var selectedSoldIds = new Set();
         var selectedPendingIds = new Set();
         var selectedReimbIds = new Set();
+        window._adminReceiveQueuePendingIds = new Set();
 
         var bulkConfirmHandler = null;
         var bulkConfirmBusy = false;
@@ -954,6 +1011,137 @@
                 .prop('indeterminate', checkedCount > 0 && checkedCount < selectableCount);
         }
 
+        function updateReceiveQueueSelectionUi() {
+            var n = selectedReceiveQueueIds.size;
+            $('#receive-queue-selected-count').text(n + ' selected');
+            $('#btn-receive-selected').prop('disabled', n === 0);
+            var $c = $('.receive-queue-select');
+            var sel = $c.length;
+            var chk = $c.filter(':checked').length;
+            $('#receive-queue-select-all')
+                .prop('checked', sel > 0 && chk === sel)
+                .prop('indeterminate', chk > 0 && chk < sel);
+        }
+
+        function findReceiveQueueItem(packageId) {
+            var list = window._adminReceiveQueueFull || [];
+            return list.find(function(q) { return String(q.package_id) === String(packageId); }) || null;
+        }
+
+        function openReceiveModal(packageIds) {
+            var ids = (packageIds || []).map(String).filter(Boolean);
+            if (!ids.length) return;
+            receiveModalPackageIds = ids;
+            var items = ids.map(findReceiveQueueItem).filter(Boolean);
+            if (!items.length) return alert('Package not found in receive queue');
+            var isBulk = items.length > 1;
+            $('#receive-modal-reference').text(
+                isBulk ? items.length + ' packages selected' : (items[0].reference || 'Package')
+            );
+            $('#receive-modal-status').text(isBulk ? '' : (items[0].status || '')).toggleClass('d-none', isBulk);
+            var anyInTransit = items.some(function(it) { return it.status === 'In Transit'; });
+            $('#receive-modal-hint').text(
+                anyInTransit
+                    ? 'In-transit package(s) will be marked delivered when you confirm.'
+                    : 'Creates received check-in lines from declared package products.'
+            );
+            $('#receive-modal-mark-delivered').prop('checked', true).closest('.form-check').toggleClass('d-none', !anyInTransit);
+            var $lines = $('#receive-modal-lines');
+            $lines.empty();
+            items.forEach(function(it) {
+                var pendingLines = (it.lines || []).filter(function(l) { return l.remaining_quantity > 0; });
+                pendingLines.forEach(function(l) {
+                    $lines.append(
+                        '<tr><td>' +
+                            escapeHtml(isBulk ? (it.reference + ' — ' + l.product_name) : l.product_name) +
+                            '</td><td>' +
+                            l.remaining_quantity +
+                            '</td><td>' +
+                            escapeHtml(l.condition || '') +
+                            '</td></tr>'
+                    );
+                });
+            });
+            if (!$lines.children().length) {
+                $lines.append('<tr><td colspan="3" class="text-muted">Nothing left to receive</td></tr>');
+                $('#btn-confirm-receive-package').prop('disabled', true);
+            } else {
+                $('#btn-confirm-receive-package').prop('disabled', false);
+            }
+            new bootstrap.Modal(document.getElementById('modal-receive-package')).show();
+        }
+
+        function loadReceiveQueue() {
+            var showAll = $('#receive-queue-show-all').is(':checked');
+            var qs = showAll ? '?include_fully_received=1' : '';
+            return API.request('/admin/users/' + clientId + '/receive-queue' + qs)
+                .then(function(data) {
+                    var list = data.queue || [];
+                    window._adminReceiveQueueFull = list;
+                    window._adminReceiveQueuePendingIds = new Set(
+                        list.filter(function(q) { return q.remaining_units > 0; }).map(function(q) { return String(q.package_id); })
+                    );
+                    $('#receive-queue-count').text(data.count != null ? data.count : window._adminReceiveQueuePendingIds.size);
+                    var display = showAll ? list : list.filter(function(q) { return q.remaining_units > 0; });
+                    var $tb = $('#receive-queue-tbody');
+                    $tb.empty();
+                    display.forEach(function(q) {
+                        var idStr = String(q.package_id);
+                        var canReceive = q.remaining_units > 0;
+                        var checked = selectedReceiveQueueIds.has(idStr) ? ' checked' : '';
+                        var $tr = $('<tr>');
+                        $tr.append(
+                            '<td class="text-center">' +
+                                (canReceive
+                                    ? '<input type="checkbox" class="receive-queue-select form-check-input m-0" data-id="' +
+                                      idStr +
+                                      '"' +
+                                      checked +
+                                      ' />'
+                                    : '') +
+                                '</td>' +
+                                '<td><strong>' +
+                                escapeHtml(q.reference) +
+                                '</strong>' +
+                                (q.status === 'In Transit' ? '<br><span class="small text-muted">Will mark delivered</span>' : '') +
+                                '</td>' +
+                                '<td><span class="badge bg-secondary">' +
+                                escapeHtml(q.status) +
+                                '</span></td>' +
+                                '<td class="text-end">' +
+                                (q.declared_units || 0) +
+                                '</td><td class="text-end">' +
+                                (q.received_units || 0) +
+                                '</td><td class="text-end fw-semibold">' +
+                                (q.remaining_units || 0) +
+                                '</td><td class="small text-muted">' +
+                                escapeHtml(q.products_summary || '') +
+                                '</td>'
+                        );
+                        var $tdAct = $('<td class="text-end"></td>');
+                        if (canReceive) {
+                            $tdAct.append(
+                                '<button type="button" class="btn btn-sm btn-primary receive-queue-receive-btn" data-id="' +
+                                    idStr +
+                                    '">Receive</button>'
+                            );
+                        } else {
+                            $tdAct.html('<span class="text-muted small">Done</span>');
+                        }
+                        $tr.append($tdAct);
+                        $tb.append($tr);
+                    });
+                    if (!display.length) {
+                        $tb.append('<tr><td colspan="8" class="text-muted">No packages awaiting receive.</td></tr>');
+                    }
+                    updateReceiveQueueSelectionUi();
+                })
+                .catch(function() {
+                    $('#receive-queue-tbody').html('<tr><td colspan="8" class="text-danger">Failed to load</td></tr>');
+                    updateReceiveQueueSelectionUi();
+                });
+        }
+
         function downloadCsv(filename, headers, rows) {
             function esc(cell) {
                 var s = String(cell == null ? '' : cell).replace(/"/g, '""');
@@ -1000,6 +1188,9 @@
                     var $grp = $('<div class="btn-group btn-group-sm" role="group"></div>');
                     if (!isDelivered) {
                         $grp.append('<button type="button" class="btn btn-outline-success mark-deliver-btn" data-id="' + p.id + '" title="Mark delivered">Deliver</button>');
+                    }
+                    if (window._adminReceiveQueuePendingIds && window._adminReceiveQueuePendingIds.has(String(p.id))) {
+                        $grp.append('<button type="button" class="btn btn-primary package-receive-btn" data-id="' + p.id + '" title="Receive from declared products">Receive</button>');
                     }
                     var $edit = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
                     $edit.on('click', function() {
@@ -1221,11 +1412,15 @@
         }
 
         function refreshAll() {
-            loadPackages();
-            loadReceived();
-            loadSold();
-            loadPending();
-            loadReimbursementClaims();
+            loadReceiveQueue()
+                .catch(function() {})
+                .then(function() {
+                    loadPackages();
+                    loadReceived();
+                    loadSold();
+                    loadPending();
+                    loadReimbursementClaims();
+                });
         }
 
         $('#btn-mark-delivered').on('click', function() {
@@ -1240,6 +1435,65 @@
             var id = $(this).data('id');
             $('#deliver-package-id').val(id);
             new bootstrap.Modal(document.getElementById('modal-mark-delivered')).show();
+        });
+
+        $(document).on('click', '.package-receive-btn, .receive-queue-receive-btn', function() {
+            openReceiveModal([$(this).data('id')]);
+        });
+
+        $('#receive-queue-show-all').on('change', function() {
+            selectedReceiveQueueIds.clear();
+            loadReceiveQueue();
+        });
+
+        $(document).on('change', '.receive-queue-select', function() {
+            var id = String($(this).data('id') || '');
+            if (!id) return;
+            if (this.checked) selectedReceiveQueueIds.add(id);
+            else selectedReceiveQueueIds.delete(id);
+            updateReceiveQueueSelectionUi();
+        });
+
+        $('#receive-queue-select-all').on('change', function() {
+            var checked = !!this.checked;
+            $('.receive-queue-select').each(function() {
+                var id = String($(this).data('id') || '');
+                if (!id) return;
+                this.checked = checked;
+                if (checked) selectedReceiveQueueIds.add(id);
+                else selectedReceiveQueueIds.delete(id);
+            });
+            updateReceiveQueueSelectionUi();
+        });
+
+        $('#btn-receive-selected').on('click', function() {
+            var ids = Array.from(selectedReceiveQueueIds);
+            if (!ids.length) return alert('Select at least one package');
+            openReceiveModal(ids);
+        });
+
+        $('#btn-confirm-receive-package').on('click', function() {
+            if (!receiveModalPackageIds.length) return;
+            var markDelivered = $('#receive-modal-mark-delivered').is(':checked');
+            var $btn = $(this).prop('disabled', true);
+            API.request('/admin/users/' + clientId + '/receive-packages', {
+                method: 'POST',
+                body: { package_ids: receiveModalPackageIds.map(Number), mark_delivered: markDelivered },
+            })
+                .then(function(res) {
+                    var inst = bootstrap.Modal.getInstance(document.getElementById('modal-receive-package'));
+                    if (inst) inst.hide();
+                    selectedReceiveQueueIds.clear();
+                    receiveModalPackageIds = [];
+                    if (res.message) alert(res.message);
+                    refreshAll();
+                })
+                .catch(function(e) {
+                    alert((e && e.error) || 'Receive failed');
+                })
+                .finally(function() {
+                    $btn.prop('disabled', false);
+                });
         });
 
         $(document).on('change', '.package-select', function() {

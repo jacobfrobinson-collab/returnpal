@@ -1440,6 +1440,21 @@ const API = {
         return this.request('/client/hub/monthly-sales');
     },
 
+    async getAdminReceiveQueue(userId, includeFullyReceived) {
+        const qs = includeFullyReceived ? '?include_fully_received=1' : '';
+        return this.request('/admin/users/' + encodeURIComponent(userId) + '/receive-queue' + qs);
+    },
+
+    async adminReceivePackages(userId, packageIds, opts) {
+        return this.request('/admin/users/' + encodeURIComponent(userId) + '/receive-packages', {
+            method: 'POST',
+            body: {
+                package_ids: packageIds,
+                mark_delivered: opts && opts.mark_delivered === false ? false : true,
+            },
+        });
+    },
+
     async getHubClients() {
         return this.request('/client/hub/clients');
     },
