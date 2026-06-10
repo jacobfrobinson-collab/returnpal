@@ -95,11 +95,60 @@ function serializeDetail(detail) {
     }
 }
 
+/**
+ * @param {import('express').Request} req
+ */
+function clientRequestMeta(req) {
+    const forwarded = String(req.headers['x-forwarded-for'] || '')
+        .split(',')[0]
+        .trim();
+    const ip = forwarded || req.ip || '';
+    const userAgent = String(req.headers['user-agent'] || '').slice(0, 200);
+    const out = {};
+    if (ip) out.ip = ip;
+    if (userAgent) out.user_agent = userAgent;
+    return out;
+}
+
 /** Skip when a real admin JWT is used (admin actions use admin_audit_log). */
 function shouldLogClientAudit(req) {
     const user = req.user || {};
     if (coerceIsAdmin(user.is_admin) && user.acted_by_admin_id == null) return false;
     return !!user.id;
+}
+
+/**
+ * Log without a full request (e.g. login before JWT is issued).
+ * @param {import('sql.js').Database} db
+ * @param {number} userId
+ * @param {{ category: string, action: string, resource?: string, detail?: unknown, path?: string, actor_type?: string, actor_user_id?: number }} opts
+ */
+function logClientAuditForUser(db, userId, opts) {
+    try {
+        const uid = parseInt(userId, 10);
+        if (!Number.isFinite(uid) || uid <= 0) return;
+        const detailStr = serializeDetail(opts.detail);
+        const actorType = opts.actor_type || 'client';
+        const actorUserId = opts.actor_user_id != null ? opts.actor_user_id : uid;
+        db.run(
+            `INSERT INTO client_audit_log
+             (user_id, actor_type, actor_user_id, category, action, resource, detail, path)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                uid,
+                actorType,
+                actorUserId,
+                String(opts.category || '').slice(0, 40),
+                String(opts.action || '').slice(0, 200),
+                String(opts.resource || '').slice(0, 200),
+                detailStr,
+                String(opts.path || '').slice(0, 500),
+            ]
+        );
+        saveDb();
+    } catch (e) {
+        console.error('client_audit_log insert failed:', e);
+    }
 }
 
 /**
@@ -241,7 +290,9 @@ function listClientAudit(db, opts = {}) {
 module.exports = {
     sanitizeAuditDetail,
     resolveAuditActor,
+    clientRequestMeta,
     shouldLogClientAudit,
+    logClientAuditForUser,
     logClientAudit,
     logClientAuditBeacon,
     listClientAudit,

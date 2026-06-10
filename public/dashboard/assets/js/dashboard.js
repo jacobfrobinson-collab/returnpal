@@ -1119,10 +1119,12 @@ const Dashboard = {
     },
 
     _logClientPageView() {
-        this._ensureClientAudit(function () {
-            if (window.ClientAudit && typeof ClientAudit.logPage === 'function') {
-                ClientAudit.logPage();
-            }
+        if (!API.isLoggedIn()) return;
+        if (typeof API.logClientAuditEvent !== 'function') return;
+        API.logClientAuditEvent({
+            category: 'view',
+            action: typeof API.resolveClientPageAction === 'function' ? API.resolveClientPageAction() : 'page_dashboard',
+            path: window.location.pathname || '',
         });
     },
 

@@ -6,8 +6,10 @@ const {
     sanitizeAuditDetail,
     resolveAuditActor,
     logClientAudit,
+    logClientAuditForUser,
     listClientAudit,
     logClientAuditBeacon,
+    clientRequestMeta,
 } = require('../src/utils/clientAudit');
 
 async function createDb() {
@@ -126,6 +128,19 @@ function mockReq(user) {
             action: 'package_create',
         });
         assert.strictEqual(rejected.logged, false);
+
+        logClientAuditForUser(db, 1, {
+            category: 'view',
+            action: 'client_login',
+            path: '/login',
+            detail: clientRequestMeta({
+                ip: '127.0.0.1',
+                headers: { 'user-agent': 'TestBrowser/1.0', 'x-forwarded-for': '203.0.113.1' },
+            }),
+        });
+        const logins = listClientAudit(db, { action: 'client_login', clients_only: true });
+        assert.strictEqual(logins.length, 1);
+        assert.ok(logins[0].detail.includes('203.0.113.1'));
     } finally {
         require('../src/database').saveDb = origSave;
     }

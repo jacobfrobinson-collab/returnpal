@@ -1310,6 +1310,42 @@ const API = {
         return this.request('/admin/client-audit-log' + q);
     },
 
+    /** Map current dashboard path to a page_* audit action. */
+    resolveClientPageAction() {
+        var path = (typeof window !== 'undefined' && window.location && window.location.pathname) || '';
+        var lower = path.toLowerCase();
+        if (/\/dashboard\/?(index\.html)?$/i.test(lower) || lower.endsWith('/dashboard/')) {
+            return 'page_overview';
+        }
+        var map = [
+            ['received', 'page_received'],
+            ['sold-items', 'page_sold_items'],
+            ['settings', 'page_settings'],
+            ['returns-settings', 'page_returns_settings'],
+            ['package-detail', 'page_package_detail'],
+            ['packages', 'page_packages'],
+            ['invoices', 'page_invoices'],
+            ['inventory', 'page_inventory'],
+            ['analytics', 'page_analytics'],
+            ['queries', 'page_queries'],
+            ['reimbursement', 'page_reimbursement'],
+            ['prep-sendback', 'page_prep_sendback'],
+            ['lost-items', 'page_lost_items'],
+            ['referrals', 'page_referrals'],
+            ['exports', 'page_exports'],
+            ['activity', 'page_activity'],
+            ['announcements', 'page_announcements'],
+            ['item-pending', 'page_item_pending'],
+            ['scorecard', 'page_scorecard'],
+            ['faq', 'page_faq'],
+            ['my-clients', 'page_my_clients'],
+        ];
+        for (var i = 0; i < map.length; i++) {
+            if (lower.indexOf(map[i][0]) !== -1) return map[i][1];
+        }
+        return 'page_dashboard';
+    },
+
     /** Fire-and-forget client activity beacon (page views, exports). */
     logClientAuditEvent(payload) {
         return this.request('/client/audit/event', {

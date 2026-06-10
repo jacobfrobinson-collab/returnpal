@@ -16,7 +16,7 @@ const {
     PENDING_MESSAGE,
     REJECTED_MESSAGE,
 } = require('../utils/accountApproval');
-const { logClientAudit } = require('../utils/clientAudit');
+const { logClientAudit, logClientAuditForUser, clientRequestMeta } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -214,6 +214,13 @@ router.post(
         const user = { id: userId, email };
         const token = generateToken(user);
 
+        logClientAuditForUser(db, userId, {
+            category: 'view',
+            action: 'client_register_login',
+            path: '/register',
+            detail: clientRequestMeta(req),
+        });
+
         res.status(201).json({
             message: 'Account created successfully',
             token,
@@ -281,6 +288,14 @@ router.post('/login', loginLimiter, [
         const token = generateToken({ id: user.id, email: user.email, is_admin: isAdmin });
 
         const uid = parseInt(user.id, 10);
+        if (!isAdmin) {
+            logClientAuditForUser(db, uid, {
+                category: 'view',
+                action: 'client_login',
+                path: '/login',
+                detail: clientRequestMeta(req),
+            });
+        }
         const { countLinkedClients } = require('../utils/clientDelegate');
         const linkedClientsCount = countLinkedClients(db, uid);
         res.json({
