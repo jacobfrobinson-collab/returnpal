@@ -1303,6 +1303,7 @@ const API = {
             if (params.until != null && params.until !== '') sp.set('until', String(params.until));
             if (params.limit != null && params.limit !== '') sp.set('limit', String(params.limit));
             if (params.offset != null && params.offset !== '') sp.set('offset', String(params.offset));
+            if (params.include_admin) sp.set('include_admin', '1');
             var s = sp.toString();
             if (s) q = '?' + s;
         }

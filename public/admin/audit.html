@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin – Audit log – ReturnPal</title>
+    <title>Admin – Client activity – ReturnPal</title>
     <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
     <link rel="stylesheet" href="/assets/css/style.css" />
     <style>
@@ -16,31 +16,25 @@
 <body>
     <header class="admin-header py-3 mb-4">
         <div class="container-fluid d-flex justify-content-between align-items-center">
-            <h1 class="h5 mb-0"><a href="/admin/index.html" class="text-white text-decoration-none">← Clients</a> · Audit log</h1>
+            <h1 class="h5 mb-0"><a href="/admin/index.html" class="text-white text-decoration-none">← Clients</a> · Client activity</h1>
             <a href="/admin/index.html" class="small text-white-50">Back</a>
         </div>
     </header>
     <div class="container-fluid">
+        <p class="text-muted small mb-3">
+            What clients do themselves — page views, exports, and changes. Admin “View as client” and prep-centre hub sessions are hidden unless you enable them below.
+        </p>
         <ul class="nav nav-tabs mb-3" id="audit-tabs">
-            <li class="nav-item"><button type="button" class="nav-link active" data-tab="admin">Admin actions</button></li>
-            <li class="nav-item"><button type="button" class="nav-link" data-tab="client">Client activity</button></li>
+            <li class="nav-item"><button type="button" class="nav-link active" data-tab="client">Client activity</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-tab="admin">Admin actions</button></li>
         </ul>
 
-        <div id="panel-admin" class="card shadow-sm">
-            <div class="card-body p-0">
-                <table class="table table-sm mb-0">
-                    <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Detail</th></tr></thead>
-                    <tbody id="audit-tbody"><tr><td colspan="4" class="text-muted p-4">Loading…</td></tr></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div id="panel-client" class="card shadow-sm d-none">
+        <div id="panel-client" class="card shadow-sm">
             <div class="card-body border-bottom bg-white">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-2">
                         <label class="form-label small mb-0">Client ID</label>
-                        <input type="number" class="form-control form-control-sm" id="filter-user-id" placeholder="All" />
+                        <input type="number" class="form-control form-control-sm" id="filter-user-id" placeholder="All clients" />
                     </div>
                     <div class="col-md-2">
                         <label class="form-label small mb-0">Category</label>
@@ -64,6 +58,12 @@
                     <div class="col-md-2">
                         <button type="button" class="btn btn-primary btn-sm" id="client-audit-apply">Apply</button>
                     </div>
+                    <div class="col-md-12">
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" id="filter-include-admin" />
+                            <label class="form-check-label small" for="filter-include-admin">Include admin impersonation &amp; hub “view as client”</label>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card-body p-0">
@@ -80,6 +80,15 @@
                         </tr>
                     </thead>
                     <tbody id="client-audit-tbody"><tr><td colspan="7" class="text-muted p-4">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="panel-admin" class="card shadow-sm d-none">
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Detail</th></tr></thead>
+                    <tbody id="audit-tbody"><tr><td colspan="4" class="text-muted p-4">Loading…</td></tr></tbody>
                 </table>
             </div>
         </div>
@@ -110,10 +119,13 @@
         }
 
         var params = new URLSearchParams(window.location.search);
-        var activeTab = params.get('tab') === 'client' ? 'client' : 'admin';
+        var activeTab = params.get('tab') === 'admin' ? 'admin' : 'client';
         if (params.get('user_id')) {
             $('#filter-user-id').val(params.get('user_id'));
             activeTab = 'client';
+        }
+        if (params.get('include_admin') === '1') {
+            $('#filter-include-admin').prop('checked', true);
         }
 
         function showTab(tab) {
@@ -134,10 +146,17 @@
                 rows.forEach(function(r) {
                     $tb.append('<tr><td class="small">' + esc(r.created_at) + '</td><td class="small">' + esc(r.admin_email || r.admin_user_id) + '</td><td>' + esc(r.action) + '</td><td class="small"><pre class="detail-pre">' + esc(r.detail) + '</pre></td></tr>');
                 });
-                if (!rows.length) $tb.append('<tr><td colspan="4" class="text-muted p-4">No entries yet.</td></tr>');
+                if (!rows.length) $tb.append('<tr><td colspan="4" class="text-muted p-4">No admin actions logged yet.</td></tr>');
             }).catch(function() {
                 $('#audit-tbody').html('<tr><td colspan="4" class="text-danger p-4">Failed to load</td></tr>');
             });
+        }
+
+        function emptyClientMessage() {
+            if ($('#filter-include-admin').is(':checked')) {
+                return 'No client activity yet. Entries appear when clients use the dashboard (pages, exports, changes).';
+            }
+            return 'No real client activity yet. If you only tested via “View as client”, tick “Include admin impersonation” above — or wait until a client logs in and uses the dashboard.';
         }
 
         function loadClient() {
@@ -151,6 +170,7 @@
             if (since) q.since = since + ' 00:00:00';
             var until = $('#filter-until').val();
             if (until) q.until = until + ' 23:59:59';
+            if ($('#filter-include-admin').is(':checked')) q.include_admin = true;
             API.adminClientAuditLog(q).then(function(data) {
                 var rows = data.entries || [];
                 var $tb = $('#client-audit-tbody').empty();
@@ -167,7 +187,7 @@
                         '</tr>'
                     );
                 });
-                if (!rows.length) $tb.append('<tr><td colspan="7" class="text-muted p-4">No entries yet.</td></tr>');
+                if (!rows.length) $tb.append('<tr><td colspan="7" class="text-muted p-4">' + esc(emptyClientMessage()) + '</td></tr>');
             }).catch(function() {
                 $('#client-audit-tbody').html('<tr><td colspan="7" class="text-danger p-4">Failed to load</td></tr>');
             });
@@ -177,6 +197,7 @@
             showTab($(this).data('tab'));
         });
         $('#client-audit-apply').on('click', loadClient);
+        $('#filter-include-admin').on('change', loadClient);
         showTab(activeTab);
     });
     </script>

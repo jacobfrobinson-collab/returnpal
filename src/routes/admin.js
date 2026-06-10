@@ -1869,11 +1869,14 @@ router.get('/audit-log', async (req, res) => {
     }
 });
 
-// GET /api/admin/client-audit-log?user_id=&category=&action=&since=&until=&limit=&offset=
+// GET /api/admin/client-audit-log?user_id=&category=&action=&since=&until=&limit=&offset=&include_admin=1
 router.get('/client-audit-log', async (req, res) => {
     try {
         const db = await getDb();
         const userId = req.query.user_id != null ? parseInt(req.query.user_id, 10) : undefined;
+        const includeAdmin =
+            String(req.query.include_admin || '').trim() === '1' ||
+            String(req.query.include_admin || '').toLowerCase() === 'true';
         const entries = listClientAudit(db, {
             user_id: Number.isFinite(userId) ? userId : undefined,
             category: req.query.category,
@@ -1882,6 +1885,7 @@ router.get('/client-audit-log', async (req, res) => {
             until: req.query.until,
             limit: req.query.limit,
             offset: req.query.offset,
+            clients_only: !includeAdmin,
         });
         res.json({ entries });
     } catch (err) {

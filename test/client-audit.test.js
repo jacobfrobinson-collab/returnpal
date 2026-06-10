@@ -98,6 +98,15 @@ function mockReq(user) {
         assert.strictEqual(creates[0].action, 'package_create');
         assert.strictEqual(creates[0].client_email, 'client@test');
 
+        logClientAudit(db, mockReq({ id: 1, email: 'client@test', acted_by_admin_id: 2 }), {
+            category: 'view',
+            action: 'page_settings',
+        });
+        const clientsOnly = listClientAudit(db, { user_id: 1, clients_only: true });
+        const allForUser = listClientAudit(db, { user_id: 1, clients_only: false });
+        assert.ok(clientsOnly.every((r) => r.actor_type === 'client'), 'clients_only excludes impersonation');
+        assert.ok(allForUser.some((r) => r.actor_type === 'admin_impersonation'), 'include_admin shows impersonation');
+
         const beacon = logClientAuditBeacon(db, mockReq({ id: 1 }), {
             category: 'view',
             action: 'page_sold_items',

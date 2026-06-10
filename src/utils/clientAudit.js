@@ -184,13 +184,18 @@ function logClientAuditBeacon(db, req, body) {
 
 /**
  * @param {import('sql.js').Database} db
- * @param {{ user_id?: number, category?: string, action?: string, limit?: number, offset?: number, since?: string, until?: string }} [opts]
+ * @param {{ user_id?: number, category?: string, action?: string, limit?: number, offset?: number, since?: string, until?: string, clients_only?: boolean }} [opts]
  */
 function listClientAudit(db, opts = {}) {
     const limit = Math.min(200, Math.max(1, parseInt(opts.limit, 10) || 80));
     const offset = Math.max(0, parseInt(opts.offset, 10) || 0);
     const clauses = [];
     const params = [];
+
+    const clientsOnly = opts.clients_only !== false && opts.clients_only !== '0';
+    if (clientsOnly) {
+        clauses.push("a.actor_type = 'client'");
+    }
 
     if (opts.user_id != null && !isNaN(parseInt(opts.user_id, 10))) {
         clauses.push('a.user_id = ?');
