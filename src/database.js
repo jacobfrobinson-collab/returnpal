@@ -542,6 +542,25 @@ async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_log(created_at)');
 
     db.run(`
+        CREATE TABLE IF NOT EXISTS client_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            actor_type TEXT NOT NULL DEFAULT 'client',
+            actor_user_id INTEGER,
+            category TEXT NOT NULL,
+            action TEXT NOT NULL,
+            resource TEXT DEFAULT '',
+            detail TEXT DEFAULT '',
+            path TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    `);
+    db.run(
+        'CREATE INDEX IF NOT EXISTS idx_client_audit_user_created ON client_audit_log(user_id, created_at)'
+    );
+    db.run('CREATE INDEX IF NOT EXISTS idx_client_audit_created ON client_audit_log(created_at)');
+
+    db.run(`
         CREATE TABLE IF NOT EXISTS email_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,

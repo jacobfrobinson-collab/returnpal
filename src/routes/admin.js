@@ -30,6 +30,7 @@ const {
     upsertOrderClientMappingsFromReview,
 } = require('../utils/orderClientMappings');
 const { logAdminAudit, listAdminAudit } = require('../utils/adminAudit');
+const { listClientAudit } = require('../utils/clientAudit');
 const { buildInvoiceMonthSourcesPayload } = require('../utils/invoiceMonthDebug');
 const { sortSoldItemsByDateDesc } = require('../utils/sortSoldItemsByDateDesc');
 const { normalizeSoldDateForDb } = require('../utils/adminBulkImport');
@@ -1223,7 +1224,7 @@ router.post('/impersonate/:id', async (req, res) => {
         cols.forEach((col, i) => { user[col] = row[i]; });
 
         const token = generateToken(
-            { id: user.id, email: user.email, is_admin: false },
+            { id: user.id, email: user.email, is_admin: false, acted_by_admin_id: req.user.id },
             '1h'
         );
 
@@ -1864,6 +1865,27 @@ router.get('/audit-log', async (req, res) => {
         res.json({ entries });
     } catch (err) {
         console.error('Audit log error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/admin/client-audit-log?user_id=&category=&action=&since=&until=&limit=&offset=
+router.get('/client-audit-log', async (req, res) => {
+    try {
+        const db = await getDb();
+        const userId = req.query.user_id != null ? parseInt(req.query.user_id, 10) : undefined;
+        const entries = listClientAudit(db, {
+            user_id: Number.isFinite(userId) ? userId : undefined,
+            category: req.query.category,
+            action: req.query.action,
+            since: req.query.since,
+            until: req.query.until,
+            limit: req.query.limit,
+            offset: req.query.offset,
+        });
+        res.json({ entries });
+    } catch (err) {
+        console.error('Client audit log error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

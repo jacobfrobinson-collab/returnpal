@@ -12,6 +12,7 @@ const {
     enrichMessagesForClientView,
     tableHasColumn,
 } = require('../utils/itemQueryThread');
+const { logClientAudit } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -74,6 +75,13 @@ router.post('/', authMiddleware, async (req, res) => {
         } catch (e) {
             console.error('[admin-query-notify] new query:', e.message || e);
         }
+        logClientAudit(db, req, {
+            category: 'create',
+            action: 'query_create',
+            resource: '#' + id,
+            path: '/api/queries',
+            detail: { context_type: ctx, context_label: label, message: msg },
+        });
         res.status(201).json({ id, message: 'Query submitted. We will get back to you.' });
     } catch (err) {
         console.error('Create query error:', err);
@@ -151,6 +159,13 @@ router.post('/:id/messages', authMiddleware, async (req, res) => {
             console.error('[admin-query-notify] follow-up:', e.message || e);
         }
 
+        logClientAudit(db, req, {
+            category: 'create',
+            action: 'query_reply',
+            resource: '#' + queryId,
+            path: '/api/queries/' + queryId + '/messages',
+            detail: { message: body, context_label: q.context_label },
+        });
         const qRow = parseResults(db.exec('SELECT status, last_sender FROM item_queries WHERE id = ?', [queryId]))[0];
         const msgs = listMessagesForQuery(db, queryId);
         res.json({
@@ -193,6 +208,12 @@ router.delete('/:id/messages/:messageId', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'Message not found' });
         }
         saveDb();
+        logClientAudit(db, req, {
+            category: 'delete',
+            action: result.deleted === 'thread' ? 'query_delete' : 'query_message_delete',
+            resource: '#' + queryId,
+            path: '/api/queries/' + queryId + '/messages/' + messageId,
+        });
         if (result.deleted === 'thread') {
             return res.json({ message: 'Conversation removed', deleted: 'thread' });
         }
@@ -222,6 +243,12 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'Query not found' });
         }
         saveDb();
+        logClientAudit(db, req, {
+            category: 'delete',
+            action: 'query_delete',
+            resource: '#' + queryId,
+            path: '/api/queries/' + queryId,
+        });
         res.json({ message: 'Conversation removed', deleted: 'thread' });
     } catch (err) {
         console.error('Delete query thread error:', err);

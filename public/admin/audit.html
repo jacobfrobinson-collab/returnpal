@@ -10,6 +10,7 @@
         body { background: var(--bs-light, #f8f9fa); }
         .admin-header { background: var(--bs-dark); color: #fff; }
         .admin-header a { color: rgba(255,255,255,.9); text-decoration: none; }
+        .detail-pre { white-space: pre-wrap; max-width: 420px; font-size: 0.8rem; margin: 0; }
     </style>
 </head>
 <body>
@@ -20,11 +21,65 @@
         </div>
     </header>
     <div class="container-fluid">
-        <div class="card shadow-sm">
+        <ul class="nav nav-tabs mb-3" id="audit-tabs">
+            <li class="nav-item"><button type="button" class="nav-link active" data-tab="admin">Admin actions</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-tab="client">Client activity</button></li>
+        </ul>
+
+        <div id="panel-admin" class="card shadow-sm">
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
                     <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Detail</th></tr></thead>
                     <tbody id="audit-tbody"><tr><td colspan="4" class="text-muted p-4">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="panel-client" class="card shadow-sm d-none">
+            <div class="card-body border-bottom bg-white">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label small mb-0">Client ID</label>
+                        <input type="number" class="form-control form-control-sm" id="filter-user-id" placeholder="All" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-0">Category</label>
+                        <select class="form-select form-select-sm" id="filter-category">
+                            <option value="">All</option>
+                            <option value="view">view</option>
+                            <option value="export">export</option>
+                            <option value="create">create</option>
+                            <option value="update">update</option>
+                            <option value="delete">delete</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-0">Since</label>
+                        <input type="date" class="form-control form-control-sm" id="filter-since" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-0">Until</label>
+                        <input type="date" class="form-control form-control-sm" id="filter-until" />
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-primary btn-sm" id="client-audit-apply">Apply</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Client</th>
+                            <th>Actor</th>
+                            <th>Category</th>
+                            <th>Action</th>
+                            <th>Resource</th>
+                            <th>Detail</th>
+                        </tr>
+                    </thead>
+                    <tbody id="client-audit-tbody"><tr><td colspan="7" class="text-muted p-4">Loading…</td></tr></tbody>
                 </table>
             </div>
         </div>
@@ -40,16 +95,89 @@
         function esc(s) {
             return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
-        API.adminAuditLog({ limit: 100 }).then(function(data) {
-            var rows = data.entries || [];
-            var $tb = $('#audit-tbody').empty();
-            rows.forEach(function(r) {
-                $tb.append('<tr><td class="small">' + esc(r.created_at) + '</td><td class="small">' + esc(r.admin_email || r.admin_user_id) + '</td><td>' + esc(r.action) + '</td><td class="small"><pre class="mb-0" style="white-space:pre-wrap;max-width:520px">' + esc(r.detail) + '</pre></td></tr>');
+        function actorLabel(r) {
+            if (r.actor_type === 'admin_impersonation') {
+                return 'Admin: ' + esc(r.actor_email || r.actor_user_id || '?');
+            }
+            if (r.actor_type === 'delegate_view') {
+                return 'Hub view: ' + esc(r.actor_email || r.actor_user_id || '?');
+            }
+            return 'Client';
+        }
+        function clientLabel(r) {
+            var name = r.client_name || r.client_email || ('#' + r.user_id);
+            return esc(name);
+        }
+
+        var params = new URLSearchParams(window.location.search);
+        var activeTab = params.get('tab') === 'client' ? 'client' : 'admin';
+        if (params.get('user_id')) {
+            $('#filter-user-id').val(params.get('user_id'));
+            activeTab = 'client';
+        }
+
+        function showTab(tab) {
+            activeTab = tab;
+            $('#audit-tabs .nav-link').removeClass('active');
+            $('#audit-tabs .nav-link[data-tab="' + tab + '"]').addClass('active');
+            $('#panel-admin').toggleClass('d-none', tab !== 'admin');
+            $('#panel-client').toggleClass('d-none', tab !== 'client');
+            if (tab === 'admin') loadAdmin();
+            else loadClient();
+        }
+
+        function loadAdmin() {
+            $('#audit-tbody').html('<tr><td colspan="4" class="text-muted p-4">Loading…</td></tr>');
+            API.adminAuditLog({ limit: 100 }).then(function(data) {
+                var rows = data.entries || [];
+                var $tb = $('#audit-tbody').empty();
+                rows.forEach(function(r) {
+                    $tb.append('<tr><td class="small">' + esc(r.created_at) + '</td><td class="small">' + esc(r.admin_email || r.admin_user_id) + '</td><td>' + esc(r.action) + '</td><td class="small"><pre class="detail-pre">' + esc(r.detail) + '</pre></td></tr>');
+                });
+                if (!rows.length) $tb.append('<tr><td colspan="4" class="text-muted p-4">No entries yet.</td></tr>');
+            }).catch(function() {
+                $('#audit-tbody').html('<tr><td colspan="4" class="text-danger p-4">Failed to load</td></tr>');
             });
-            if (!rows.length) $tb.append('<tr><td colspan="4" class="text-muted p-4">No entries yet.</td></tr>');
-        }).catch(function() {
-            $('#audit-tbody').html('<tr><td colspan="4" class="text-danger p-4">Failed to load</td></tr>');
+        }
+
+        function loadClient() {
+            $('#client-audit-tbody').html('<tr><td colspan="7" class="text-muted p-4">Loading…</td></tr>');
+            var q = { limit: 100 };
+            var uid = $('#filter-user-id').val();
+            if (uid) q.user_id = uid;
+            var cat = $('#filter-category').val();
+            if (cat) q.category = cat;
+            var since = $('#filter-since').val();
+            if (since) q.since = since + ' 00:00:00';
+            var until = $('#filter-until').val();
+            if (until) q.until = until + ' 23:59:59';
+            API.adminClientAuditLog(q).then(function(data) {
+                var rows = data.entries || [];
+                var $tb = $('#client-audit-tbody').empty();
+                rows.forEach(function(r) {
+                    $tb.append(
+                        '<tr>' +
+                        '<td class="small">' + esc(r.created_at) + '</td>' +
+                        '<td class="small">' + clientLabel(r) + '</td>' +
+                        '<td class="small">' + actorLabel(r) + '</td>' +
+                        '<td>' + esc(r.category) + '</td>' +
+                        '<td>' + esc(r.action) + '</td>' +
+                        '<td class="small">' + esc(r.resource) + '</td>' +
+                        '<td class="small"><pre class="detail-pre">' + esc(r.detail) + '</pre></td>' +
+                        '</tr>'
+                    );
+                });
+                if (!rows.length) $tb.append('<tr><td colspan="7" class="text-muted p-4">No entries yet.</td></tr>');
+            }).catch(function() {
+                $('#client-audit-tbody').html('<tr><td colspan="7" class="text-danger p-4">Failed to load</td></tr>');
+            });
+        }
+
+        $('#audit-tabs').on('click', '.nav-link', function() {
+            showTab($(this).data('tab'));
         });
+        $('#client-audit-apply').on('click', loadClient);
+        showTab(activeTab);
     });
     </script>
 </body>

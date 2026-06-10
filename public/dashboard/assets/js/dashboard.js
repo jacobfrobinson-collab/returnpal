@@ -356,6 +356,7 @@ const Dashboard = {
                 if (err && err.status === 401) API.navigateAwayOnUnauthorized();
             })
             .finally(() => {
+                self._logClientPageView();
                 self.ensureClientPreferences().catch(() => {});
                 self._initDashboardChrome();
                 if (!self.isClientReimbursementUiEnabled()) {
@@ -1091,6 +1092,61 @@ const Dashboard = {
             .on('change', () => this.loadScorecard());
     },
 
+    _ensureClientAudit(cb) {
+        if (window.ClientAudit) {
+            if (typeof cb === 'function') cb();
+            return;
+        }
+        if (window._clientAuditScriptLoading) {
+            document.addEventListener('client-audit-ready', function onReady() {
+                document.removeEventListener('client-audit-ready', onReady);
+                if (typeof cb === 'function') cb();
+            });
+            return;
+        }
+        window._clientAuditScriptLoading = true;
+        const s = document.createElement('script');
+        s.src = '/assets/js/client-audit.js';
+        s.onload = function () {
+            window._clientAuditScriptLoading = false;
+            document.dispatchEvent(new Event('client-audit-ready'));
+            if (typeof cb === 'function') cb();
+        };
+        s.onerror = function () {
+            window._clientAuditScriptLoading = false;
+        };
+        document.head.appendChild(s);
+    },
+
+    _logClientPageView() {
+        this._ensureClientAudit(function () {
+            if (window.ClientAudit && typeof ClientAudit.logPage === 'function') {
+                ClientAudit.logPage();
+            }
+        });
+    },
+
+    _logClientExport(action, detail) {
+        this._ensureClientAudit(function () {
+            if (window.ClientAudit && typeof ClientAudit.log === 'function') {
+                ClientAudit.log(action, { category: 'export', detail: detail });
+            }
+        });
+    },
+
+    _logClientViewAction(action, opts) {
+        this._ensureClientAudit(function () {
+            if (window.ClientAudit && typeof ClientAudit.log === 'function') {
+                const o = opts || {};
+                ClientAudit.log(action, {
+                    category: 'view',
+                    resource: o.resource,
+                    detail: o.detail,
+                });
+            }
+        });
+    },
+
     _initRest() {
         if (!API.isLoggedIn()) {
             window.location.assign((window.location.origin || '') + '/login.html');
@@ -1135,6 +1191,7 @@ const Dashboard = {
     },
 
     _finishDashboardInit() {
+        this._logClientPageView();
         this.loadDashboardNotifications();
         $(document).off('click', '.rp-query-item-btn').on('click', '.rp-query-item-btn', function() {
             const $b = $(this);
@@ -2497,6 +2554,7 @@ const Dashboard = {
             a.download = 'returnpal-overview-' + RP_DATE.formatIso(new Date()) + '.csv';
             a.click();
             URL.revokeObjectURL(a.href);
+            Dashboard._logClientExport('export_overview_report');
             Dashboard.showToast('Report downloaded');
         }).catch(function() {
             window.location.href = 'analytics.html';
@@ -4716,6 +4774,7 @@ const Dashboard = {
         a.download = 'returnpal-payout-' + period + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
+        this._logClientExport('export_period_csv', { period: period });
         this.showToast('Downloaded ' + period);
     },
 
@@ -5357,6 +5416,7 @@ const Dashboard = {
         a.download = 'returnpal-analytics-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
+        this._logClientExport('export_analytics_csv');
     },
 
     exportInvoicesCsv() {
@@ -5379,6 +5439,7 @@ const Dashboard = {
         a.download = 'returnpal-invoices-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
+        this._logClientExport('export_invoices_csv', { row_count: monthly.length });
     },
 
     async exportInvoicesForAccountant() {
@@ -5412,6 +5473,7 @@ const Dashboard = {
         a.download = 'returnpal-accountant-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
+        this._logClientExport('export_invoices_accountant', { row_count: monthly.length });
     },
     exportInvoicesXero() {
         const monthly = window._lastInvoicesData || [];
@@ -5426,6 +5488,7 @@ const Dashboard = {
         a.download = 'returnpal-xero-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
+        this._logClientExport('export_invoices_xero', { row_count: monthly.length });
     },
     exportInvoicesQuickBooks() {
         const monthly = window._lastInvoicesData || [];
@@ -5440,6 +5503,7 @@ const Dashboard = {
         a.download = 'returnpal-quickbooks-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
+        this._logClientExport('export_invoices_quickbooks', { row_count: monthly.length });
     },
     exportSoldItemsCsv() {
         const items = this._soldListFiltered;
@@ -5469,6 +5533,7 @@ const Dashboard = {
         a.download = 'returnpal-sold-items-' + RP_DATE.formatIso(new Date()) + '.csv';
         a.click();
         URL.revokeObjectURL(a.href);
+        this._logClientExport('export_sold_csv', { row_count: items.length });
         this.showToast('Sold items CSV downloaded');
     },
     /**
@@ -5657,6 +5722,7 @@ const Dashboard = {
                 '<p>For a line-by-line breakdown of each sale and return, use <strong>Statement (each line)</strong> from the payouts table.</p>' +
                 '<p>Payment is due by the date stated above. Thank you for selling with ReturnPal.</p>' +
                 '</div></div></body></html>';
+            this._logClientExport(docKind === 'statement' ? 'export_statement' : 'print_invoice', { period: periodYm });
             rpOpenInvoicePrintWindow(htmlInv);
         } catch (err) {
             console.error('Download invoice error:', err);
@@ -5728,6 +5794,10 @@ const Dashboard = {
             $list.empty();
             items.forEach(it => {
                 $list.append('<li class="list-group-item d-flex justify-content-between"><a href="item-detail.html?id=' + (it.id || '') + '">' + (it.title || it.reference) + '</a>' + this.statusBadge(it.status || '') + '</li>');
+            });
+            this._logClientViewAction('package_journey_open', {
+                resource: data.reference || String(id),
+                detail: { package_id: id },
             });
             const timeline = (data.journey && data.journey.events) || data.timeline || [];
             const $tl = $('#pkg-timeline');

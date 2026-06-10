@@ -5,6 +5,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
 const { buildPackageJourney } = require('../utils/packageJourney');
 const { parsePackagePaste, normalizeRow, importPackageRowsForUser } = require('../utils/packageBulkImport');
+const { logClientAudit } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -65,6 +66,12 @@ router.post('/bulk', authMiddleware, async (req, res) => {
 
         const result = importPackageRowsForUser(db, req.user.id, normalizedRows);
         saveDb();
+        logClientAudit(db, req, {
+            category: 'create',
+            action: 'package_bulk_import',
+            path: '/api/packages/bulk',
+            detail: { row_count: result.row_count, created: result.created, errors: result.errors.length },
+        });
 
         const errNote = result.errors.length ? ' ' + result.errors.length + ' row(s) skipped.' : '';
         res.status(201).json({
@@ -156,6 +163,16 @@ router.post('/', authMiddleware, [
 
         saveDb();
 
+        if (targetUserId === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'create',
+                action: 'package_create',
+                resource: reference,
+                path: '/api/packages',
+                detail: { package_id: packageId, product_count: products.length },
+            });
+        }
+
         res.status(201).json({
             message: 'Package created successfully',
             package_id: packageId
@@ -238,6 +255,18 @@ router.put('/:id', authMiddleware, async (req, res) => {
         }
 
         saveDb();
+        if (pkg.user_id === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'update',
+                action: 'package_update',
+                resource: pkg.reference,
+                path: '/api/packages/' + req.params.id,
+                detail: {
+                    status: status || undefined,
+                    product_count: products && Array.isArray(products) ? products.length : undefined,
+                },
+            });
+        }
         res.json({ message: 'Package updated successfully' });
     } catch (err) {
         console.error('Update package error:', err);
@@ -251,7 +280,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         const db = await getDb();
 
         const existing = parseResults(
-            db.exec('SELECT id, user_id FROM packages WHERE id = ?', [req.params.id])
+            db.exec('SELECT id, user_id, reference FROM packages WHERE id = ?', [req.params.id])
         );
         if (existing.length === 0) {
             return res.status(404).json({ error: 'Package not found' });
@@ -262,8 +291,18 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         }
 
         db.run('DELETE FROM package_products WHERE package_id = ?', [req.params.id]);
+        const pkgRef = pkg.reference;
         db.run('DELETE FROM packages WHERE id = ?', [req.params.id]);
         saveDb();
+
+        if (pkg.user_id === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'delete',
+                action: 'package_delete',
+                resource: pkgRef || String(req.params.id),
+                path: '/api/packages/' + req.params.id,
+            });
+        }
 
         res.json({ message: 'Package deleted successfully' });
     } catch (err) {

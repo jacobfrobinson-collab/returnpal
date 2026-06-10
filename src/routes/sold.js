@@ -13,6 +13,7 @@ const {
     clientClawbackFromContext,
     roundMoney,
 } = require('../utils/returnAdjustmentClawback');
+const { logClientAudit } = require('../utils/clientAudit');
 const { FEE_TIERS } = require('../utils/clientFeeTiers');
 const { computeClientResaleNetEarnings } = require('../utils/clientNetEarnings');
 
@@ -284,6 +285,16 @@ router.post('/', authMiddleware, async (req, res) => {
             console.error('[email] item sold:', e.message || e);
         }
 
+        if (targetUserId === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'create',
+                action: 'sold_item_create',
+                resource: ref || product,
+                path: '/api/sold',
+                detail: { product, quantity: qty, profit: p },
+            });
+        }
+
         res.status(201).json({ message: 'Sold item recorded', id });
     } catch (err) {
         console.error('Create sold item error:', err);
@@ -368,6 +379,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
             );
         }
         saveDb();
+        if (row.user_id === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'update',
+                action: 'sold_item_update',
+                resource: ref || prod,
+                path: '/api/sold/' + id,
+                detail: { product: prod, quantity: qty },
+            });
+        }
         res.json({ message: 'Sold item updated' });
     } catch (err) {
         console.error('Update sold item error:', err);
@@ -387,6 +407,14 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
         db.run('DELETE FROM sold_items WHERE id = ?', [id]);
         saveDb();
+        if (row.user_id === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'delete',
+                action: 'sold_item_delete',
+                resource: row.reference || row.product,
+                path: '/api/sold/' + id,
+            });
+        }
         res.json({ message: 'Sold item removed' });
     } catch (err) {
         console.error('Delete sold item error:', err);

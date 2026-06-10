@@ -14,6 +14,7 @@ function generateToken(user, expiresIn) {
     const payload = { id: user.id, email: user.email };
     if (user.is_admin !== undefined) payload.is_admin = !!user.is_admin;
     if (user.delegate_hub_id != null) payload.delegate_hub_id = user.delegate_hub_id;
+    if (user.acted_by_admin_id != null) payload.acted_by_admin_id = user.acted_by_admin_id;
     return jwt.sign(
         payload,
         JWT_SECRET,
@@ -39,7 +40,10 @@ async function authMiddleware(req, res, next) {
         if (decoded.delegate_hub_id != null) {
             req.user.is_delegate_readonly = true;
             const method = req.method.toUpperCase();
-            if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+            const auditBeacon =
+                method === 'POST' &&
+                String(req.originalUrl || '').includes('/client/audit/event');
+            if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !auditBeacon) {
                 return res.status(403).json({ error: DELEGATE_READONLY_MESSAGE, read_only: true });
             }
         }

@@ -2,6 +2,7 @@ const express = require('express');
 const { getDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { sendReferralInviteEmail } = require('../utils/sendReferralInviteEmail');
+const { logClientAudit } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -181,6 +182,12 @@ router.post('/invite', authMiddleware, async (req, res) => {
             });
         }
 
+        logClientAudit(db, req, {
+            category: 'create',
+            action: 'referral_invite',
+            path: '/api/referrals/invite',
+            detail: { invitee_email: inviteeEmail, has_personal_message: !!personalMessage },
+        });
         res.json({ message: 'Invite sent to ' + inviteeEmail });
     } catch (err) {
         console.error('Referral invite error:', err);

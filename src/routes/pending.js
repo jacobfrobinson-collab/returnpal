@@ -2,6 +2,7 @@ const express = require('express');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { clientIsAdmin, redactOrderNumberForClientRow, redactOrderNumberForClientRows } = require('../utils/internalFields');
+const { logClientAudit } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -76,6 +77,16 @@ router.post('/', authMiddleware, async (req, res) => {
         const msg = 'Item added to pending: ' + (product || reference || '');
         await pushActivity(targetUserId, 'item_pending', msg, '/dashboard/item-pending.html');
 
+        if (targetUserId === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'create',
+                action: 'pending_item_create',
+                resource: reference || product,
+                path: '/api/pending',
+                detail: { product, quantity: quantity || 1 },
+            });
+        }
+
         res.status(201).json({ message: 'Pending item recorded', id });
     } catch (err) {
         console.error('Create pending item error:', err);
@@ -126,6 +137,16 @@ router.put('/:id/stage', authMiddleware, async (req, res) => {
         );
         saveDb();
 
+        if (row.user_id === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'update',
+                action: 'pending_item_stage',
+                resource: row.reference || row.product,
+                path: '/api/pending/' + req.params.id + '/stage',
+                detail: { current_stage, est_completion },
+            });
+        }
+
         res.json({ message: 'Stage updated' });
     } catch (err) {
         console.error('Update pending stage error:', err);
@@ -169,6 +190,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
             );
         }
         saveDb();
+        if (row.user_id === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'update',
+                action: 'pending_item_update',
+                resource: ref || prod,
+                path: '/api/pending/' + req.params.id,
+                detail: { product: prod, quantity: qty, current_stage: stage },
+            });
+        }
         res.json({ message: 'Pending item updated' });
     } catch (err) {
         console.error('Update pending item error:', err);
@@ -187,6 +217,15 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
         db.run('DELETE FROM pending_items WHERE id = ?', [req.params.id]);
         saveDb();
+
+        if (row.user_id === req.user.id) {
+            logClientAudit(db, req, {
+                category: 'delete',
+                action: 'pending_item_delete',
+                resource: row.reference || row.product,
+                path: '/api/pending/' + req.params.id,
+            });
+        }
 
         res.json({ message: 'Pending item removed' });
     } catch (err) {

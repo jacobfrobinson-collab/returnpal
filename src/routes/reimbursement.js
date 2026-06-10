@@ -13,6 +13,7 @@ const {
     mimeForPhotoPath,
     safeDownloadFilename,
 } = require('../utils/reimbursementPhotoFile');
+const { logClientAudit } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -169,6 +170,13 @@ router.patch('/claims/:id', async (req, res) => {
         const updated = enrichClaimRow(
             parseResults(db.exec('SELECT * FROM reimbursement_claims WHERE id = ?', [claimId]))[0]
         );
+        logClientAudit(db, req, {
+            category: 'update',
+            action: 'reimbursement_claim_update',
+            resource: '#' + claimId,
+            path: '/api/reimbursement/claims/' + claimId,
+            detail: { case_status: status, seller_central_case_id: scId || undefined },
+        });
         res.json({ claim: updated, message: 'Claim updated' });
     } catch (err) {
         console.error('Patch claim error:', err);

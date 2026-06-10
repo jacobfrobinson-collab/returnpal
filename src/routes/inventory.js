@@ -7,6 +7,7 @@ const {
     getRefundInsightsFromCache,
     cacheIsStale
 } = require('../utils/refundInsights');
+const { logClientAudit } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -98,6 +99,14 @@ router.post('/import', authMiddleware, async (req, res) => {
             );
         }
 
+        if (imported > 0) {
+            logClientAudit(db, req, {
+                category: 'create',
+                action: 'inventory_csv_import',
+                path: '/api/inventory/import',
+                detail: { imported, row_count: rows.length },
+            });
+        }
         res.json({
             imported,
             message: imported ? `${imported} line(s) added to received intake.` : 'No valid rows (need at least a product name per row).'

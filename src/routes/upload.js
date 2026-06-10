@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { getDb, saveDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
+const { logClientAudit } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -112,6 +113,15 @@ router.post('/packages', authMiddleware, upload.single('file'), async (req, res)
 
         // Clean up uploaded file
         fs.unlink(req.file.path, () => {});
+
+        if (created > 0) {
+            logClientAudit(db, req, {
+                category: 'create',
+                action: 'package_file_upload',
+                path: '/api/upload/packages',
+                detail: { filename: req.file.originalname, created, total_rows: rows.length },
+            });
+        }
 
         res.json({
             message: `Bulk upload complete. ${created} items processed.`,

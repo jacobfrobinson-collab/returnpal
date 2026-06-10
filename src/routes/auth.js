@@ -16,6 +16,7 @@ const {
     PENDING_MESSAGE,
     REJECTED_MESSAGE,
 } = require('../utils/accountApproval');
+const { logClientAudit } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -373,6 +374,12 @@ router.post('/avatar', authMiddleware, (req, res) => {
             );
             saveDb();
             unlinkAvatarIfOwned(oldUrl);
+            logClientAudit(db, req, {
+                category: 'update',
+                action: 'avatar_upload',
+                path: '/api/auth/avatar',
+                detail: { filename: req.file.originalname },
+            });
             res.json({ avatar_url: publicPath, message: 'Photo updated' });
         } catch (e) {
             console.error('Avatar save error:', e);
@@ -394,6 +401,11 @@ router.delete('/avatar', authMiddleware, async (req, res) => {
         db.run("UPDATE users SET avatar_url = '', updated_at = datetime('now') WHERE id = ?", [req.user.id]);
         saveDb();
         unlinkAvatarIfOwned(oldUrl);
+        logClientAudit(db, req, {
+            category: 'delete',
+            action: 'avatar_remove',
+            path: '/api/auth/avatar',
+        });
         res.json({ avatar_url: '', message: 'Photo removed' });
     } catch (e) {
         console.error('Avatar delete error:', e);
@@ -443,7 +455,12 @@ router.put('/profile', authMiddleware, [
             [full_name, company_name, phone, legacy_client_id, req.user.id]
         );
         saveDb();
-
+        logClientAudit(db, req, {
+            category: 'update',
+            action: 'profile_update',
+            path: '/api/auth/profile',
+            detail: { full_name, company_name, phone: phone ? '[set]' : '' },
+        });
         res.json({ message: 'Profile updated successfully' });
     } catch (err) {
         console.error('Update profile error:', err);
@@ -559,7 +576,11 @@ router.put('/password', authMiddleware, [
         const newHash = await bcrypt.hash(new_password, 12);
         db.run("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?", [newHash, req.user.id]);
         saveDb();
-
+        logClientAudit(db, req, {
+            category: 'update',
+            action: 'password_change',
+            path: '/api/auth/password',
+        });
         res.json({ message: 'Password updated successfully' });
     } catch (err) {
         console.error('Password change error:', err);

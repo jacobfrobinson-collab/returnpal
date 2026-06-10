@@ -1292,6 +1292,34 @@ const API = {
         return this.request('/admin/audit-log' + q);
     },
 
+    async adminClientAuditLog(params) {
+        var q = '';
+        if (params && typeof params === 'object') {
+            var sp = new URLSearchParams();
+            if (params.user_id != null && params.user_id !== '') sp.set('user_id', String(params.user_id));
+            if (params.category != null && params.category !== '') sp.set('category', String(params.category));
+            if (params.action != null && params.action !== '') sp.set('action', String(params.action));
+            if (params.since != null && params.since !== '') sp.set('since', String(params.since));
+            if (params.until != null && params.until !== '') sp.set('until', String(params.until));
+            if (params.limit != null && params.limit !== '') sp.set('limit', String(params.limit));
+            if (params.offset != null && params.offset !== '') sp.set('offset', String(params.offset));
+            var s = sp.toString();
+            if (s) q = '?' + s;
+        }
+        return this.request('/admin/client-audit-log' + q);
+    },
+
+    /** Fire-and-forget client activity beacon (page views, exports). */
+    logClientAuditEvent(payload) {
+        return this.request('/client/audit/event', {
+            method: 'POST',
+            body: payload || {},
+            skipAuthRedirect: true,
+        }).catch(function () {
+            return { logged: false };
+        });
+    },
+
     async importInventoryRows(rows) {
         return this.request('/inventory/import', { method: 'POST', body: { rows } });
     },

@@ -19,7 +19,7 @@
     <header class="admin-header py-3 mb-4">
         <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center">
-                <h1 class="h5 mb-0"><a href="/admin/index.html" class="text-decoration-none text-white">← Clients</a> – <span id="client-name">Client</span> <span class="badge bg-light text-dark ms-2" id="admin-client-id-badge">ID 0000</span> <span id="client-legacy-wrap" class="d-none"><span class="badge bg-info text-dark ms-1" id="client-legacy-badge">Legacy —</span></span></h1>
+                <h1 class="h5 mb-0"><a href="/admin/index.html" class="text-decoration-none text-white">← Clients</a> – <span id="client-name">Client</span> <span class="badge bg-light text-dark ms-2" id="admin-client-id-badge">ID 0000</span> <span id="client-legacy-wrap" class="d-none"><span class="badge bg-info text-dark ms-1" id="client-legacy-badge">Legacy —</span></span> <a href="#" id="client-activity-log-link" class="small ms-2 text-white-50">Activity log</a></h1>
                 <a href="/admin/reimbursement-photos.html" class="btn btn-sm btn-outline-info">Reimbursement photos</a>
                 <a href="/admin/index.html" class="btn btn-sm btn-outline-light">Back to list</a>
             </div>
@@ -650,6 +650,7 @@
             '/admin/reimbursement-photos.html?client_id=' + encodeURIComponent(String(parseInt(clientId, 10) || clientId))
         );
         $('#admin-client-id-badge').text('ID ' + String(parseInt(clientId, 10) || 0).padStart(4, '0'));
+        $('#client-activity-log-link').attr('href', '/admin/audit.html?user_id=' + encodeURIComponent(clientId) + '&tab=client');
         $('#link-view-dashboard').attr('href', '#');
 
         $('#btn-invoice-month-sources').on('click', function() {

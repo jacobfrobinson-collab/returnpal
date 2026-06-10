@@ -6,6 +6,7 @@ const {
     mergeClientPreferencesFromClient,
 } = require('../utils/clientPreferences');
 const { prefsFromUserRow } = require('../utils/emailPreferences');
+const { logClientAudit } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -69,6 +70,15 @@ router.put('/preferences', authMiddleware, async (req, res) => {
             [JSON.stringify(merged), weeklyDigestCol, req.user.id]
         );
         saveDb();
+        logClientAudit(db, req, {
+            category: 'update',
+            action: 'settings_preferences',
+            path: '/api/settings/preferences',
+            detail: {
+                email_digest: merged.email_digest,
+                prep_sendback_enabled: merged.prep_sendback_enabled,
+            },
+        });
         res.json({ message: 'Preferences saved', preferences: merged });
     } catch (err) {
         console.error('Update preferences error:', err);
@@ -87,7 +97,12 @@ router.put('/vat', authMiddleware, async (req, res) => {
             [vat_registered ? 1 : 0, req.user.id]
         );
         saveDb();
-
+        logClientAudit(db, req, {
+            category: 'update',
+            action: 'settings_vat',
+            path: '/api/settings/vat',
+            detail: { vat_registered: !!vat_registered },
+        });
         res.json({ message: 'VAT setting updated', vat_registered: !!vat_registered });
     } catch (err) {
         console.error('Update VAT error:', err);
@@ -113,7 +128,15 @@ router.put('/webhook', authMiddleware, async (req, res) => {
             [discord_webhook || '', slack_webhook || '', req.user.id]
         );
         saveDb();
-
+        logClientAudit(db, req, {
+            category: 'update',
+            action: 'settings_webhook',
+            path: '/api/settings/webhook',
+            detail: {
+                discord_webhook: !!(discord_webhook && String(discord_webhook).trim()),
+                slack_webhook: !!(slack_webhook && String(slack_webhook).trim()),
+            },
+        });
         res.json({ message: 'Webhooks saved' });
     } catch (err) {
         console.error('Update webhook error:', err);
@@ -128,6 +151,12 @@ router.put('/weekly-digest', authMiddleware, async (req, res) => {
         const on = req.body.weekly_digest_email !== false && req.body.weekly_digest_email !== 0 && req.body.weekly_digest_email !== '0';
         db.run("UPDATE users SET weekly_digest_email = ?, updated_at = datetime('now') WHERE id = ?", [on ? 1 : 0, req.user.id]);
         saveDb();
+        logClientAudit(db, req, {
+            category: 'update',
+            action: 'settings_weekly_digest',
+            path: '/api/settings/weekly-digest',
+            detail: { weekly_digest_email: on },
+        });
         res.json({ message: 'Preference saved', weekly_digest_email: on ? 1 : 0 });
     } catch (err) {
         console.error('Weekly digest setting error:', err);

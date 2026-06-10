@@ -16,6 +16,7 @@ const { getClientActionItems } = require('../utils/clientActionItems');
 const { getClientBenchmarks } = require('../utils/clientBenchmarks');
 const { setClientPayoutNote } = require('../utils/payoutEvents');
 const { ensurePayoutVerificationCode } = require('../utils/payoutVerificationCode');
+const { logClientAudit, logClientAuditBeacon } = require('../utils/clientAudit');
 
 const router = express.Router();
 
@@ -279,6 +280,13 @@ router.post('/prep-sendback', authMiddleware, async (req, res) => {
             `Prep send-back requested: ${itemDescription} (${packageReference}, qty ${quantity}).`,
             '/dashboard/prep-sendback.html'
         );
+        logClientAudit(db, req, {
+            category: 'create',
+            action: 'prep_sendback_create',
+            resource: packageReference,
+            path: '/api/client/prep-sendback',
+            detail: { item_description: itemDescription, quantity },
+        });
         res.status(201).json({ id, message: 'Send-back request submitted. ReturnPal will queue shipment to your prep centre.' });
     } catch (err) {
         console.error('Prep sendback create error:', err);
@@ -370,6 +378,18 @@ router.post('/lost-items', authMiddleware, async (req, res) => {
             console.error('[admin-lost-item-notify]', e.message || e);
         }
 
+        logClientAudit(db, req, {
+            category: 'create',
+            action: 'lost_item_enquiry',
+            resource: '#' + id,
+            path: '/api/client/lost-items',
+            detail: {
+                item_name: itemName,
+                quantity,
+                package_reference: packageReference,
+                date_sent: eligibility.date_sent,
+            },
+        });
         res.status(201).json({
             id,
             message:
@@ -415,6 +435,18 @@ router.get('/benchmarks', authMiddleware, async (req, res) => {
         res.json(getClientBenchmarks(db, req.user.id, period || undefined));
     } catch (err) {
         console.error('Benchmarks error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/client/audit/event — client page views and export/journey beacons
+router.post('/audit/event', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const result = logClientAuditBeacon(db, req, req.body || {});
+        res.json(result);
+    } catch (err) {
+        console.error('Client audit beacon error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
