@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Your stock | ReturnPal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="shortcut icon" href="assets/images/favicon.ico" />
+    <script src="assets/js/config.min.js"></script>
+    <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/style.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/dashboard-tokens.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+    <div class="wrapper">
+        <header class="">
+            <div class="topbar">
+                <div class="container-fluid">
+                    <div class="navbar-header">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="topbar-item">
+                                <button type="button" class="button-toggle-menu topbar-button" aria-label="Toggle menu">
+                                    <i class="ri-menu-2-line fs-24"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <div class="topbar-item">
+                                <button type="button" class="topbar-button" id="light-dark-mode" aria-label="Toggle theme">
+                                    <i class="ri-moon-line fs-24 light-mode"></i>
+                                    <i class="ri-sun-line fs-24 dark-mode"></i>
+                                </button>
+                            </div>
+                            <div class="dropdown topbar-item">
+                                <a type="button" class="topbar-button" id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <img class="rounded-circle" width="32" src="assets/images/users/avatar-1.jpg" alt="User" />
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end">
+                                    <h6 class="dropdown-header">Welcome!</h6>
+                                    <a class="dropdown-item" href="settings.html"><i class="ri-settings-3-line me-1"></i>Settings</a>
+                                    <div class="dropdown-divider my-1"></div>
+                                    <a class="dropdown-item text-danger" href="login.html"><i class="ri-logout-circle-line me-1"></i>Logout</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-nav">
+            <div class="logo-box">
+                <a href="index.html" class="logo-dark"><img src="assets/images/logo-sm-dark.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-dark.png" class="logo-lg" alt="logo" /></a>
+                <a href="index.html" class="logo-light"><img src="assets/images/logo-sm-light.png" class="logo-sm" alt="logo" /><img src="assets/images/logo-light.png" class="logo-lg" alt="logo" /></a>
+            </div>
+            <button type="button" class="button-sm-hover" aria-label="Show sidebar"><i class="ri-menu-2-line fs-24"></i></button>
+            <div class="scrollbar" data-simplebar>
+                <ul class="navbar-nav" id="navbar-nav"></ul>
+            </div>
+        </div>
+
+        <div class="page-content">
+            <div class="container-fluid">
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="page-title-box">
+                            <h4 class="fw-semibold mb-1"><i class="ri-store-2-line me-2"></i>Your stock</h4>
+                            <p class="mb-0 text-muted">Items we hold and sell on your behalf. Status updates as we prepare and list each unit.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="rp-card card border-0 p-4 h-100">
+                            <div class="rp-label text-muted mb-1">In stock (units)</div>
+                            <div class="rp-kpi" id="stock-kpi-total">—</div>
+                            <small class="text-muted" id="stock-kpi-total-sub">With ReturnPal now</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="rp-card card border-0 p-4 h-100">
+                            <div class="rp-label text-muted mb-1">Live</div>
+                            <div class="rp-kpi text-success" id="stock-kpi-live">—</div>
+                            <small class="text-muted">Listed and awaiting buyers</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="rp-card card border-0 p-4 h-100">
+                            <div class="rp-label text-muted mb-1">Being prepared</div>
+                            <div class="rp-kpi text-warning" id="stock-kpi-preparing">—</div>
+                            <small class="text-muted">Inspection and prep</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rp-card card border-0 mb-4 d-none" id="stock-attention-strip">
+                    <div class="card-body py-3">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="ri-alarm-warning-line text-warning fs-5 mt-1"></i>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold mb-1" id="stock-attention-title">Needs attention</div>
+                                <p class="text-muted small mb-2" id="stock-attention-copy"></p>
+                                <ul class="list-unstyled small mb-0" id="stock-attention-list"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rp-card card border-0 mb-4">
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                            <ul class="nav nav-pills gap-1" id="stock-filter-tabs" role="tablist">
+                                <li class="nav-item"><button type="button" class="nav-link active" data-group="all">All</button></li>
+                                <li class="nav-item"><button type="button" class="nav-link" data-group="live">Live</button></li>
+                                <li class="nav-item"><button type="button" class="nav-link" data-group="listing">Being listed</button></li>
+                                <li class="nav-item"><button type="button" class="nav-link" data-group="preparing">Being prepared</button></li>
+                            </ul>
+                            <input type="search" class="form-control form-control-sm" id="stock-search" placeholder="Search product or reference…" style="max-width: 240px;" aria-label="Search stock" />
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-md-auto" id="stock-export-csv" title="Dates as YYYY-MM-DD so Excel opens them correctly">Export CSV</button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Product</th>
+                                        <th class="text-center">Qty</th>
+                                        <th>Reference</th>
+                                        <th>Status</th>
+                                        <th>With us since</th>
+                                        <th class="text-end"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stock-tbody">
+                                    <tr><td colspan="6" class="text-muted p-4 text-center">Loading…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion mb-4" id="stock-status-help">
+                    <div class="accordion-item border-0 shadow-sm">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stock-status-collapse">
+                                What these statuses mean
+                            </button>
+                        </h2>
+                        <div id="stock-status-collapse" class="accordion-collapse collapse" data-bs-parent="#stock-status-help">
+                            <div class="accordion-body small text-muted">
+                                <ul class="mb-0">
+                                    <li><strong>Being prepared</strong> — we have your item and are inspecting or preparing it for sale.</li>
+                                    <li><strong>Being listed</strong> — we are creating or publishing the listing.</li>
+                                    <li><strong>Live</strong> — the listing is active and available for buyers.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="stock-journey-offcanvas" aria-labelledby="stock-journey-title" style="width: min(420px, 100vw);">
+        <div class="offcanvas-header border-bottom">
+            <div class="pe-3">
+                <h5 class="offcanvas-title mb-1" id="stock-journey-title">Item journey</h5>
+                <div class="small text-muted" id="stock-journey-ref"></div>
+                <div class="mt-2" id="stock-journey-status"></div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <div id="stock-journey-timeline">
+                <p class="text-muted small mb-0">Loading…</p>
+            </div>
+        </div>
+        <div class="offcanvas-footer border-top p-3 d-none" id="stock-journey-footer">
+            <button type="button" class="btn btn-outline-primary btn-sm rp-query-item-btn" id="stock-journey-query-btn">Query about this item</button>
+        </div>
+    </div>
+
+    <script src="assets/js/vendor.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script src="/assets/js/api.js?v=rp-api-2026"></script>
+    <script src="/assets/js/dateUk.js?v=rp-ordinal-display-2026"></script>
+    <script src="assets/js/custom.js"></script>
+    <script src="assets/js/dashboard.js?v=rp-your-stock-journey-2026"></script>
+</body>
+</html>

@@ -1335,6 +1335,7 @@ const API = {
             ['exports', 'page_exports'],
             ['activity', 'page_activity'],
             ['announcements', 'page_announcements'],
+            ['your-stock', 'page_your_stock'],
             ['item-pending', 'page_item_pending'],
             ['scorecard', 'page_scorecard'],
             ['faq', 'page_faq'],
@@ -1410,6 +1411,22 @@ const API = {
 
     async getExportsHub() {
         return this.request('/client/exports-hub');
+    },
+
+    async getClientStock(params) {
+        var q = '';
+        if (params && typeof params === 'object') {
+            var sp = new URLSearchParams();
+            if (params.group != null && params.group !== '') sp.set('group', String(params.group));
+            if (params.search != null && params.search !== '') sp.set('search', String(params.search));
+            var s = sp.toString();
+            if (s) q = '?' + s;
+        }
+        return this.request('/client/stock' + q);
+    },
+
+    async getStockItemJourney(id) {
+        return this.request('/client/stock/' + encodeURIComponent(id) + '/journey');
     },
 
     async getRecoveryScorecard(period) {

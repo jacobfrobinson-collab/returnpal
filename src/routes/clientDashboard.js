@@ -4,7 +4,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { getPayoutForecast } = require('../utils/payoutForecast');
 const { getComputedMonthlyStatements, buildInvoicePeriodPayload, parsePeriodYm } = require('../utils/computedMonthlyStatements');
 const { getRecoveryScorecard } = require('../utils/recoveryScorecard');
-const { buildPackageJourney } = require('../utils/packageJourney');
+const { buildPackageJourney, buildReferenceJourney } = require('../utils/packageJourney');
 const { parseClientPreferences, isPrepSendbackEnabled } = require('../utils/clientPreferences');
 const { clientIsAdmin, redactOrderNumberForClientRow } = require('../utils/internalFields');
 const {
@@ -17,6 +17,7 @@ const { getClientBenchmarks } = require('../utils/clientBenchmarks');
 const { setClientPayoutNote } = require('../utils/payoutEvents');
 const { ensurePayoutVerificationCode } = require('../utils/payoutVerificationCode');
 const { logClientAudit, logClientAuditBeacon } = require('../utils/clientAudit');
+const { buildClientStockPayload, clientStatusFromStage } = require('../utils/clientStockStatus');
 
 const router = express.Router();
 
@@ -435,6 +436,76 @@ router.get('/benchmarks', authMiddleware, async (req, res) => {
         res.json(getClientBenchmarks(db, req.user.id, period || undefined));
     } catch (err) {
         console.error('Benchmarks error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/stock/:id/journey
+router.get('/stock/:id/journey', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const uid = req.user.id;
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) {
+            return res.status(400).json({ error: 'Invalid item id' });
+        }
+        const rows = parseResults(
+            db.exec('SELECT * FROM pending_items WHERE id = ? AND user_id = ?', [id, uid])
+        );
+        const row = rows[0];
+        if (!row) {
+            return res.status(404).json({ error: 'Stock item not found' });
+        }
+
+        const status = clientStatusFromStage(row.current_stage);
+        let daysWithUs = null;
+        if (row.received_date) {
+            const d = new Date(String(row.received_date).slice(0, 10) + 'T12:00:00Z');
+            if (!Number.isNaN(d.getTime())) {
+                daysWithUs = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+            }
+        }
+
+        const item = {
+            id: row.id,
+            product: row.product || '',
+            reference: row.reference || '',
+            received_date: row.received_date || '',
+            client_status: status.label,
+            client_status_badge: status.badge_class,
+            days_with_us: daysWithUs,
+        };
+
+        const ref = String(row.reference || '').trim();
+        if (!ref) {
+            return res.json({
+                reference: '',
+                events: [],
+                item,
+                message: 'No reference linked yet',
+            });
+        }
+
+        const journey = buildReferenceJourney(db, uid, ref, {
+            clientFacing: true,
+            focusPendingId: id,
+        });
+        res.json({ ...journey, item });
+    } catch (err) {
+        console.error('Stock item journey error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/client/stock?group=&search=
+router.get('/stock', authMiddleware, async (req, res) => {
+    try {
+        const db = await getDb();
+        const group = String(req.query.group || 'all').trim();
+        const search = String(req.query.search || '').trim();
+        res.json(buildClientStockPayload(db, req.user.id, { group, search }));
+    } catch (err) {
+        console.error('Client stock error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

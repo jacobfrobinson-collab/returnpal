@@ -21,6 +21,7 @@
         ['exports', 'page_exports'],
         ['activity', 'page_activity'],
         ['announcements', 'page_announcements'],
+        ['your-stock', 'page_your_stock'],
         ['item-pending', 'page_item_pending'],
         ['scorecard', 'page_scorecard'],
         ['faq', 'page_faq'],

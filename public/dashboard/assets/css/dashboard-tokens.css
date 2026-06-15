@@ -168,6 +168,10 @@ button,
   opacity: 1;
 }
 
+.cursor-pointer {
+    cursor: pointer;
+}
+
 /* 13. Status badges */
 .rp-badge {
   display: inline-block;

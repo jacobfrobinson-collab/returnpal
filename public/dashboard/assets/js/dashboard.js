@@ -1194,6 +1194,9 @@ const Dashboard = {
 
     _finishDashboardInit() {
         this._logClientPageView();
+        if ((window.location.pathname || '').toLowerCase().includes('your-stock')) {
+            this._bindYourStockHandlers();
+        }
         this.loadDashboardNotifications();
         $(document).off('click', '.rp-query-item-btn').on('click', '.rp-query-item-btn', function() {
             const $b = $(this);
@@ -1244,8 +1247,10 @@ const Dashboard = {
         } else if (page.includes('sold-items')) {
             this.loadSold();
             this.loadSoldReturns();
+        } else if (page.includes('your-stock')) {
+            this.loadYourStock();
         } else if (page.includes('item-pending')) {
-            this.loadPending();
+            this.loadYourStock();
         } else if (page.includes('invoices')) {
             this.loadInvoices();
         } else if (page.includes('referrals')) {
@@ -1427,7 +1432,7 @@ const Dashboard = {
             ['packages.html', 'ri-box-3-line', 'Packages Sent'],
             ['received.html', 'ri-import-line', 'Received'],
             ['sold-items.html', 'ri-list-view', 'Sold Items'],
-            ['item-pending.html', 'ri-time-line', 'Items Pending'],
+            ['your-stock.html', 'ri-store-2-line', 'Your stock'],
             ['activity.html', 'ri-history-line', 'Activity'],
             ['inventory.html', 'ri-archive-drawer-line', 'Inventory'],
             ['analytics.html', 'ri-line-chart-line', 'Analytics'],
@@ -3656,7 +3661,319 @@ const Dashboard = {
         }
     },
 
-    // ─── PENDING ITEMS PAGE ──────────────────────────────────
+    // ─── YOUR STOCK PAGE ─────────────────────────────────────
+    _renderJourneyTimeline($tl, timeline) {
+        $tl.empty();
+        const events = Array.isArray(timeline) ? timeline : [];
+        if (!events.length) {
+            $tl.html('<p class="text-muted small mb-0">No journey events yet.</p>');
+            return;
+        }
+        events.forEach((t) => {
+            const icon = t.icon || 'ri-circle-line';
+            const msg = t.message || '';
+            const label = t.label || (t.stage ? String(t.stage).replace(/_/g, ' ') : '');
+            const when = t.timestamp && typeof RP_DATE !== 'undefined' && RP_DATE.formatOrdinalEnGb
+                ? RP_DATE.formatOrdinalEnGb(t.timestamp)
+                : t.timestamp
+                  ? this.formatDate(t.timestamp)
+                  : '';
+            let extraLink = '';
+            if (t.stage === 'sold') {
+                extraLink =
+                    ' <a href="received.html" class="small">Received</a>' +
+                    (t.received_item_id ? ' · <a href="sold-items.html" class="small">Sold items</a>' : '');
+            }
+            const highlight = t.focus_pending_id ? ' border-start border-3 border-primary ps-2 bg-light rounded' : '';
+            $tl.append(
+                '<div class="d-flex gap-2 mb-3 pb-2 border-bottom border-light-subtle' + highlight + '">' +
+                '<i class="' +
+                icon +
+                ' fs-5 text-primary mt-1"></i>' +
+                '<div><div class="small fw-medium text-capitalize">' +
+                this._invEsc(label || 'Update') +
+                '</div>' +
+                '<div class="small">' +
+                this._invEsc(msg) +
+                extraLink +
+                '</div>' +
+                (when ? '<small class="text-muted">' + this._invEsc(when) + '</small>' : '') +
+                '</div></div>'
+            );
+        });
+    },
+
+    _stockGroupFromUrl() {
+        const g = new URLSearchParams(window.location.search).get('group');
+        if (g && ['all', 'live', 'listing', 'preparing'].includes(g)) return g;
+        return 'all';
+    },
+
+    _setStockFilterTab(group) {
+        $('#stock-filter-tabs .nav-link').removeClass('active');
+        $('#stock-filter-tabs .nav-link[data-group="' + group + '"]').addClass('active');
+    },
+
+    async loadYourStock() {
+        const group = this._stockGroupFromUrl();
+        this._setStockFilterTab(group);
+        const search = ($('#stock-search').val() || '').trim();
+        const $tbody = $('#stock-tbody');
+        if ($tbody.length) {
+            $tbody.html('<tr><td colspan="6" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        }
+        try {
+            const data = await API.getClientStock({ group: group === 'all' ? '' : group, search });
+            const summary = data.summary || {};
+            $('#stock-kpi-total').text(summary.total_quantity != null ? summary.total_quantity : '0');
+            $('#stock-kpi-live').text(summary.live != null ? summary.live : '0');
+            $('#stock-kpi-preparing').text(summary.preparing != null ? summary.preparing : '0');
+            const sub = summary.total_items
+                ? summary.total_items + ' line' + (summary.total_items === 1 ? '' : 's')
+                : 'With ReturnPal now';
+            $('#stock-kpi-total-sub').text(sub);
+
+            const items = data.items || [];
+            this._lastStockData = items;
+            const attentionCount = (data.summary && data.summary.attention_count) || 0;
+            const attentionItems = Array.isArray(data.attention_items) ? data.attention_items : [];
+            const $strip = $('#stock-attention-strip');
+            if ($strip.length) {
+                if (attentionCount > 0) {
+                    $strip.removeClass('d-none');
+                    $('#stock-attention-title').text('Needs attention');
+                    $('#stock-attention-copy').text(
+                        attentionCount +
+                            ' item' +
+                            (attentionCount === 1 ? '' : 's') +
+                            ' have been with us 60+ days. We’re still working through them — open a row for the full journey or use Query for a specific update.'
+                    );
+                    const self = this;
+                    $('#stock-attention-list').html(
+                        attentionItems
+                            .map(function (row) {
+                                const days = row.days_with_us != null ? row.days_with_us + 'd' : '—';
+                                return (
+                                    '<li class="mb-1"><button type="button" class="btn btn-link btn-sm p-0 text-start stock-attention-link" data-stock-id="' +
+                                    (row.id != null ? row.id : '') +
+                                    '">' +
+                                    self._invEsc(row.product || 'Item') +
+                                    ' <span class="text-muted">(' +
+                                    days +
+                                    ' · ' +
+                                    self._invEsc(row.client_status || '') +
+                                    ')</span></button></li>'
+                                );
+                            })
+                            .join('')
+                    );
+                } else {
+                    $strip.addClass('d-none');
+                    $('#stock-attention-list').empty();
+                }
+            }
+
+            $tbody.empty();
+            if (!items.length) {
+                $tbody.html(
+                    '<tr><td colspan="6" class="text-center py-5">' +
+                    '<p class="text-muted mb-3">No stock with us yet' +
+                    (search || group !== 'all' ? ' matching this filter' : '') +
+                    '. Items appear here after we receive and log them.</p>' +
+                    '<a href="received.html" class="btn btn-outline-primary btn-sm me-2">View received</a>' +
+                    '<a href="packages.html" class="btn btn-primary btn-sm">Packages sent</a>' +
+                    '</td></tr>'
+                );
+                return;
+            }
+            items.forEach((item) => {
+                const qLabel = String(item.product || '') + ' · ref ' + String(item.reference || '');
+                const qEsc = qLabel.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                const since = item.received_date ? this.formatDate(item.received_date) : '—';
+                const days =
+                    item.days_with_us != null ? ' <span class="text-muted">(' + item.days_with_us + 'd)</span>' : '';
+                const attentionBadge = item.needs_attention
+                    ? ' <span class="badge rp-badge-warning ms-1">60+ days</span>'
+                    : '';
+                const badge = item.client_status_badge || 'bg-secondary';
+                const rowClass = item.needs_attention ? 'stock-row table-warning' : 'stock-row';
+                $tbody.append(
+                    '<tr class="' +
+                    rowClass +
+                    ' cursor-pointer" role="button" tabindex="0" data-stock-id="' +
+                    (item.id != null ? item.id : '') +
+                    '" data-stock-ref="' +
+                    this._invEsc(item.reference || '') +
+                    '">' +
+                    '<td>' +
+                    this._invEsc(item.product || '') +
+                    '</td>' +
+                    '<td class="text-center">' +
+                    (item.quantity != null ? item.quantity : 1) +
+                    '</td>' +
+                    '<td class="small">' +
+                    this._invEsc(item.reference || '—') +
+                    '</td>' +
+                    '<td><span class="badge ' +
+                    badge +
+                    '">' +
+                    this._invEsc(item.client_status || '') +
+                    '</span></td>' +
+                    '<td class="small">' +
+                    since +
+                    days +
+                    attentionBadge +
+                    '</td>' +
+                    '<td class="text-end"><button type="button" class="btn btn-link btn-sm p-0 rp-query-item-btn" data-ctx-type="pending" data-ctx-id="' +
+                    (item.id != null ? item.id : '') +
+                    '" data-ctx-label="' +
+                    qEsc +
+                    '">Query</button></td>' +
+                    '</tr>'
+                );
+            });
+        } catch (err) {
+            console.error('Load your stock error:', err);
+            const msg = err.error || 'Unable to load your stock.';
+            $tbody.html(
+                '<tr><td colspan="6" class="text-center py-5"><p class="text-danger mb-2">' +
+                this._invEsc(msg) +
+                '</p><button type="button" class="btn btn-outline-primary btn-sm" id="stock-retry">Try again</button></td></tr>'
+            );
+            $('#stock-retry').on('click', () => this.loadYourStock());
+        }
+    },
+
+    _bindYourStockHandlers() {
+        if (this._yourStockHandlersBound) return;
+        this._yourStockHandlersBound = true;
+        const self = this;
+        $('#stock-filter-tabs').on('click', '.nav-link', function() {
+            const g = $(this).data('group') || 'all';
+            const url = new URL(window.location.href);
+            if (g === 'all') url.searchParams.delete('group');
+            else url.searchParams.set('group', g);
+            window.history.replaceState({}, '', url.pathname + url.search);
+            self._setStockFilterTab(g);
+            self.loadYourStock();
+        });
+        let searchTimer;
+        $('#stock-search').on('input', function() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => self.loadYourStock(), 300);
+        });
+        $('#stock-export-csv').on('click', () => self.exportStockCsv());
+        $('#stock-tbody').on('click', 'tr.stock-row', function(e) {
+            if ($(e.target).closest('.rp-query-item-btn').length) return;
+            const id = $(this).data('stock-id');
+            if (id != null && id !== '') self.openStockJourneyDrawer(id);
+        });
+        $('#stock-tbody').on('keydown', 'tr.stock-row', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                const id = $(this).data('stock-id');
+                if (id != null && id !== '') self.openStockJourneyDrawer(id);
+            }
+        });
+        $('#stock-attention-list').on('click', '.stock-attention-link', function(e) {
+            e.preventDefault();
+            const id = $(this).data('stock-id');
+            if (id != null && id !== '') self.openStockJourneyDrawer(id);
+        });
+    },
+
+    async openStockJourneyDrawer(stockId) {
+        const id = String(stockId || '').trim();
+        if (!id) return;
+        const el = document.getElementById('stock-journey-offcanvas');
+        if (!el || typeof bootstrap === 'undefined') return;
+        const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(el);
+        $('#stock-journey-title').text('Item journey');
+        $('#stock-journey-ref').text('');
+        $('#stock-journey-status').empty();
+        $('#stock-journey-timeline').html(
+            '<p class="text-muted small mb-0"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</p>'
+        );
+        $('#stock-journey-footer').addClass('d-none');
+        offcanvas.show();
+        try {
+            const data = await API.getStockItemJourney(id);
+            const item = data.item || {};
+            $('#stock-journey-title').text(item.product || 'Item journey');
+            $('#stock-journey-ref').text(item.reference ? 'Ref ' + item.reference : '');
+            const badge = item.client_status_badge || 'bg-secondary';
+            $('#stock-journey-status').html(
+                item.client_status
+                    ? '<span class="badge ' + badge + '">' + this._invEsc(item.client_status) + '</span>'
+                    : ''
+            );
+            const events = data.events || [];
+            this._renderJourneyTimeline($('#stock-journey-timeline'), events);
+            if (!events.length) {
+                const msg = data.message || 'No journey events yet for this reference.';
+                $('#stock-journey-timeline').html('<p class="text-muted small mb-0">' + this._invEsc(msg) + '</p>');
+            }
+            const qLabel = String(item.product || '') + ' · ref ' + String(item.reference || '');
+            const $qBtn = $('#stock-journey-query-btn');
+            $qBtn.attr('data-ctx-type', 'pending');
+            $qBtn.attr('data-ctx-id', item.id != null ? item.id : id);
+            $qBtn.attr('data-ctx-label', qLabel.replace(/"/g, '&quot;'));
+            $('#stock-journey-footer').removeClass('d-none');
+            this._logClientViewAction('stock_journey_open', {
+                resource: item.reference || String(id),
+                detail: { stock_id: id },
+            });
+        } catch (err) {
+            console.error('Stock journey error:', err);
+            const msg = err.error || err.message || 'Unable to load journey.';
+            $('#stock-journey-timeline').html(
+                '<p class="text-danger small mb-2">' +
+                this._invEsc(msg) +
+                '</p><button type="button" class="btn btn-outline-primary btn-sm" id="stock-journey-retry">Try again</button>'
+            );
+            $('#stock-journey-retry').on('click', () => this.openStockJourneyDrawer(id));
+        }
+    },
+
+    async exportStockCsv() {
+        const group = this._stockGroupFromUrl();
+        const search = ($('#stock-search').val() || '').trim();
+        let items = [];
+        try {
+            const data = await API.getClientStock({ group: group === 'all' ? '' : group, search: search });
+            items = data.items || [];
+        } catch (err) {
+            this.showToast(err.error || 'Unable to export stock.', 'error');
+            return;
+        }
+        if (!items.length) {
+            this.showToast('No stock items to export.', 'error');
+            return;
+        }
+        const escCell = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+        const rows = [['Product', 'Reference', 'Quantity', 'Status', 'Received date (YYYY-MM-DD)', 'Days with us']];
+        items.forEach((item) => {
+            rows.push([
+                item.product || '',
+                item.reference || '',
+                String(item.quantity != null ? item.quantity : 1),
+                item.client_status || '',
+                item.received_date ? this.formatDateIso(item.received_date) : '',
+                item.days_with_us != null ? String(item.days_with_us) : '',
+            ]);
+        });
+        const csv = rows.map((r) => r.map((c) => escCell(c)).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'returnpal-your-stock-' + RP_DATE.formatIso(new Date()) + '.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        this._logClientExport('export_stock_csv', { row_count: items.length });
+        this.showToast('Your stock CSV downloaded');
+    },
+
+    // ─── PENDING ITEMS PAGE (legacy; redirects to your-stock) ───
     async loadPending() {
         const $tbody = $('table tbody');
         if ($tbody.length) $tbody.html('<tr><td colspan="9" class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
@@ -5021,7 +5338,7 @@ const Dashboard = {
                 label: 'Processing',
                 sub: 'Inspection & prep',
                 icon: 'ri-time-line',
-                href: 'item-pending.html',
+                href: 'your-stock.html?group=preparing',
                 count: Number(p.processing) || 0,
                 empty: 'No items in processing.',
             },
@@ -5030,7 +5347,7 @@ const Dashboard = {
                 label: 'Listing',
                 sub: 'Ready / listed',
                 icon: 'ri-store-2-line',
-                href: 'item-pending.html',
+                href: 'your-stock.html',
                 count: (Number(p.listing) || 0) + (Number(p.ready) || 0),
                 empty: 'No items in listing stages.',
             },
@@ -5122,7 +5439,7 @@ const Dashboard = {
                 '</div>'
         );
         $bar.find('.inv-stage-segment').on('click', () => {
-            window.location.href = 'item-pending.html';
+            window.location.href = 'your-stock.html';
         });
         if ($legend.length) {
             $legend.html(
@@ -5802,39 +6119,7 @@ const Dashboard = {
                 detail: { package_id: id },
             });
             const timeline = (data.journey && data.journey.events) || data.timeline || [];
-            const $tl = $('#pkg-timeline');
-            $tl.empty();
-            if (!timeline.length) {
-                $tl.html('<p class="text-muted small mb-0">No journey events yet.</p>');
-            } else {
-                timeline.forEach((t) => {
-                    const icon = t.icon || 'ri-circle-line';
-                    const msg = t.message || '';
-                    const label = t.stage ? String(t.stage).replace(/_/g, ' ') : '';
-                    const when = t.timestamp ? RP_DATE.formatOrdinalEnGb(t.timestamp) : '';
-                    let extraLink = '';
-                    if (t.stage === 'sold') {
-                        extraLink =
-                            ' <a href="received.html" class="small">Received</a>' +
-                            (t.received_item_id ? ' · <a href="sold-items.html" class="small">Sold items</a>' : '');
-                    }
-                    $tl.append(
-                        '<div class="d-flex gap-2 mb-3 pb-2 border-bottom border-light-subtle">' +
-                        '<i class="' +
-                        icon +
-                        ' fs-5 text-primary mt-1"></i>' +
-                        '<div><div class="small fw-medium text-capitalize">' +
-                        (label || 'Update') +
-                        '</div>' +
-                        '<div class="small">' +
-                        msg +
-                        extraLink +
-                        '</div>' +
-                        (when ? '<small class="text-muted">' + when + '</small>' : '') +
-                        '</div></div>'
-                    );
-                });
-            }
+            this._renderJourneyTimeline($('#pkg-timeline'), timeline);
         } catch (err) {
             console.error('Load package detail error:', err);
             if ($card.length) this.showError($card, err.error || 'Unable to load package.', () => this.loadPackageDetail());

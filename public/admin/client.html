@@ -206,28 +206,42 @@
                     </div>
                 </div>
 
-                <div class="section-card card">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <span>Pending items</span>
-                        <div class="d-flex flex-wrap align-items-center gap-2">
-                            <label class="small text-muted mb-0">Saved view</label>
-                            <select class="form-select form-select-sm" id="pending-stage-filter" style="width:auto;min-width:160px;">
-                                <option value="all">All stages</option>
-                                <option value="Initial Inspection">Initial Inspection</option>
-                                <option value="Quality Check">Quality Check</option>
-                                <option value="Return Verification">Return Verification</option>
-                                <option value="Listing">Listing</option>
-                                <option value="Ready for Sale">Ready for Sale</option>
-                            </select>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="export-pending-csv">Export CSV</button>
-                            <button type="button" class="btn btn-sm btn-warning" id="btn-open-pending-modal">+ Add pending</button>
+                <div class="section-card card" id="client-stock-card">
+                    <div class="card-header bg-white">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                            <div>
+                                <span class="fw-semibold">Client stock</span>
+                                <p class="small text-muted mb-0 mt-1">What the client sees on <strong>Your stock</strong>. Update stage here — no separate system. When an item sells, delete the row or it stays visible until removed.</p>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <label class="small text-muted mb-0">Client view</label>
+                                <select class="form-select form-select-sm" id="pending-group-filter" style="width:auto;min-width:150px;">
+                                    <option value="all">All stock</option>
+                                    <option value="preparing">Being prepared</option>
+                                    <option value="listing">Listing on eBay</option>
+                                    <option value="live">Live on eBay</option>
+                                </select>
+                                <label class="small text-muted mb-0">Internal</label>
+                                <select class="form-select form-select-sm" id="pending-stage-filter" style="width:auto;min-width:140px;">
+                                    <option value="all">All stages</option>
+                                    <option value="Initial Inspection">Initial Inspection</option>
+                                    <option value="Quality Check">Quality Check</option>
+                                    <option value="Return Verification">Return Verification</option>
+                                    <option value="Listing">Listing</option>
+                                    <option value="Ready for Sale">Ready for Sale</option>
+                                </select>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="export-pending-csv">Export CSV</button>
+                                <button type="button" class="btn btn-sm btn-warning" id="btn-open-pending-modal">+ Add stock item</button>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body p-0">
                         <div class="bulk-actions-bar px-2 py-2 border-bottom bg-light">
                             <div class="d-flex flex-wrap align-items-center gap-2">
                                 <span class="small fw-semibold text-secondary text-nowrap">Bulk actions</span>
-                                <label class="small text-muted mb-0">Set stage</label>
+                                <button type="button" class="btn btn-sm btn-outline-info" id="btn-pending-mark-listing" disabled>Mark listing on eBay</button>
+                                <button type="button" class="btn btn-sm btn-outline-success" id="btn-pending-mark-live" disabled>Mark live on eBay</button>
+                                <label class="small text-muted mb-0">Or set stage</label>
                                 <select class="form-select form-select-sm" id="pending-bulk-stage" style="width:auto;min-width:140px;max-width:220px">
                                     <option value="Initial Inspection">Initial Inspection</option>
                                     <option value="Quality Check">Quality Check</option>
@@ -242,7 +256,7 @@
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead><tr><th style="width:36px"><input type="checkbox" id="pending-select-all" aria-label="Select all pending"></th><th>Order #</th><th>Product</th><th>Stage</th><th>Est. completion</th><th class="text-end">Actions</th></tr></thead>
+                                <thead><tr><th style="width:36px"><input type="checkbox" id="pending-select-all" aria-label="Select all stock"></th><th>Product</th><th>Qty</th><th>Reference</th><th>Client sees</th><th>Stage</th><th>Since</th><th class="text-end">Actions</th></tr></thead>
                                 <tbody id="pending-tbody"></tbody>
                             </table>
                         </div>
@@ -515,6 +529,7 @@
                             <option value="Listing">Listing</option>
                             <option value="Ready for Sale">Ready for Sale</option>
                         </select>
+                        <div class="form-text" id="pending-client-preview">Client will see: <strong>Being prepared</strong></div>
                     </div>
                     <div class="mb-2"><label class="form-label">Est. completion (date)</label><input type="text" class="form-control" id="pending-est" placeholder="YYYY-MM-DD" /></div>
                     <div class="mb-2"><label class="form-label">Notes</label><input type="text" class="form-control" id="pending-notes" placeholder="Optional" /></div>
@@ -652,6 +667,44 @@
         $('#admin-client-id-badge').text('ID ' + String(parseInt(clientId, 10) || 0).padStart(4, '0'));
         $('#client-activity-log-link').attr('href', '/admin/audit.html?user_id=' + encodeURIComponent(clientId) + '&tab=client');
         $('#link-view-dashboard').attr('href', '#');
+
+        var STOCK_STAGE_GROUPS = {
+            preparing: ['Initial Inspection', 'Quality Check', 'Return Verification'],
+            listing: ['Listing'],
+            live: ['Ready for Sale']
+        };
+        var PENDING_STAGES = ['Initial Inspection', 'Quality Check', 'Return Verification', 'Listing', 'Ready for Sale'];
+        function clientStockClientLabel(stage) {
+            var s = String(stage || '').trim();
+            if (s === 'Ready for Sale') return { label: 'Live', badge: 'bg-success' };
+            if (s === 'Listing') return { label: 'Being listed', badge: 'bg-info text-dark' };
+            return { label: 'Being prepared', badge: 'bg-warning text-dark' };
+        }
+        function updatePendingClientPreview() {
+            var st = $('#pending-stage').val();
+            var info = clientStockClientLabel(st);
+            $('#pending-client-preview').html('Client will see: <strong>' + escapeHtml(info.label) + '</strong>');
+        }
+        function filterPendingList(fullList) {
+            var list = (fullList || []).slice();
+            var gf = $('#pending-group-filter').val() || 'all';
+            if (gf !== 'all' && STOCK_STAGE_GROUPS[gf]) {
+                list = list.filter(function(p) {
+                    return STOCK_STAGE_GROUPS[gf].indexOf(p.current_stage || '') >= 0;
+                });
+            }
+            var pf = $('#pending-stage-filter').val() || 'all';
+            if (pf !== 'all') list = list.filter(function(p) { return (p.current_stage || '') === pf; });
+            return list;
+        }
+        function pendingStageSelectHtml(id, current) {
+            var cur = String(current || 'Initial Inspection');
+            var html = '<select class="form-select form-select-sm pending-inline-stage" data-id="' + id + '" style="min-width:130px;max-width:180px">';
+            PENDING_STAGES.forEach(function(st) {
+                html += '<option value="' + escapeHtml(st) + '"' + (st === cur ? ' selected' : '') + '>' + escapeHtml(st) + '</option>';
+            });
+            return html + '</select>';
+        }
 
         $('#btn-invoice-month-sources').on('click', function() {
             var $pre = $('#invoice-month-sources-pre');
@@ -1020,6 +1073,8 @@
             $('#pending-selected-count').text(n + ' selected');
             $('#btn-delete-pending-selected').prop('disabled', n === 0);
             $('#btn-pending-stage-selected').prop('disabled', n === 0);
+            $('#btn-pending-mark-listing').prop('disabled', n === 0);
+            $('#btn-pending-mark-live').prop('disabled', n === 0);
             var $c = $('.pending-select');
             var sel = $c.length;
             var chk = $c.filter(':checked').length;
@@ -1410,37 +1465,45 @@
             API.request('/admin/users/' + clientId + '/pending').then(function(data) {
                 var fullList = data.items || [];
                 window._adminPendingFullList = fullList;
+                var pgf = localStorage.getItem('rp_admin_pending_group_' + clientId) || 'all';
                 var pf = localStorage.getItem('rp_admin_pending_stage_' + clientId) || 'all';
+                $('#pending-group-filter').val(pgf);
                 $('#pending-stage-filter').val(pf);
-                var list = fullList.slice();
-                if (pf !== 'all') list = list.filter(function(p) { return (p.current_stage || '') === pf; });
+                var list = filterPendingList(fullList);
                 var $tb = $('#pending-tbody');
                 $tb.empty();
                 list.forEach(function(p) {
                     var $tr = $('<tr>');
                     var idStr = String(p.id);
                     var chk = selectedPendingIds.has(idStr) ? ' checked' : '';
+                    var clientInfo = clientStockClientLabel(p.current_stage);
                     $tr.append('<td class="text-center"><input type="checkbox" class="pending-select form-check-input m-0" data-id="' + p.id + '"' + chk + ' /></td>');
-                    $tr.append('<td class="text-muted small">' + escapeHtml(p.order_number || '') + '</td><td>' + escapeHtml(p.product || '') + '</td><td>' + escapeHtml(p.current_stage || '') + '</td><td>' + fmtDate(p.est_completion) + '</td>');
+                    $tr.append('<td>' + escapeHtml(p.product || '') + '</td>');
+                    $tr.append('<td class="text-center">' + escapeHtml(String(p.quantity != null ? p.quantity : 1)) + '</td>');
+                    $tr.append('<td class="small text-muted">' + escapeHtml(p.reference || '—') + '</td>');
+                    $tr.append('<td><span class="badge ' + clientInfo.badge + '">' + escapeHtml(clientInfo.label) + '</span></td>');
+                    $tr.append('<td>' + pendingStageSelectHtml(p.id, p.current_stage) + '</td>');
+                    $tr.append('<td class="small">' + fmtDate(p.received_date) + '</td>');
                     var $td = $('<td class="text-end text-nowrap"></td>');
                     var $grp = $('<div class="btn-group btn-group-sm"></div>');
                     var $ed = $('<button type="button" class="btn btn-outline-primary">Edit</button>');
                     $ed.on('click', function() {
                         $('#pending-edit-id').val(p.id);
-                        $('#pending-modal-title').text('Edit pending item');
+                        $('#pending-modal-title').text('Edit stock item');
                         $('#pending-btn-label').text('Save');
                         $('#pending-reference').val(p.reference || '');
                         $('#pending-order-number').val(p.order_number || '');
                         $('#pending-product').val(p.product || '');
                         $('#pending-qty').val(p.quantity || 1);
                         $('#pending-stage').val(p.current_stage || 'Initial Inspection');
+                        updatePendingClientPreview();
                         $('#pending-est').val(p.est_completion ? String(p.est_completion).slice(0, 10) : '');
                         $('#pending-notes').val(p.notes || '');
                         new bootstrap.Modal(document.getElementById('modal-add-pending')).show();
                     });
                     var $rm = $('<button type="button" class="btn btn-outline-danger">Delete</button>');
                     $rm.on('click', function() {
-                        if (!confirm('Delete this pending item?')) return;
+                        if (!confirm('Delete this stock item? It will disappear from the client Your stock page.')) return;
                         API.request('/pending/' + p.id, { method: 'DELETE' }).then(function() { refreshAll(); }).catch(function(e) { alert(e.error || 'Failed'); });
                     });
                     $grp.append($ed).append($rm);
@@ -1448,10 +1511,10 @@
                     $tr.append($td);
                     $tb.append($tr);
                 });
-                if (list.length === 0) $tb.append('<tr><td colspan="6" class="text-muted">None</td></tr>');
+                if (list.length === 0) $tb.append('<tr><td colspan="8" class="text-muted p-3">No stock items' + (pgf !== 'all' || pf !== 'all' ? ' for this filter' : '') + '.</td></tr>');
                 updatePendingSelectionUi();
             }).catch(function() {
-                $('#pending-tbody').html('<tr><td colspan="6" class="text-danger">Failed to load</td></tr>');
+                $('#pending-tbody').html('<tr><td colspan="8" class="text-danger">Failed to load</td></tr>');
                 updatePendingSelectionUi();
             });
         }
@@ -2045,11 +2108,12 @@
 
         function resetPendingModalForNew() {
             $('#pending-edit-id').val('');
-            $('#pending-modal-title').text('Add pending item');
+            $('#pending-modal-title').text('Add stock item');
             $('#pending-btn-label').text('Add');
             $('#pending-product, #pending-reference, #pending-est, #pending-notes, #pending-order-number').val('');
             $('#pending-qty').val(1);
             $('#pending-stage').val('Initial Inspection');
+            updatePendingClientPreview();
         }
 
         $('#btn-open-pending-modal').on('click', function() {
@@ -2284,9 +2348,53 @@
             localStorage.setItem('rp_admin_pkg_filter_' + clientId, $(this).val());
             loadPackages();
         });
+        $('#pending-group-filter').on('change', function() {
+            localStorage.setItem('rp_admin_pending_group_' + clientId, $(this).val());
+            loadPending();
+        });
         $('#pending-stage-filter').on('change', function() {
             localStorage.setItem('rp_admin_pending_stage_' + clientId, $(this).val());
             loadPending();
+        });
+        $(document).on('change', '.pending-inline-stage', function() {
+            var id = $(this).data('id');
+            var st = $(this).val();
+            if (!id || !st) return;
+            var $sel = $(this);
+            $sel.prop('disabled', true);
+            API.request('/pending/' + id + '/stage', { method: 'PUT', body: { current_stage: st } })
+                .then(function() { loadPending(); })
+                .catch(function(e) {
+                    alert(e.error || 'Failed to update stage');
+                    loadPending();
+                })
+                .finally(function() { $sel.prop('disabled', false); });
+        });
+        $('#pending-stage').on('change', updatePendingClientPreview);
+        function bulkSetPendingStage(stage, confirmTitle, confirmBody) {
+            var ids = Array.from(selectedPendingIds);
+            if (!ids.length) return;
+            showBulkConfirmModal(confirmTitle, confirmBody, 'btn-primary', async function() {
+                var failures = [];
+                await Promise.all(ids.map(async function(id) {
+                    try {
+                        await API.request('/pending/' + id + '/stage', { method: 'PUT', body: { current_stage: stage } });
+                    } catch (e) {
+                        failures.push(id);
+                    }
+                }));
+                if (failures.length) {
+                    alert('Updated ' + (ids.length - failures.length) + ' row(s). Failed: ' + failures.length + '.');
+                }
+                selectedPendingIds.clear();
+                refreshAll();
+            });
+        }
+        $('#btn-pending-mark-listing').on('click', function() {
+            bulkSetPendingStage('Listing', 'Mark selected as listing on eBay?', 'Sets stage to Listing for ' + selectedPendingIds.size + ' item(s). Clients will see “Being listed”.');
+        });
+        $('#btn-pending-mark-live').on('click', function() {
+            bulkSetPendingStage('Ready for Sale', 'Mark selected as live on eBay?', 'Sets stage to Ready for Sale for ' + selectedPendingIds.size + ' item(s). Clients will see “Live”.');
         });
 
         $('#export-packages-csv').on('click', function() {
@@ -2342,20 +2450,20 @@
             );
         });
         $('#export-pending-csv').on('click', function() {
-            var pf = $('#pending-stage-filter').val();
-            var list = (window._adminPendingFullList || []).slice();
-            if (pf !== 'all') list = list.filter(function(p) { return (p.current_stage || '') === pf; });
+            var list = filterPendingList(window._adminPendingFullList || []);
             downloadCsv(
-                'client-' + clientId + '-pending.csv',
-                ['Order #', 'Product', 'Stage', 'Est completion', 'Reference', 'Quantity', 'Notes'],
+                'client-' + clientId + '-stock.csv',
+                ['Product', 'Quantity', 'Reference', 'Client status', 'Internal stage', 'Received', 'Order #', 'Notes'],
                 list.map(function(p) {
+                    var cl = clientStockClientLabel(p.current_stage);
                     return [
-                        p.order_number || '',
                         p.product || '',
-                        p.current_stage || '',
-                        p.est_completion || '',
-                        p.reference || '',
                         p.quantity != null ? p.quantity : '',
+                        p.reference || '',
+                        cl.label,
+                        p.current_stage || '',
+                        p.received_date || '',
+                        p.order_number || '',
                         p.notes || '',
                     ];
                 })

@@ -10,7 +10,7 @@ const recentPageViews = new Map();
 const PAGE_VIEW_DEBOUNCE_MS = 30000;
 
 const BEACON_CATEGORIES = new Set(['view', 'export']);
-const BEACON_ACTION_PREFIXES = ['page_', 'export_', 'package_journey_open', 'print_invoice'];
+const BEACON_ACTION_PREFIXES = ['page_', 'export_', 'package_journey_open', 'stock_journey_open', 'print_invoice'];
 
 function parseResults(result) {
     if (!result || !result.length) return [];
