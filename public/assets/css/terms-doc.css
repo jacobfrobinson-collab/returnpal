@@ -1,0 +1,291 @@
+/* Returns Recovery Terms — layout scoped to match ReturnPal site chrome */
+
+.terms-doc {
+  max-width: 52rem;
+  margin-left: auto;
+  margin-right: auto;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--body-color, #212529);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+.terms-doc a {
+  color: var(--theme-color, #0d6efd);
+  text-decoration: none;
+}
+
+.terms-doc a:hover {
+  text-decoration: underline;
+}
+
+.terms-doc a:focus-visible {
+  outline: 2px solid var(--theme-color, #0d6efd);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.terms-doc .titleblock {
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+}
+
+.terms-doc .titleblock h1 {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.terms-doc .meta {
+  color: var(--bs-secondary-color, #6c757d);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.terms-doc .meta b {
+  color: inherit;
+  font-weight: 600;
+}
+
+.terms-doc .lead {
+  margin: 0 0 1.5rem;
+}
+
+.terms-doc .callout {
+  margin: 1.75rem 0;
+  padding: 1.25rem 1.35rem;
+  background: var(--bs-warning-bg-subtle, #fff3cd);
+  border: 1px solid var(--bs-warning-border-subtle, #ffe69c);
+  border-radius: var(--bs-border-radius-lg, 0.5rem);
+}
+
+.terms-doc .callout h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--bs-warning-text-emphasis, #664d03);
+}
+
+.terms-doc .callout p,
+.terms-doc .callout ul {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  color: var(--bs-body-color, #212529);
+}
+
+.terms-doc .callout ul {
+  padding-left: 1.25rem;
+  margin-bottom: 0;
+}
+
+.terms-doc .callout li {
+  margin: 0.35rem 0;
+}
+
+.terms-doc .callout a {
+  font-weight: 600;
+}
+
+.terms-doc nav.toc {
+  margin: 1.75rem 0;
+  padding: 1.25rem 1.35rem;
+  background: var(--theme-bg-light, #f8f9fa);
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: var(--bs-border-radius-lg, 0.5rem);
+}
+
+.terms-doc nav.toc h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--bs-secondary-color, #6c757d);
+}
+
+.terms-doc nav.toc ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  columns: 2;
+  column-gap: 2rem;
+}
+
+@media (max-width: 640px) {
+  .terms-doc nav.toc ol {
+    columns: 1;
+  }
+}
+
+.terms-doc nav.toc li {
+  margin: 0.25rem 0;
+  font-size: 0.92rem;
+  break-inside: avoid;
+}
+
+.terms-doc nav.toc .num {
+  display: inline-block;
+  width: 1.5rem;
+  color: var(--bs-secondary-color, #6c757d);
+  font-variant-numeric: tabular-nums;
+}
+
+.terms-doc section.clause {
+  padding: 1.75rem 0 0.25rem;
+  border-top: 1px solid var(--bs-border-color, #dee2e6);
+}
+
+.terms-doc section.clause:first-of-type {
+  border-top: none;
+  padding-top: 0.5rem;
+}
+
+.terms-doc h2.ch {
+  font-size: 1.2rem;
+  margin: 0 0 0.85rem;
+  color: var(--body-color, #212529);
+  letter-spacing: -0.01em;
+  display: flex;
+  gap: 0.65rem;
+  align-items: baseline;
+}
+
+.terms-doc h2.ch .n {
+  color: var(--theme-color, #0d6efd);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.terms-doc .clause p {
+  margin: 0 0 0.75rem;
+}
+
+.terms-doc .clause ol.sub {
+  margin: 0 0 0.75rem;
+  padding-left: 0;
+  list-style: none;
+  counter-reset: s;
+}
+
+.terms-doc .clause ol.sub > li {
+  position: relative;
+  padding-left: 2.75rem;
+  margin: 0 0 0.65rem;
+  counter-increment: s;
+}
+
+.terms-doc .clause ol.sub > li::before {
+  content: counter(chap) "." counter(s);
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--bs-secondary-color, #6c757d);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.92rem;
+}
+
+.terms-doc .clause ol.alpha {
+  margin: 0.5rem 0 0.75rem;
+  padding-left: 0;
+  list-style: none;
+  counter-reset: a;
+}
+
+.terms-doc .clause ol.alpha > li {
+  position: relative;
+  padding-left: 2rem;
+  margin: 0 0 0.5rem;
+  counter-increment: a;
+}
+
+.terms-doc .clause ol.alpha > li::before {
+  content: "(" counter(a, lower-alpha) ")";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--bs-secondary-color, #6c757d);
+}
+
+.terms-doc .strong-term {
+  font-weight: 700;
+}
+
+.terms-doc table.defs {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.35rem 0 0.85rem;
+  font-size: 0.95rem;
+}
+
+.terms-doc table.defs th,
+.terms-doc table.defs td {
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  padding: 0.55rem 0.75rem;
+  vertical-align: top;
+  text-align: left;
+}
+
+.terms-doc table.defs th {
+  background: var(--theme-bg-light, #f8f9fa);
+  width: 34%;
+  font-weight: 700;
+}
+
+.terms-doc .annex {
+  padding: 1.75rem 0 0.25rem;
+  border-top: 3px solid var(--theme-color, #0d6efd);
+  margin-top: 1.25rem;
+}
+
+.terms-doc .annex h2 {
+  font-size: 1.2rem;
+  color: var(--body-color, #212529);
+  margin: 0 0 0.75rem;
+}
+
+.terms-doc .annex h3.terms-annex-subhead,
+.terms-doc .terms-annex-subhead {
+  font-size: 1rem;
+  color: var(--body-color, #212529);
+  margin: 0.85rem 0 0.35rem;
+  font-weight: 600;
+}
+
+.terms-doc .annex ul {
+  margin: 0 0 0.75rem;
+  padding-left: 1.35rem;
+}
+
+.terms-doc .annex li {
+  margin: 0.35rem 0;
+}
+
+.terms-doc .terms-doc-footer {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--bs-border-color, #dee2e6);
+  color: var(--bs-secondary-color, #6c757d);
+  font-size: 0.9rem;
+}
+
+.terms-doc .terms-doc-footer a {
+  color: var(--theme-color, #0d6efd);
+}
+
+.terms-doc .backtop {
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}

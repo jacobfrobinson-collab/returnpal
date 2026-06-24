@@ -1,114 +1,33 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en-GB">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ReturnPal — Returns Recovery Terms of Service</title>
-<style>
-  :root{
-    --navy:#16365c;
-    --navy-2:#1f4e79;
-    --ink:#1c2430;
-    --slate:#54637a;
-    --line:#e3e8f0;
-    --bg:#f7f9fc;
-    --paper:#ffffff;
-    --accent:#c8941f;
-    --flag:#fff8e8;
-    --flag-line:#e8cf8c;
-    --maxw:820px;
-  }
-  *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
-  body{
-    margin:0;background:var(--bg);color:var(--ink);
-    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    font-size:16.5px;line-height:1.65;-webkit-font-smoothing:antialiased;
-  }
-  a{color:var(--navy-2);text-decoration:none}
-  a:hover{text-decoration:underline}
-  a:focus-visible{outline:2px solid var(--navy-2);outline-offset:2px;border-radius:2px}
-
-  header.site{
-    background:var(--navy);color:#fff;padding:22px 24px;
-  }
-  header.site .wrap{max-width:var(--maxw);margin:0 auto;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
-  header.site .logo{font-weight:800;letter-spacing:.5px;font-size:22px}
-  header.site .logo span{color:#9cc0e8}
-  header.site .crumb{color:#bcd0e8;font-size:14px;margin-left:auto}
-
-  .doc{max-width:var(--maxw);margin:0 auto;padding:0 24px 80px}
-
-  .titleblock{padding:40px 0 8px;border-bottom:1px solid var(--line)}
-  .titleblock h1{font-size:30px;line-height:1.2;margin:0 0 10px;color:var(--ink);letter-spacing:-.01em}
-  .meta{color:var(--slate);font-size:14.5px;margin:0}
-  .meta b{color:var(--ink)}
-
-  .lead{margin:26px 0 0;color:var(--ink)}
-
-  .callout{
-    margin:28px 0;background:var(--flag);border:1px solid var(--flag-line);
-    border-radius:10px;padding:18px 20px;
-  }
-  .callout h2{margin:0 0 8px;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:#8a6a13}
-  .callout p{margin:0 0 10px;font-size:15px;color:#5b4a1c}
-  .callout ul{margin:0;padding-left:20px;font-size:15px;color:#3f3414}
-  .callout li{margin:5px 0}
-  .callout a{color:#8a5a00;font-weight:600}
-
-  nav.toc{
-    margin:30px 0;padding:20px 22px;background:var(--paper);
-    border:1px solid var(--line);border-radius:10px;
-  }
-  nav.toc h2{margin:0 0 12px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate)}
-  nav.toc ol{margin:0;padding:0;list-style:none;columns:2;column-gap:30px}
-  @media (max-width:640px){nav.toc ol{columns:1}}
-  nav.toc li{margin:4px 0;font-size:14.5px;break-inside:avoid}
-  nav.toc .num{display:inline-block;width:24px;color:var(--slate);font-variant-numeric:tabular-nums}
-
-  section.clause{padding:30px 0 4px;border-top:1px solid var(--line)}
-  section.clause:first-of-type{border-top:none}
-  h2.ch{font-size:20px;margin:0 0 14px;color:var(--navy);letter-spacing:-.01em;display:flex;gap:12px}
-  h2.ch .n{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:800}
-  .clause p{margin:0 0 12px}
-  .clause ol.sub{margin:0 0 12px;padding-left:0;list-style:none;counter-reset:s}
-  .clause ol.sub>li{position:relative;padding-left:46px;margin:0 0 11px;counter-increment:s}
-  .clause ol.sub>li::before{
-    content:counter(chap) "." counter(s);position:absolute;left:0;top:0;
-    color:var(--slate);font-variant-numeric:tabular-nums;font-size:15px;
-  }
-  .clause ol.alpha{margin:8px 0 12px;padding-left:0;list-style:none;counter-reset:a}
-  .clause ol.alpha>li{position:relative;padding-left:34px;margin:0 0 8px;counter-increment:a}
-  .clause ol.alpha>li::before{content:"(" counter(a,lower-alpha) ")";position:absolute;left:0;top:0;color:var(--slate)}
-  .strong-term{font-weight:700}
-
-  table.defs{width:100%;border-collapse:collapse;margin:6px 0 14px;font-size:15.5px}
-  table.defs th,table.defs td{border:1px solid var(--line);padding:9px 12px;vertical-align:top;text-align:left}
-  table.defs th{background:#f1f5fb;color:var(--ink);width:34%;font-weight:700}
-
-  .annex{padding:30px 0 4px;border-top:3px solid var(--navy);margin-top:20px}
-  .annex h2{font-size:20px;color:var(--navy);margin:0 0 12px}
-  .annex ul{margin:0 0 12px;padding-left:22px}
-  .annex li{margin:6px 0}
-
-  .ph{background:#eef2f8;border-radius:4px;padding:0 5px;color:var(--navy-2);font-weight:600;font-size:.95em}
-
-  footer.site{border-top:1px solid var(--line);margin-top:40px;padding-top:24px;color:var(--slate);font-size:14px}
-  footer.site a{color:var(--navy-2)}
-  .backtop{font-size:13px;color:var(--slate);margin-top:6px}
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="ReturnPal Returns Recovery Terms of Service — Version 1.0, effective 24 June 2026." />
+    <title>Returns Recovery Terms of Service | ReturnPal</title>
+    <link rel="icon" type="image/x-icon" href="assets/img/logo/favicon.png" />
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="assets/css/all-fontawesome.min.css" />
+    <link rel="stylesheet" href="assets/css/style.css" />
+    <link rel="stylesheet" href="assets/css/terms-doc.css" />
 </head>
 <body>
+    <header class="header" id="top">
+        <div class="main-navigation">
+            <nav class="navbar navbar-expand-lg">
+                <div class="container">
+                    <a class="navbar-brand" href="index.html"><img src="assets/img/logo/logo.png" alt="ReturnPal" /></a>
+                    <div class="ms-auto">
+                        <a href="index.html" class="theme-btn btn-sm">Back to Home</a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </header>
 
-<header class="site" id="top">
-  <div class="wrap">
-    <div class="logo">Return<span>Pal</span></div>
-    <div class="crumb">Returns Recovery Terms of Service</div>
-  </div>
-</header>
-
-<main class="doc">
+    <main class="main py-5">
+        <div class="container py-4 py-lg-5">
+            <div class="terms-doc">
 
   <div class="titleblock">
     <h1>Returns Recovery Terms of Service</h1>
@@ -426,13 +345,13 @@
     <h2>Annex C — Data protection</h2>
     <p>This Annex sets out how we handle personal data when providing the Services. It complements our <a href="privacy.html">Privacy Policy</a> and forms part of these Terms.</p>
 
-    <h3 style="font-size:16px;color:var(--navy);margin:14px 0 6px">1. Our role</h3>
+    <h3 class="terms-annex-subhead">1. Our role</h3>
     <p>We act as a controller of personal data in our own right when providing the Services. In particular, we are the controller of (a) the contact, account, billing and authentication data we hold about you and the individuals at your business who use your account, which we hold to operate that account; and (b) any buyer or recipient data arising from sales of your Goods through our own marketplace and resale accounts. We are not a processor of your personal data within the meaning of Article 4 of the UK GDPR, and we do not process personal data on your behalf.</p>
 
-    <h3 style="font-size:16px;color:var(--navy);margin:14px 0 6px">2. Reimbursement-claim service</h3>
+    <h3 class="terms-annex-subhead">2. Reimbursement-claim service</h3>
     <p>Where the Services involve marketplace reimbursement-claim verification (clause 9), that service is provided by a specialist third-party partner who deals with you directly. The partner accesses any marketplace seller-account, buyer or order data required for the service under its own terms and privacy notice. We do not access or process that data for the purposes of reimbursement-claim verification.</p>
 
-    <h3 style="font-size:16px;color:var(--navy);margin:14px 0 6px">3. Our commitments</h3>
+    <h3 class="terms-annex-subhead">3. Our commitments</h3>
     <p>We will:</p>
     <ul>
       <li>handle personal data in accordance with the UK GDPR, the Data Protection Act 2018 and our Privacy Policy;</li>
@@ -443,12 +362,21 @@
     </ul>
   </div>
 
-  <footer class="site">
-    <p>JR Liquidations Limited, trading as ReturnPal · Registered in England and Wales, company number 16355878 · Registered office: 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ · <a href="mailto:contact@returnpal.co.uk">contact@returnpal.co.uk</a></p>
-    <p class="backtop"><a href="#top">Back to top ↑</a></p>
+  <footer class="terms-doc-footer">
+    <p class="mb-1">JR Liquidations Limited, trading as ReturnPal · Registered in England and Wales, company number 16355878 · Registered office: 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ · <a href="mailto:contact@returnpal.co.uk">contact@returnpal.co.uk</a></p>
+    <p class="backtop mb-0"><a href="#top">Back to top ↑</a></p>
   </footer>
 
-</main>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer-area py-4">
+        <div class="container text-center">
+            <p class="mb-0">&copy; <span id="year"></span> ReturnPal. <a href="index.html">Home</a> | <a href="privacy.html">Privacy Policy</a> | <a href="terms.html">Terms</a> | <a href="faq.html">FAQ</a></p>
+        </div>
+    </footer>
+    <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
 </body>
 </html>
 </user_query>
