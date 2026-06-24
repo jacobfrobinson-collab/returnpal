@@ -106,6 +106,14 @@
                                 </div>
                             </div>
                             <div id="turnstile-register-wrap" class="mb-3 d-none d-flex justify-content-center"></div>
+                            <div class="form-check mb-3 text-start">
+                                <input class="form-check-input" type="checkbox" value="1" id="reg-accept-terms" required />
+                                <label class="form-check-label small" for="reg-accept-terms">
+                                    I have read and agree to the
+                                    <a href="terms.html" target="_blank" rel="noopener">Returns Recovery Terms of Service</a>
+                                    <span id="reg-terms-version-label">(Version 1.0, effective 24 June 2026)</span>.
+                                </label>
+                            </div>
                             <div class="auth-btn">
                                 <button type="submit" class="theme-btn" id="register-btn"><span class="far fa-user-plus"></span> Create Account</button>
                             </div>
@@ -200,6 +208,16 @@
 
         API.getRegisterConfig().then(function(cfg) {
             registerConfig = cfg || registerConfig;
+            if (cfg && cfg.terms_effective) {
+                var parts = String(cfg.terms_effective).split('-');
+                if (parts.length === 3) {
+                    var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                    $('#reg-terms-version-label').text(
+                        '(Version ' + (cfg.terms_version || '1.0') + ', effective ' +
+                        parseInt(parts[2], 10) + ' ' + months[parseInt(parts[1], 10) - 1] + ' ' + parts[0] + ')'
+                    );
+                }
+            }
         }).catch(function() {});
 
         function showRegisterPanel() {
@@ -280,9 +298,15 @@
                 const company_name = $('#reg-company').val().trim();
                 const email = $('#reg-email').val().trim();
                 const password = $('#reg-password').val();
+                if (!$('#reg-accept-terms').is(':checked')) {
+                    showError('You must accept the Terms of Service to create an account.');
+                    btn.prop('disabled', false).html('<span class="far fa-user-plus"></span> Create Account');
+                    return;
+                }
                 var extras = {
                     website: $('#reg-website').val(),
                     form_started_at: $('#reg-form-started').val(),
+                    accept_terms: true,
                 };
                 if (registerConfig.turnstile_site_key && window.turnstile && turnstileWidgetId != null) {
                     var tok = window.turnstile.getResponse(turnstileWidgetId);

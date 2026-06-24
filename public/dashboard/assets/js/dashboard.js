@@ -1156,10 +1156,6 @@ const Dashboard = {
         }
 
         const pathLower = (window.location.pathname || '').toLowerCase();
-        if (pathLower.includes('reimbursement')) {
-            this._initReimbursementPage();
-            return;
-        }
 
         if (API.getSessionToken()) {
             this.injectViewingAsBanner();
@@ -1173,7 +1169,7 @@ const Dashboard = {
         const self = this;
         // Verify session first with skipAuthRedirect so a 401 here does not race loadOverview / other calls
         // (which would also 401 and double-clear storage). Only then load data.
-        API.request('/auth/me', { skipAuthRedirect: true }).then((me) => {
+        API.request('/auth/me', { skipAuthRedirect: true }).then(async (me) => {
             if (me && me.user) {
                 if (useSession) API.setSessionUser(me.user);
                 else API.setUser(me.user);
@@ -1182,13 +1178,107 @@ const Dashboard = {
                     self.injectMyClientsLink();
                 }
             }
+            const profileUser = (me && me.user) || API.getUser();
+            if (
+                profileUser &&
+                profileUser.terms_acceptance_required &&
+                !profileUser.is_admin &&
+                !API.isCurrentUserAdmin()
+            ) {
+                await self._ensureTermsAccepted(profileUser);
+                try {
+                    const refreshed = await API.getProfile({ skipAuthRedirect: true });
+                    if (refreshed && refreshed.user) {
+                        if (useSession) API.setSessionUser(refreshed.user);
+                        else API.setUser(refreshed.user);
+                        self.updateUserIdentityUI(refreshed.user);
+                    }
+                } catch (e) { /* non-fatal */ }
+            }
+            if (pathLower.includes('reimbursement')) {
+                self._initReimbursementPage();
+                return;
+            }
             self._finishDashboardInit();
         }).catch((err) => {
             if (err && err.status === 401) {
                 API.navigateAwayOnUnauthorized();
                 return;
             }
+            if (pathLower.includes('reimbursement')) {
+                self._initReimbursementPage();
+                return;
+            }
             self._finishDashboardInit();
+        });
+    },
+
+    _ensureTermsAccepted(user) {
+        const self = this;
+        return new Promise((resolve) => {
+            let $modal = $('#rp-terms-accept-modal');
+            if (!$modal.length) {
+                $('body').append(
+                    '<div class="modal fade" id="rp-terms-accept-modal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="rpTermsAcceptLabel" aria-hidden="true">' +
+                    '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">' +
+                    '<div class="modal-header"><h5 class="modal-title" id="rpTermsAcceptLabel">Accept Terms of Service</h5></div>' +
+                    '<div class="modal-body">' +
+                    '<p>Before you can use ReturnPal, you need to read and accept our Returns Recovery Terms of Service.</p>' +
+                    '<p class="mb-3"><a href="/terms.html" target="_blank" rel="noopener" class="fw-semibold">Read the Terms of Service</a> ' +
+                    '<span class="text-muted" id="rp-terms-version-meta"></span></p>' +
+                    '<div class="form-check">' +
+                    '<input class="form-check-input" type="checkbox" id="rp-terms-accept-checkbox" />' +
+                    '<label class="form-check-label" for="rp-terms-accept-checkbox">I have read and agree to the Returns Recovery Terms of Service.</label>' +
+                    '</div>' +
+                    '<div class="alert alert-danger d-none mt-3 mb-0" id="rp-terms-accept-error"></div>' +
+                    '</div>' +
+                    '<div class="modal-footer">' +
+                    '<button type="button" class="btn btn-outline-secondary" id="rp-terms-logout-btn">Log out</button>' +
+                    '<button type="button" class="btn btn-primary" id="rp-terms-accept-btn">Accept and continue</button>' +
+                    '</div></div></div></div>'
+                );
+                $modal = $('#rp-terms-accept-modal');
+                $('#rp-terms-logout-btn').on('click', function () {
+                    API.logout();
+                    window.location.assign((window.location.origin || '') + '/login.html');
+                });
+            }
+
+            const versionLabel = (user && user.current_terms_version) || '1.0';
+            const effective = (user && user.current_terms_effective) || '';
+            let meta = '(Version ' + versionLabel;
+            if (effective) {
+                const p = String(effective).split('-');
+                if (p.length === 3) {
+                    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                    meta += ', effective ' + parseInt(p[2], 10) + ' ' + months[parseInt(p[1], 10) - 1] + ' ' + p[0];
+                }
+            }
+            meta += ')';
+            $('#rp-terms-version-meta').text(meta);
+            $('#rp-terms-accept-checkbox').prop('checked', false);
+            $('#rp-terms-accept-error').addClass('d-none').text('');
+
+            const modalEl = $modal[0];
+            const bsModal = window.bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static', keyboard: false });
+
+            $('#rp-terms-accept-btn').off('click.rpTerms').on('click.rpTerms', async function () {
+                if (!$('#rp-terms-accept-checkbox').is(':checked')) {
+                    $('#rp-terms-accept-error').removeClass('d-none').text('Please tick the box to confirm you accept the Terms of Service.');
+                    return;
+                }
+                const $btn = $('#rp-terms-accept-btn');
+                $btn.prop('disabled', true).text('Saving…');
+                try {
+                    await API.acceptTerms();
+                    bsModal.hide();
+                    resolve();
+                } catch (err) {
+                    $('#rp-terms-accept-error').removeClass('d-none').text((err && err.error) || 'Could not save your acceptance. Please try again.');
+                    $btn.prop('disabled', false).text('Accept and continue');
+                }
+            });
+            bsModal.show();
         });
     },
 

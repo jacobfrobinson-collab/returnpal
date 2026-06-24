@@ -70,6 +70,7 @@ async function main() {
                     full_name: 'E2E Client',
                     company_name: 'E2E Co',
                     form_started_at: Date.now() - 10000,
+                    accept_terms: true,
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -88,6 +89,7 @@ async function main() {
                     full_name: 'E2E Admin',
                     company_name: 'E2E Co',
                     form_started_at: Date.now() - 10000,
+                    accept_terms: true,
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -157,6 +159,7 @@ async function main() {
                     full_name: 'E2E Client Two',
                     company_name: 'E2E Co',
                     form_started_at: Date.now() - 10000,
+                    accept_terms: true,
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -229,6 +232,7 @@ async function main() {
                     full_name: 'E2E Client Three',
                     company_name: 'E2E Co',
                     form_started_at: Date.now() - 10000,
+                    accept_terms: true,
                 }),
             });
             const data = await res.json().catch(() => ({}));

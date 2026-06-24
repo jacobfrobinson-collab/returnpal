@@ -1,124 +1,454 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en-GB">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="ReturnPal Terms of Service and Terms &amp; Conditions." />
-    <title>Terms of Service (Terms &amp; Conditions) | ReturnPal</title>
-    <link rel="icon" type="image/x-icon" href="assets/img/logo/favicon.png" />
-    <link rel="stylesheet" href="assets/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="assets/css/all-fontawesome.min.css" />
-    <link rel="stylesheet" href="assets/css/style.css" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReturnPal — Returns Recovery Terms of Service</title>
+<style>
+  :root{
+    --navy:#16365c;
+    --navy-2:#1f4e79;
+    --ink:#1c2430;
+    --slate:#54637a;
+    --line:#e3e8f0;
+    --bg:#f7f9fc;
+    --paper:#ffffff;
+    --accent:#c8941f;
+    --flag:#fff8e8;
+    --flag-line:#e8cf8c;
+    --maxw:820px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16.5px;line-height:1.65;-webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--navy-2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  a:focus-visible{outline:2px solid var(--navy-2);outline-offset:2px;border-radius:2px}
+
+  header.site{
+    background:var(--navy);color:#fff;padding:22px 24px;
+  }
+  header.site .wrap{max-width:var(--maxw);margin:0 auto;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  header.site .logo{font-weight:800;letter-spacing:.5px;font-size:22px}
+  header.site .logo span{color:#9cc0e8}
+  header.site .crumb{color:#bcd0e8;font-size:14px;margin-left:auto}
+
+  .doc{max-width:var(--maxw);margin:0 auto;padding:0 24px 80px}
+
+  .titleblock{padding:40px 0 8px;border-bottom:1px solid var(--line)}
+  .titleblock h1{font-size:30px;line-height:1.2;margin:0 0 10px;color:var(--ink);letter-spacing:-.01em}
+  .meta{color:var(--slate);font-size:14.5px;margin:0}
+  .meta b{color:var(--ink)}
+
+  .lead{margin:26px 0 0;color:var(--ink)}
+
+  .callout{
+    margin:28px 0;background:var(--flag);border:1px solid var(--flag-line);
+    border-radius:10px;padding:18px 20px;
+  }
+  .callout h2{margin:0 0 8px;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:#8a6a13}
+  .callout p{margin:0 0 10px;font-size:15px;color:#5b4a1c}
+  .callout ul{margin:0;padding-left:20px;font-size:15px;color:#3f3414}
+  .callout li{margin:5px 0}
+  .callout a{color:#8a5a00;font-weight:600}
+
+  nav.toc{
+    margin:30px 0;padding:20px 22px;background:var(--paper);
+    border:1px solid var(--line);border-radius:10px;
+  }
+  nav.toc h2{margin:0 0 12px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate)}
+  nav.toc ol{margin:0;padding:0;list-style:none;columns:2;column-gap:30px}
+  @media (max-width:640px){nav.toc ol{columns:1}}
+  nav.toc li{margin:4px 0;font-size:14.5px;break-inside:avoid}
+  nav.toc .num{display:inline-block;width:24px;color:var(--slate);font-variant-numeric:tabular-nums}
+
+  section.clause{padding:30px 0 4px;border-top:1px solid var(--line)}
+  section.clause:first-of-type{border-top:none}
+  h2.ch{font-size:20px;margin:0 0 14px;color:var(--navy);letter-spacing:-.01em;display:flex;gap:12px}
+  h2.ch .n{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:800}
+  .clause p{margin:0 0 12px}
+  .clause ol.sub{margin:0 0 12px;padding-left:0;list-style:none;counter-reset:s}
+  .clause ol.sub>li{position:relative;padding-left:46px;margin:0 0 11px;counter-increment:s}
+  .clause ol.sub>li::before{
+    content:counter(chap) "." counter(s);position:absolute;left:0;top:0;
+    color:var(--slate);font-variant-numeric:tabular-nums;font-size:15px;
+  }
+  .clause ol.alpha{margin:8px 0 12px;padding-left:0;list-style:none;counter-reset:a}
+  .clause ol.alpha>li{position:relative;padding-left:34px;margin:0 0 8px;counter-increment:a}
+  .clause ol.alpha>li::before{content:"(" counter(a,lower-alpha) ")";position:absolute;left:0;top:0;color:var(--slate)}
+  .strong-term{font-weight:700}
+
+  table.defs{width:100%;border-collapse:collapse;margin:6px 0 14px;font-size:15.5px}
+  table.defs th,table.defs td{border:1px solid var(--line);padding:9px 12px;vertical-align:top;text-align:left}
+  table.defs th{background:#f1f5fb;color:var(--ink);width:34%;font-weight:700}
+
+  .annex{padding:30px 0 4px;border-top:3px solid var(--navy);margin-top:20px}
+  .annex h2{font-size:20px;color:var(--navy);margin:0 0 12px}
+  .annex ul{margin:0 0 12px;padding-left:22px}
+  .annex li{margin:6px 0}
+
+  .ph{background:#eef2f8;border-radius:4px;padding:0 5px;color:var(--navy-2);font-weight:600;font-size:.95em}
+
+  footer.site{border-top:1px solid var(--line);margin-top:40px;padding-top:24px;color:var(--slate);font-size:14px}
+  footer.site a{color:var(--navy-2)}
+  .backtop{font-size:13px;color:var(--slate);margin-top:6px}
+</style>
 </head>
 <body>
-    <header class="header">
-        <div class="main-navigation">
-            <nav class="navbar navbar-expand-lg">
-                <div class="container">
-                    <a class="navbar-brand" href="index.html"><img src="assets/img/logo/logo.png" alt="ReturnPal" /></a>
-                    <div class="ms-auto">
-                        <a href="index.html" class="theme-btn btn-sm">Back to Home</a>
-                    </div>
-                </div>
-            </nav>
-        </div>
-    </header>
-    <main class="main py-5">
-        <div class="container py-5">
-            <h1 class="mb-2">Terms of Service (Terms &amp; Conditions)</h1>
-            <p class="text-muted mb-5">Last updated: 30 September 2024</p>
 
-            <div class="content">
-                <h5 class="mt-4 mb-2">1. Introduction</h5>
-                <p>These Terms of Service ("Terms") govern your access to and use of the website, platform, and services operated by JR Liquidations Limited, trading as ReturnPal ("we", "us", or "our").</p>
-                <p>By accessing or using our services, you agree to comply with these Terms. If you do not agree with these Terms, you must not use our services.</p>
+<header class="site" id="top">
+  <div class="wrap">
+    <div class="logo">Return<span>Pal</span></div>
+    <div class="crumb">Returns Recovery Terms of Service</div>
+  </div>
+</header>
 
-                <h5 class="mt-4 mb-2">2. Our Services</h5>
-                <p>ReturnPal provides services designed to assist businesses in managing returned inventory and recovery processes. These services may include:</p>
-                <ul>
-                    <li>Product inspection and condition grading</li>
-                    <li>Inventory storage and handling</li>
-                    <li>Resale through secondary marketplaces</li>
-                    <li>Liquidation of inventory</li>
-                    <li>Recovery and reimbursement assistance</li>
-                </ul>
-                <p>We reserve the right to modify or discontinue any aspect of the services at any time.</p>
+<main class="doc">
 
-                <h5 class="mt-4 mb-2">3. Eligibility</h5>
-                <p>To use our services, you must:</p>
-                <ul>
-                    <li>Be at least 18 years of age</li>
-                    <li>Have the legal authority to enter into a binding agreement</li>
-                    <li>Provide accurate and complete information when creating an account</li>
-                </ul>
-                <p>You are responsible for maintaining the confidentiality of your account credentials.</p>
+  <div class="titleblock">
+    <h1>Returns Recovery Terms of Service</h1>
+    <p class="meta"><b>Version 1.0</b> &nbsp;·&nbsp; Effective 24 June 2026 &nbsp;·&nbsp; These terms form a binding agreement between you and ReturnPal.</p>
+  </div>
 
-                <h5 class="mt-4 mb-2">4. User Responsibilities</h5>
-                <p>When using our services, you agree not to:</p>
-                <ul>
-                    <li>Use the services for unlawful purposes</li>
-                    <li>Attempt to gain unauthorised access to the platform</li>
-                    <li>Interfere with the functionality or security of the platform</li>
-                    <li>Upload or transmit malicious software or harmful content</li>
-                </ul>
-                <p>We reserve the right to suspend or terminate accounts that violate these Terms.</p>
+  <p class="lead">These Terms of Service (the “Terms”) govern your use of the returns-recovery service operated by JR Liquidations Limited, trading as ReturnPal, a company registered in England and Wales (company number 16355878) whose registered office is at 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ (“ReturnPal”, “we”, “us” or “our”). In these Terms, “you” means the business that creates an account or sends goods to us. Please read them carefully and keep a copy.</p>
 
-                <h5 class="mt-4 mb-2">5. Fees and Payments</h5>
-                <p>Where applicable, fees for services will be communicated separately through service agreements, invoices, or platform pricing.</p>
-                <p>You agree to pay all applicable charges associated with the services provided.</p>
-                <p>Failure to make payments may result in suspension or termination of services.</p>
+  <!-- Onerous-terms notice: fair-notice / "red hand" requirement -->
+  <div class="callout" role="note" aria-label="Key terms to note">
+    <h2>Key terms to note before you accept</h2>
+    <p>By agreeing to these Terms you are accepting some important provisions. In particular, please read:</p>
+    <ul>
+      <li><a href="#liability">Clause 12 — Limitation of our liability</a>: we limit and exclude certain liability, and cap the amount we are liable for.</li>
+      <li><a href="#indemnity">Clause 13 — Your indemnity</a>: you agree to cover certain losses we suffer because of your goods or breach.</li>
+      <li><a href="#custody">Clause 8 — Title, risk and custody of goods</a>: risk in your goods largely stays with you.</li>
+      <li><a href="#abandoned">Clause 10 — Unsold and abandoned goods</a>: we may dispose of goods you do not reclaim in time.</li>
+      <li><a href="#services">Clause 4 — The services</a>: we do not guarantee any sale, price, recovery amount, reimbursement or timescale; we list and sell as the seller of record on our own marketplace accounts.</li>
+      <li><a href="#fees">Clause 7 — Fees and selling costs</a>: the costs of selling each item (including marketplace and per-item promoted-listing fees, and buyer returns or chargebacks on that sale) are deducted before our fee and before your share is worked out.</li>
+    </ul>
+  </div>
 
-                <h5 class="mt-4 mb-2">6. Intellectual Property</h5>
-                <p>All intellectual property relating to the ReturnPal platform, including software, branding, design, and content, is owned by or licensed to JR Liquidations Limited.</p>
-                <p>You may not copy, reproduce, distribute, or modify any part of the platform without prior written permission.</p>
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><span class="num">1</span><a href="#about">About these Terms</a></li>
+      <li><span class="num">2</span><a href="#acceptance">Acceptance and your account</a></li>
+      <li><span class="num">3</span><a href="#definitions">Definitions</a></li>
+      <li><span class="num">4</span><a href="#services">The services</a></li>
+      <li><span class="num">5</span><a href="#yourduties">Your responsibilities and promises</a></li>
+      <li><span class="num">6</span><a href="#prohibited">Prohibited and restricted goods</a></li>
+      <li><span class="num">7</span><a href="#fees">Fees, deductions and payment</a></li>
+      <li><span class="num">8</span><a href="#custody">Title, risk and custody of goods</a></li>
+      <li><span class="num">9</span><a href="#reimbursement">Reimbursement claims</a></li>
+      <li><span class="num">10</span><a href="#abandoned">Unsold and abandoned goods</a></li>
+      <li><span class="num">11</span><a href="#insurance">Insurance</a></li>
+      <li><span class="num">12</span><a href="#liability">Limitation of our liability</a></li>
+      <li><span class="num">13</span><a href="#indemnity">Your indemnity to us</a></li>
+      <li><span class="num">14</span><a href="#data">Data protection and confidentiality</a></li>
+      <li><span class="num">15</span><a href="#changes">Changes to the service and Terms</a></li>
+      <li><span class="num">16</span><a href="#termination">Suspension and cancellation</a></li>
+      <li><span class="num">17</span><a href="#general">General</a></li>
+      <li><span class="num">18</span><a href="#disputes">Complaints and disputes</a></li>
+      <li><span class="num">19</span><a href="#law">Governing law</a></li>
+    </ol>
+  </nav>
 
-                <h5 class="mt-4 mb-2">7. Limitation of Liability</h5>
-                <p>To the fullest extent permitted by law, JR Liquidations Limited shall not be liable for:</p>
-                <ul>
-                    <li>Indirect or consequential losses</li>
-                    <li>Loss of profits, revenue, or business opportunities</li>
-                    <li>Data loss or interruption of services</li>
-                </ul>
-                <p>Our total liability arising from the use of our services shall not exceed the amount paid by you for those services.</p>
-                <p>Nothing in these Terms limits liability where it cannot be excluded under UK law.</p>
+  <section class="clause" id="about" style="counter-reset:chap 1">
+    <h2 class="ch"><span class="n">1.</span> About these Terms</h2>
+    <ol class="sub">
+      <li>These Terms, together with any pricing, annexes and policies we refer to, are the entire agreement between you and us for the returns-recovery service and replace any earlier discussions.</li>
+      <li>If there is any conflict between these Terms and an annex, these Terms take priority unless the annex says otherwise.</li>
+      <li>These Terms are written for business customers. They are not intended for consumers, and we provide the service to you on the basis that you are acting in the course of a business.</li>
+    </ol>
+  </section>
 
-                <h5 class="mt-4 mb-2">8. Service Availability</h5>
-                <p>While we aim to ensure continuous availability of our services, we do not guarantee that the platform will always be uninterrupted or error-free.</p>
-                <p>We may suspend access temporarily for maintenance, upgrades, or technical issues.</p>
+  <section class="clause" id="acceptance" style="counter-reset:chap 2">
+    <h2 class="ch"><span class="n">2.</span> Acceptance and your account</h2>
+    <ol class="sub">
+      <li>You accept these Terms, and they become a binding agreement between us, when you first do any of the following: tick the box confirming you agree to these Terms; create or register an account; or send goods to us for processing — whichever happens first.</li>
+      <li>By accepting, you confirm that you have read these Terms, that you are authorised to agree to them on behalf of your business, and that the information you give us is accurate.</li>
+      <li>You confirm that you are entering into these Terms in the course of a business and not as a consumer.</li>
+      <li>You confirm that you have read and understood how Fees are charged (clause 7 and Annex B), including the worked example, and in particular that our commission is taken on the Net Recovered Value — that is, on the proceeds remaining <span class="strong-term">after the marketplace’s own selling costs for each item</span> (such as selling, listing and per-item promoted-listing fees) have been deducted.</li>
+      <li>We keep a record of the version of the Terms you accepted and the date of acceptance. The version that applies to you is the one in force when you accept, until updated under clause 15.</li>
+      <li>You are responsible for keeping your account details secure and for all activity carried out through your account.</li>
+    </ol>
+  </section>
 
-                <h5 class="mt-4 mb-2">9. Termination</h5>
-                <p>We may suspend or terminate access to our services if:</p>
-                <ul>
-                    <li>You breach these Terms</li>
-                    <li>You fail to pay applicable fees</li>
-                    <li>We are required to do so for legal or regulatory reasons</li>
-                </ul>
-                <p>Upon termination, your right to use the services will cease immediately.</p>
+  <section class="clause" id="definitions" style="counter-reset:chap 3">
+    <h2 class="ch"><span class="n">3.</span> Definitions</h2>
+    <table class="defs">
+      <tr><th>Goods</th><td>the returned, damaged, surplus or other inventory you deliver to us, or arrange to be delivered to us, for processing.</td></tr>
+      <tr><th>Services</th><td>inspection, condition grading, reimbursement-claim verification, resale, liquidation, storage, disposition routing and related services we provide to you.</td></tr>
+      <tr><th>Net Recovered Value</th><td>the gross proceeds we actually receive and clear from selling, reselling or liquidating Goods, less the costs of selling each item — including marketplace selling (final value) fees, per-item promoted-listing / ad-rate fees charged by the marketplace when that item sells, payment-processing fees, shipping and logistics, storage, handling, returns, refunds and chargebacks, and any applicable taxes or duties. See clause 7.</td></tr>
+      <tr><th>Fees</th><td>the charges payable for the Services, calculated under clause 7 and Annex B.</td></tr>
+      <tr><th>Platform</th><td>the ReturnPal website, dashboard and online portal.</td></tr>
+      <tr><th>Business Day</th><td>a day other than a Saturday, Sunday or public holiday in England when banks in London are open.</td></tr>
+    </table>
+    <p>“Including” and similar words are illustrative and do not limit what comes before them. References to a statute include any change to it.</p>
+  </section>
 
-                <h5 class="mt-4 mb-2">10. Governing Law</h5>
-                <p>These Terms are governed by the laws of England and Wales.</p>
-                <p>Any disputes arising from these Terms shall be subject to the exclusive jurisdiction of the courts of England and Wales.</p>
+  <section class="clause" id="services" style="counter-reset:chap 4">
+    <h2 class="ch"><span class="n">4.</span> The services</h2>
+    <ol class="sub">
+      <li>We will provide the Services with reasonable skill and care and will use reasonable efforts to process Goods within our target turnaround times. Any timeframes we mention (including “24–72 hours”) are estimates only and are not guarantees.</li>
+      <li>We decide, acting reasonably and using our commercial judgement, the best recovery route for each item, which may include resale on one or more marketplaces, sale to trade or wholesale buyers, export, auction, clearance or liquidation.</li>
+      <li><span class="strong-term">We do not guarantee that any item will sell, that any particular price, recovery rate or return will be achieved, that any reimbursement claim will succeed, or that any timescale will be met.</span> Example recovery figures shown on the Platform or in marketing are illustrative only.</li>
+      <li>We may use subcontractors, carriers, agents and third-party marketplaces, and we may change our processes, channels and the Platform from time to time.</li>
+      <li>We may decline, return or dispose of any Goods we reasonably consider unsuitable, unsafe, prohibited, restricted, counterfeit, unlawful or uneconomic to process.</li>
+      <li>You accept our condition grading, channel choice and pricing decisions, made in good faith using our commercial judgement, as final. Provided we act in good faith and without manifest error, you will not bring any claim on the basis that a higher price, faster sale or better outcome could have been achieved.</li>
+      <li><span class="strong-term">Seller of record.</span> Where we resell Goods, we list and sell them through our own marketplace accounts and we are the seller of record to the end buyer. We deal with the end buyer in our own name and handle communications, refunds, returns and disputes on that sale. Your obligations to us under clauses 5, 6 and 13 still apply to all such sales.</li>
+      <li><span class="strong-term">Protecting our marketplace accounts.</span> If at any time we reasonably believe that listing, selling or continuing to hold particular Goods could put a marketplace account, our insurance or our regulatory standing at risk (for example because the Goods may be counterfeit, recalled, unsafe, restricted, or in breach of a marketplace policy), we may refuse to list, delist, suspend the sale of, quarantine, return or dispose of those Goods, without liability to you and without affecting our right to recover the costs of doing so.</li>
+      <li><span class="strong-term">Identity and source-of-goods checks.</span> We may carry out reasonable checks to verify your identity, your right to sell the Goods and the source of the Goods (for example identity documents, proof of purchase or supplier invoices), and we may suspend the Services or refuse to accept Goods until those checks are completed to our reasonable satisfaction.</li>
+      <li><span class="strong-term">Marketplace policy changes.</span> If a marketplace, payment provider, carrier or regulator changes its rules, fees, restricted categories, listing requirements or onboarding/KYC requirements, or imposes new restrictions affecting the Services, we may amend, suspend or change how we provide the Services (including which Goods we accept, how we list them, the channels we use and the fees we deduct) on reasonable notice. Such changes are not a breach of these Terms.</li>
+    </ol>
+  </section>
 
-                <h5 class="mt-4 mb-2">11. Changes to These Terms</h5>
-                <p>We may update these Terms from time to time. Updated versions will be published on our website with the revised effective date.</p>
-                <p>Continued use of the services constitutes acceptance of the updated Terms.</p>
+  <section class="clause" id="yourduties" style="counter-reset:chap 5">
+    <h2 class="ch"><span class="n">5.</span> Your responsibilities and promises</h2>
+    <ol class="sub">
+      <li>You will, at your own cost: give us accurate and complete information about the Goods; package, label and send Goods to the address we give you, with the correct reference; respond promptly to our requests; and follow our reasonable instructions and the rules of any relevant marketplace.</li>
+      <li><span class="strong-term">Identification of consignments.</span> Each consignment must include the reference shown in your dashboard and an accurate list of contents. If Goods arrive unidentified, mis-referenced, mixed with another seller’s stock or without contents details, we may (acting reasonably) hold them pending instructions, charge reasonable handling and storage fees, return them at your cost, or — if we cannot reasonably identify or attribute them after 30 days — treat them under clause 10. We are not liable for any loss caused by your failure to identify a consignment correctly.</li>
+      <li><span class="strong-term">Inbound count and grading.</span> Our recorded count of items received, and our condition grading of each item, are the agreed record between us, save for manifest error. If you disagree, you must raise it within 14 days of the item being recorded in your dashboard.</li>
+      <li>You promise to us, on a continuing basis, that:
+        <ol class="alpha">
+          <li>you have full right, title and authority to deliver the Goods and to authorise their sale, resale, liquidation or disposal, and the Goods are free of any third-party charge, lien or retention of title;</li>
+          <li>the Goods are genuine and not counterfeit, and do not infringe anyone’s intellectual property, and selling them will not breach any distribution or licensing restriction;</li>
+          <li>the Goods comply with all applicable laws and safety, labelling and product standards, and are not subject to any recall, prohibition or restriction;</li>
+          <li>the Goods do not include, and you will not send, any prohibited or restricted items listed in clause 6 or Annex A;</li>
+          <li>all information you give us (including marketplace and reimbursement information) is accurate and not misleading, and you are entitled to share any account access or data you provide; and</li>
+          <li>you will comply with all laws that apply to you, including tax, customs, consumer-protection, anti-bribery and sanctions laws, and you are responsible for your own VAT and tax reporting; and</li>
+          <li>you are acting in the course of a business and not as a consumer.</li>
+        </ol>
+      </li>
+      <li>You acknowledge that we rely on these promises and on the information you give us, and that we are not obliged to verify the title, authenticity, safety or compliance of the Goods.</li>
+      <li><span class="strong-term">Cooperation in marketplace investigations.</span> If a marketplace, payment provider, regulator or buyer raises a claim, complaint, intellectual-property notice, account-health investigation, A-to-Z claim or similar matter relating to your Goods, you will cooperate with us promptly and in any event within 5 Business Days of our request. This includes providing brand authorisation, supplier invoices, safety documentation, compliance evidence, declarations or anything else reasonably required to defend or resolve the matter. If you do not cooperate within that period, we may suspend the Services, accept the claim, refund or settle on whatever terms we reasonably consider appropriate, and recover the resulting costs from you under clause 13.</li>
+      <li><span class="strong-term">Anti-circumvention.</span> During these Terms and for 12 months afterwards you will not, directly or through any third party: (a) approach, solicit or transact with any end buyer, trade buyer, wholesale buyer, exporter, auction house or liquidation partner that you became aware of through the Services, with the intent of bypassing us in respect of any further sale of Goods we are processing or have processed for you; (b) replicate the Platform, dashboard, processes or operating methods we make available to you; or (c) induce any of our staff or subcontractors to leave us to work for you in a competing capacity. This clause does not restrict your normal commercial activities through your own pre-existing channels.</li>
+    </ol>
+  </section>
 
-                <h5 class="mt-4 mb-2">12. Contact Information</h5>
-                <p>If you have any questions about these Terms, please contact us:</p>
-                <p><strong>JR Liquidations Limited</strong><br />
-                71-75 Shelton Street<br />
-                Covent Garden<br />
-                London, United Kingdom, WC2H 9JQ</p>
-                <p>📧 <a href="mailto:policies@returnpal.co.uk">policies@returnpal.co.uk</a></p>
-                <p>📞 +44 7774 904697</p>
-            </div>
-        </div>
-    </main>
-    <footer class="footer-area py-4">
-        <div class="container text-center">
-            <p class="mb-0">&copy; <span id="year"></span> ReturnPal. <a href="index.html">Home</a> | <a href="privacy.html">Privacy Policy</a> | <a href="terms.html">Terms of Service</a> | <a href="faq.html">FAQ</a></p>
-        </div>
-    </footer>
-    <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <section class="clause" id="prohibited" style="counter-reset:chap 6">
+    <h2 class="ch"><span class="n">6.</span> Prohibited and restricted goods</h2>
+    <ol class="sub">
+      <li>You must not send Goods that are unlawful, dangerous, perishable, counterfeit, stolen, recalled, subject to sanctions or export control, or otherwise listed as prohibited or restricted in Annex A, unless we agree in writing first.</li>
+      <li>If we receive prohibited or restricted Goods, we may (without liability) quarantine them, return them at your cost, withhold them, hand them to a competent authority, or lawfully dispose of them, and you will cover any resulting cost, loss or liability under clause 13.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="fees" style="counter-reset:chap 7">
+    <h2 class="ch"><span class="n">7.</span> Fees, deductions and payment</h2>
+    <ol class="sub">
+      <li>In return for the Services, we are entitled to the Fees set out in Annex B, calculated as a percentage of the Net Recovered Value (between 15% and 25%, depending on the item value and category) together with any agreed handling, return-shipping, storage or disposal charges.</li>
+      <li><span class="strong-term">Marketplace selling costs.</span> We calculate the Net Recovered Value of each item after deducting the costs the marketplace charges on the sale of that item. These include the marketplace selling (final value) fee and any per-item promoted-listing or ad-rate fee that the marketplace charges only when that specific item sells (typically a percentage of the item’s sale price, charged only if the item sells). These are costs of selling your item, not advertising of our own business, and are itemised against the relevant item in your dashboard.</li>
+      <li><span class="strong-term">Pay-per-click advertising.</span> Cost-per-click or other promotional advertising that is charged whether or not a particular item sells is not deducted from your Net Recovered Value unless we agree it with you in advance and itemise it; otherwise we bear it ourselves.</li>
+      <li><span class="strong-term">Worked example.</span> An item sells for £52.00. Marketplace selling and payment fees are £6.00, shipping £4.00 and the per-item promoted-listing fee £2.00 (total selling costs £12.00). The Net Recovered Value is £40.00. Using an illustrative 15% commission, our Fee is £6.00 and you receive £34.00. Where the commission for an item falls higher in the 15%–25% range, the amount you receive is correspondingly lower.</li>
+      <li><span class="strong-term">Loss-making items.</span> If the costs of selling, handling, returning or disposing of an item exceed its proceeds, we charge no Fee on that item and the shortfall may be set off against the proceeds of your other Goods or, if there are none, invoiced to you. We will not knowingly proceed with a sale that produces a net loss without telling you, unless you have asked us to clear the Goods.</li>
+      <li><span class="strong-term">Minimum economic value.</span> If a consignment, or items within it, has a documented condition value below the minimum we reasonably consider economic to process (the "Minimum Economic Value"), we may, acting reasonably and after notifying you: charge a flat per-item handling fee, refuse to accept the Goods, or process them only on a clearance/bulk basis where you retain a reduced share of any proceeds. Our current Minimum Economic Value and any associated handling fee are set out in Annex B.</li>
+      <li><span class="strong-term">Buyer returns, refunds and chargebacks.</span> If an end buyer returns an item, claims a refund (in full or part), raises a not-as-described or significantly-not-as-described claim, requests a partial settlement, or raises a payment chargeback or marketplace case, the related refund, fee and recovery cost is treated as a marketplace selling cost of that item and deducted from its proceeds (or, if the item has already been paid out to you, recouped from the proceeds of your other Goods (clause 7.9) or invoiced to you (clause 7.10)). We will handle communications with the buyer and the marketplace case in our own name, acting reasonably. You will not bring any claim on the basis that a buyer dispute should have been defended or resolved differently, provided we act in good faith.</li>
+      <li><span class="strong-term">Customs, import and export.</span> Where Goods are shipped to us from outside the United Kingdom, or sold by us to a buyer outside the United Kingdom, you are responsible for all customs duties, import VAT, export controls, sanctions compliance and required declarations, and for ensuring the Goods may lawfully be imported or exported. We may decline to accept Goods that arrive without correct customs paperwork or that we reasonably believe may breach sanctions or export-control law.</li>
+      <li>We may deduct and keep our Fees and any sums you owe us from the proceeds of your Goods before paying you the balance. You authorise this deduction and set-off.</li>
+      <li><span class="strong-term">Late payment.</span> If you do not pay a sum you owe us (for example return-shipping, storage or disposal charges, or amounts under clause 13) by its due date and it is not covered by deduction from proceeds, we may charge interest on the overdue amount at 8% per year above the Bank of England base rate, together with the fixed recovery costs allowed under the Late Payment of Commercial Debts (Interest) Act 1998, until payment. We may also withhold Goods or proceeds under our lien (clause 8.5) and set the sum off against amounts we owe you.</li>
+      <li>We will issue monthly statements and pay your share of cleared Net Recovered Value by the last day of the month following the relevant period (for example, sales in February are paid by the end of March), to the bank account you give us. We are not liable for amounts we have not received and cleared from the relevant buyer, marketplace or payment provider. Each item’s proceeds, selling costs and deductions are itemised in your dashboard. Any query about a statement must (a) be raised within 14 days of the statement being made available, and (b) specify the line items and amounts disputed. Statements not queried within that period, or queried only in general terms, are treated as accepted by you and cannot later be reopened, except in the case of manifest error or fraud.</li>
+      <li>All Fees are exclusive of VAT, which we add where it applies. Each of us is responsible for our own taxes.</li>
+      <li>Any promotional terms (for example a free “most expensive item” each month) apply only as published and may be changed or withdrawn on reasonable notice.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="custody" style="counter-reset:chap 8">
+    <h2 class="ch"><span class="n">8.</span> Title, risk and custody of goods</h2>
+    <ol class="sub">
+      <li>Title to the Goods stays with you (or your supplier) until they are sold, when title passes directly to the buyer. We hold the Goods as custodian only and do not become their owner.</li>
+      <li><span class="strong-term">Risk in the Goods stays with you at all times</span>, except for loss or damage caused by our negligence while the Goods are in our physical custody, and always subject to the limits in clause 12.</li>
+      <li>You are responsible for the risk and cost of delivering Goods to us. We are not responsible for Goods lost, damaged or delayed in transit before we confirm receipt on the Platform, or after we send them back to you.</li>
+      <li>We may handle, store, move, repackage, combine, grade and dispose of Goods as reasonably needed to provide the Services. We are not required to insure your Goods; you are responsible for arranging any insurance you want for their value (see clause 11).</li>
+      <li>We have a general right to keep (a lien over) Goods and proceeds in our possession until you have paid all sums you owe us.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="reimbursement" style="counter-reset:chap 9">
+    <h2 class="ch"><span class="n">9.</span> Reimbursement claims</h2>
+    <ol class="sub">
+      <li>Where the Services include checking or assisting with marketplace reimbursement claims, this service is provided by a specialist third-party partner. We facilitate the introduction only. The partner deals with you directly in respect of any account access, marketplace seller data or other data required for the service, under its own terms and privacy notice.</li>
+      <li>We do not access or process your marketplace seller-account data, buyer data or order data for the purposes of reimbursement-claim verification. The decision on any claim rests entirely with the relevant marketplace (for example Amazon).</li>
+      <li>We do not promise that any claim will be found, submitted successfully or paid, and we are not responsible for the policies, decisions, delays, suspensions, set-offs or account actions of any marketplace or of the third-party partner, including any action taken against your account.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="abandoned" style="counter-reset:chap 10">
+    <h2 class="ch"><span class="n">10.</span> Unsold, unclaimed and abandoned goods</h2>
+    <ol class="sub">
+      <li>If Goods cannot be sold or recovered within a reasonable period, or when these Terms end, we will let you know, and you may ask for the Goods back within 30 days at your cost.</li>
+      <li>If you do not collect, arrange return of, or give disposal instructions for Goods, or you do not pay any return-shipping or storage charge due, we may sell or dispose of the Goods in accordance with our rights as a bailee under the Torts (Interference with Goods) Act 1977. Before doing so we will give you written notice (by email to your account address) stating that the Goods are uncollected, that we intend to sell or dispose of them, and the date (at least 30 days away) on or after which we will do so unless you collect them or give us instructions and pay any sums due.</li>
+      <li>On a sale under this clause we will account to you for the proceeds, less the costs of sale and any sums you owe us. Where Goods have no resale value, are unsafe or unlawful to sell, or cannot reasonably be sold, we may recycle, donate or otherwise dispose of them after the notice period, without further liability.</li>
+      <li>We may charge reasonable storage and handling fees for Goods waiting for collection or instructions, and the lien in clause 8.5 applies until all sums due to us are paid.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="insurance" style="counter-reset:chap 11">
+    <h2 class="ch"><span class="n">11.</span> Insurance</h2>
+    <ol class="sub">
+      <li>We maintain commercial insurance appropriate to our operations, including cover for the Goods while in our physical custody up to the limits set out in clause 12. Nothing in these Terms requires us to insure your Goods for their full retail or replacement value, and our insurance is not a substitute for your own cover. We will produce evidence of our insurance on reasonable request.</li>
+      <li>You are responsible for insuring the Goods against loss or damage to the extent you want protection beyond the limited liability we accept under clause 12.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="liability" style="counter-reset:chap 12">
+    <h2 class="ch"><span class="n">12.</span> Limitation of our liability</h2>
+    <ol class="sub">
+      <li>Nothing in these Terms limits or excludes either party’s liability for: (a) death or personal injury caused by negligence; (b) fraud or fraudulent misrepresentation; or (c) anything else that cannot lawfully be limited or excluded.</li>
+      <li>Subject to clause 12.1, <span class="strong-term">we are not liable to you</span>, whether in contract, tort (including negligence), breach of statutory duty or otherwise, for any: loss of profit; loss of sales, business or revenue; loss of anticipated savings; loss of or damage to goodwill or reputation; loss of opportunity; loss of the value or expected recovery value of any Goods beyond their actual condition value; marketplace account suspension, deactivation or reserve; or any indirect or consequential loss.</li>
+      <li>Subject to clause 12.1, <span class="strong-term">our total aggregate liability to you in any 12-month period</span> (whether in contract, tort, breach of statutory duty or otherwise) <span class="strong-term">is limited to the greater of (a) the total Fees you paid, or we retained from your proceeds, in that 12-month period, (b) the limit of indemnity under our then-current commercial insurance applicable to the relevant loss, up to a maximum of £500,000, and (c) if no such insurance is in force at the relevant time, £5,000</span>. We will produce evidence of our insurance limit on reasonable request.</li>
+      <li>We are not required to maintain insurance at any specific level beyond what we reasonably consider appropriate, and any change to our insurance does not affect the validity of these Terms.</li>
+      <li><span class="strong-term">Per-item cap and declared value.</span> Our liability for physical loss of or damage to specific Goods while in our physical custody is limited to the lower of (a) the documented condition (graded) value of those Goods, (b) the value declared by you and accepted by us under clause 12.6, and (c) £500 per item. We are not liable for the retail value, the expected resale value, or any consequential or business loss arising from loss of or damage to Goods.</li>
+      <li><span class="strong-term">Declared value for high-value Goods.</span> For any item with a documented condition value above £500, you must declare the value to us in writing before despatch and we must agree in writing to accept the item at that declared value (we may charge an additional handling fee for high-value items, or require additional insurance, as a condition of acceptance). If you do not declare the value in advance, the per-item cap figure in clause 12.5(c) applies regardless of the item’s actual condition value.</li>
+      <li>We are not liable for loss or damage arising from your breach of these Terms, inaccurate or incomplete information you give us, the acts or decisions of any marketplace, carrier, buyer or payment provider, or events outside our reasonable control.</li>
+      <li>You must tell us in writing about any claim within 30 days of becoming aware of it, and any claim must be brought within 6 months of the event giving rise to it, so far as the law allows.</li>
+      <li>The Services and Platform are provided on an “as available” basis. Except as expressly stated in these Terms, all warranties and terms implied by law are excluded so far as the law allows.</li>
+      <li>You acknowledge that our Fees reflect this allocation of risk, that these limits are reasonable, and that you are free to insure against loss above them.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="indemnity" style="counter-reset:chap 13">
+    <h2 class="ch"><span class="n">13.</span> Your indemnity to us</h2>
+    <ol class="sub">
+      <li>You will cover (indemnify) us, our officers, employees, agents and subcontractors against all losses, liabilities, damages, claims, fines, costs and expenses (including reasonable legal fees) arising out of or in connection with:
+        <ol class="alpha">
+          <li>any breach by you of clause 5 (your promises), clause 6 (prohibited goods) or any other term;</li>
+          <li>any claim that the Goods are counterfeit, unsafe, defective, unlawful, recalled or infringe a third party’s rights;</li>
+          <li>any product-liability, consumer or regulatory claim relating to the Goods; and</li>
+          <li>any inaccurate information you give us, or any unauthorised access or instruction through your account.</li>
+        </ol>
+      </li>
+      <li><span class="strong-term">Conduct of indemnified claims.</span> If a third party brings or threatens a claim covered by this indemnity, we may take over its conduct, defence and settlement at your cost, and you will give us all information and reasonable assistance we need. We will not settle in a way that places a non-financial obligation on you without your consent (not to be unreasonably withheld). You may not admit liability, make any payment or settle any such claim without our prior written consent.</li>
+      <li><span class="strong-term">Indemnity not capped.</span> For the avoidance of doubt, the limits on our liability in clause 12 do not apply to your indemnity, payment or set-off obligations to us under these Terms.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="data" style="counter-reset:chap 14">
+    <h2 class="ch"><span class="n">14.</span> Data protection and confidentiality</h2>
+    <ol class="sub">
+      <li>Each of us will comply with the UK GDPR and the Data Protection Act 2018 for any personal data handled under these Terms. We act as a controller in our own right in respect of (a) the contact, account, billing and authentication data of you and the individuals at your business who use your account, and (b) any buyer or recipient data arising from sales of your Goods through our own marketplace and resale accounts. We are not your processor. Our data-protection commitments are set out in <a href="#annex-c">Annex C</a>. See also our <a href="privacy.html">Privacy Policy</a>.</li>
+      <li>Each of us will keep the other’s confidential information confidential, during these Terms and for 5 years after they end, and use it only to operate the service, except where the law requires disclosure or we share it with our professional advisers. This does not apply to information that is or becomes public through no breach of these Terms.</li>
+      <li>You give us the right to access and use your data, account access and product information so far as needed to provide the Services, and you confirm you are authorised to grant that right.</li>
+      <li>We may use anonymised, aggregated and non-identifying performance information for our own operational and marketing purposes.</li>
+      <li><span class="strong-term">Reference and testimonials.</span> We may, in marketing and case-study materials, refer to you as a client by your business name and use anonymised performance figures (such as items processed and recovered value), and we may use any feedback or testimonial you provide. You may opt out at any time by emailing <a href="mailto:contact@returnpal.co.uk">contact@returnpal.co.uk</a>, and we will stop using your name in new materials within a reasonable time.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="changes" style="counter-reset:chap 15">
+    <h2 class="ch"><span class="n">15.</span> Changes to the service and these Terms</h2>
+    <ol class="sub">
+      <li>We may update these Terms or the Fees from time to time. We will give you at least 30 days’ notice of any material change, for example by email or by posting the updated Terms on the Platform, and will show the new version and effective date.</li>
+      <li>If you continue to use the Services or send Goods after the change takes effect, you accept the updated Terms. If you do not accept them, you may cancel under clause 16 before they take effect.</li>
+      <li>We may change, suspend or withdraw parts of the Services, and may improve or amend the Platform.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="termination" style="counter-reset:chap 16">
+    <h2 class="ch"><span class="n">16.</span> Suspension, cancellation and termination</h2>
+    <ol class="sub">
+      <li>There is no minimum term and no long-term contract. Either of us may cancel at any time on written notice (subject to completing the handling of Goods already received, under clauses 10 and 16.4).</li>
+      <li>Either of us may end these Terms immediately if the other commits a serious breach that is not put right within 14 days of notice, or becomes insolvent or stops trading.</li>
+      <li>We may suspend the Services or end these Terms immediately if you breach clause 5 or 6, fail to pay or repay any sum, or if continuing would in our reasonable opinion expose us to legal, regulatory or reputational risk.</li>
+      <li><span class="strong-term">Repeated breaches.</span> We may also end these Terms on notice if, within any rolling 12-month period, your account is the subject of three or more substantiated complaints, intellectual-property notices, counterfeit reports, safety reports, regulatory queries, marketplace policy violations or end-buyer chargebacks attributable to your Goods. A complaint is "substantiated" if, acting reasonably, we consider on the evidence available that it has merit.</li>
+      <li>When these Terms end: amounts and Fees already due remain payable; we may complete any sale of Goods already in progress and account to you for the proceeds after Fees; and you must deal with remaining Goods under clause 10.</li>
+      <li>Clauses that should by their nature continue (including clauses 5, 7, 8.5, 10, 12, 13, 14, 17, 18 and 19) survive the end of these Terms.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="general" style="counter-reset:chap 17">
+    <h2 class="ch"><span class="n">17.</span> General</h2>
+    <ol class="sub">
+      <li><span class="strong-term">Events outside our control.</span> Neither of us is liable for failure or delay caused by events beyond reasonable control, including carrier failure, marketplace outage, fire, flood, strike, pandemic, war or act of government. This does not excuse any payment obligation that has already fallen due, or any obligation that can reasonably still be performed.</li>
+      <li><span class="strong-term">No reliance.</span> These Terms are the whole agreement between us, and you confirm you have not relied on any statement not set out in them (this does not limit liability for fraud).</li>
+      <li><span class="strong-term">Conflicting terms.</span> These Terms prevail over any conflicting or additional terms you put forward, whether in a purchase order, supplier-onboarding form, contract template, email signature or any other document, unless we expressly accept those terms in writing signed by an authorised signatory of ours. Our acceptance of Goods, payment of sums, or performance of the Services does not constitute acceptance of any such terms.</li>
+      <li><span class="strong-term">Independent contractor.</span> We act as an independent contractor, and as your commercial agent only to the limited extent needed to sell your Goods. Nothing creates a partnership, joint venture or employment.</li>
+      <li><span class="strong-term">Intellectual property.</span> We own, or are licensed to use, the Platform, our name and branding, and all materials and systems we provide, and we grant you a non-exclusive, non-transferable licence to use the Platform only to receive the Services. You keep ownership of your own data and product information and grant us a licence to use it as needed to provide the Services and as set out in clauses 14.3 to 14.5 (including for marketing and testimonial purposes under clause 14.5).</li>
+      <li><span class="strong-term">Using the Platform.</span> You will not misuse the Platform, share your access with anyone not authorised by you, attempt to gain unauthorised access, or use it unlawfully or in a way that could damage or disrupt it.</li>
+      <li><span class="strong-term">Transfer.</span> You may not transfer or subcontract your rights or obligations without our consent. We may transfer, assign or subcontract ours.</li>
+      <li><span class="strong-term">Notices.</span> Notices must be in writing, sent to the contact details we hold for each other. A notice sent by email is deemed delivered when sent unless the sender receives a bounce or delivery-failure message. A notice sent through the Platform is deemed delivered when made available in your account. Routine operational messages may be sent through the Platform.</li>
+      <li><span class="strong-term">Audit and inspection requests.</span> You have no general right to audit our books, processes or premises. If you ask to inspect our facility or audit our records, we may, acting reasonably, agree on conditions including: reasonable advance notice (no less than 14 days); a signed non-disclosure agreement; scope and duration limits; performance during normal working hours; and reimbursement of our reasonable costs (including staff time) by you. We may refuse a request that we reasonably consider disruptive, anti-competitive, repetitive, made in bad faith, or commercially sensitive to other clients.</li>
+      <li><span class="strong-term">Third parties.</span> Except for the people we indemnify under clause 13, no one other than you and us can enforce these Terms under the Contracts (Rights of Third Parties) Act 1999.</li>
+      <li><span class="strong-term">If part is invalid.</span> If any part of these Terms is found invalid, the rest stays in force and that part is adjusted only as far as needed. Not enforcing a term is not a waiver of it.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="disputes" style="counter-reset:chap 18">
+    <h2 class="ch"><span class="n">18.</span> Complaints and resolving disputes</h2>
+    <ol class="sub">
+      <li>If you have a complaint or a query about a statement, a deduction or the Services, please raise it with us first at <a href="mailto:contact@returnpal.co.uk">contact@returnpal.co.uk</a> with the relevant details. We will acknowledge it within 5 Business Days and aim to resolve it within 20 Business Days.</li>
+      <li>If we cannot resolve a dispute through our complaints process, both of us will first try in good faith to settle it by discussion between senior representatives of each party.</li>
+      <li>If the dispute is still not resolved within 30 days of that discussion, both of us will consider referring it to mediation under the CEDR Model Mediation Procedure before starting court proceedings. Nothing in this clause prevents either of us from seeking urgent court relief, or us from recovering undisputed sums due to us.</li>
+      <li>This clause does not affect any statutory rights you have, or your right to bring a claim in court.</li>
+    </ol>
+  </section>
+
+  <section class="clause" id="law" style="counter-reset:chap 19">
+    <h2 class="ch"><span class="n">19.</span> Governing law and jurisdiction</h2>
+    <ol class="sub">
+      <li>These Terms, and any dispute arising out of or in connection with them (including non-contractual disputes), are governed by the law of England and Wales.</li>
+      <li>The courts of England and Wales have exclusive jurisdiction, except that we may bring proceedings to recover sums due, or to protect Goods or our intellectual property, in any competent court.</li>
+    </ol>
+  </section>
+
+  <div class="annex" id="annex-a">
+    <h2>Annex A — Prohibited and restricted goods</h2>
+    <p>You may not send the following without our prior written agreement (to be completed to match our operations, carriers and insurers):</p>
+    <ul>
+      <li>Counterfeit, grey-market or rights-infringing goods.</li>
+      <li>Recalled, unsafe or non-compliant goods, or goods lacking required safety markings.</li>
+      <li>Hazardous, flammable, explosive or dangerous goods, and most batteries and aerosols unless agreed.</li>
+      <li>Perishable food, drink, plants or living things.</li>
+      <li>Weapons, ammunition, controlled drugs, and age-restricted items beyond agreed categories.</li>
+      <li>Stolen goods or goods you are not entitled to sell.</li>
+      <li>Goods subject to sanctions or export control.</li>
+    </ul>
+  </div>
+
+  <div class="annex" id="annex-b">
+    <h2>Annex B — Fees</h2>
+    <p>To be completed to reflect current pricing:</p>
+    <ul>
+      <li>Processing / commission fee: between 15% and 25% of Net Recovered Value, on a tiered scale where you keep more as item value rises. Current tier bands: <b>25% on items with a Net Recovered Value up to £50; 20% on items with a Net Recovered Value above £50 and up to £150; 15% on items with a Net Recovered Value above £150</b>.</li>
+      <li>Free item: the single most expensive item processed each calendar month is processed free of our commission, and you keep 100% of its Net Recovered Value (i.e. the amount remaining after the marketplace's selling costs for that item). The perk applies to one item per calendar month, attaches to the highest Net Recovered Value item processed in that month, and applies only as published, subject to clause 7.13.</li>
+      <li>Return-shipping charges: at cost.</li>
+      <li>Storage of uncollected Goods: at cost, only where Goods remain uncollected beyond 30 days under clause 10.</li>
+      <li>Disposal / recycling charge: at cost, where applicable.</li>
+      <li>Minimum Economic Value (clause 7.6): items with a documented condition value below £10 may be (i) charged a flat handling fee of £1.50 per item, (ii) refused, or (iii) processed on a clearance/bulk basis at a reduced share to you of 50%, at our reasonable discretion and after notifying you.</li>
+      <li>Payment terms: monthly statements; payment by the last day of the month following the relevant period.</li>
+      <li>All Fees are exclusive of VAT.</li>
+    </ul>
+  </div>
+
+  <div class="annex" id="annex-c">
+    <h2>Annex C — Data protection</h2>
+    <p>This Annex sets out how we handle personal data when providing the Services. It complements our <a href="privacy.html">Privacy Policy</a> and forms part of these Terms.</p>
+
+    <h3 style="font-size:16px;color:var(--navy);margin:14px 0 6px">1. Our role</h3>
+    <p>We act as a controller of personal data in our own right when providing the Services. In particular, we are the controller of (a) the contact, account, billing and authentication data we hold about you and the individuals at your business who use your account, which we hold to operate that account; and (b) any buyer or recipient data arising from sales of your Goods through our own marketplace and resale accounts. We are not a processor of your personal data within the meaning of Article 4 of the UK GDPR, and we do not process personal data on your behalf.</p>
+
+    <h3 style="font-size:16px;color:var(--navy);margin:14px 0 6px">2. Reimbursement-claim service</h3>
+    <p>Where the Services involve marketplace reimbursement-claim verification (clause 9), that service is provided by a specialist third-party partner who deals with you directly. The partner accesses any marketplace seller-account, buyer or order data required for the service under its own terms and privacy notice. We do not access or process that data for the purposes of reimbursement-claim verification.</p>
+
+    <h3 style="font-size:16px;color:var(--navy);margin:14px 0 6px">3. Our commitments</h3>
+    <p>We will:</p>
+    <ul>
+      <li>handle personal data in accordance with the UK GDPR, the Data Protection Act 2018 and our Privacy Policy;</li>
+      <li>maintain appropriate technical and organisational security measures, including access controls, encryption in transit, and staff confidentiality obligations;</li>
+      <li>notify you without undue delay if we become aware of a personal-data breach that affects your account or the individuals associated with it;</li>
+      <li>assist you, on reasonable request and at your cost, with any verified request from a data subject relating to data we hold about them; and</li>
+      <li>where we use third-party service providers (for example for cloud hosting, payments, communications and similar functions) that may transfer personal data outside the United Kingdom, ensure a lawful transfer mechanism is in place, such as UK adequacy regulations or the UK International Data Transfer Addendum.</li>
+    </ul>
+  </div>
+
+  <footer class="site">
+    <p>JR Liquidations Limited, trading as ReturnPal · Registered in England and Wales, company number 16355878 · Registered office: 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ · <a href="mailto:contact@returnpal.co.uk">contact@returnpal.co.uk</a></p>
+    <p class="backtop"><a href="#top">Back to top ↑</a></p>
+  </footer>
+
+</main>
 </body>
 </html>
+</user_query>

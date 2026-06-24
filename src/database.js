@@ -199,6 +199,16 @@ async function getDb() {
     } catch (e) {
         // ignore
     }
+    try {
+        db.run('ALTER TABLE users ADD COLUMN terms_accepted_at TEXT');
+    } catch (e) {
+        // Column already exists
+    }
+    try {
+        db.run('ALTER TABLE users ADD COLUMN terms_version TEXT');
+    } catch (e) {
+        // Column already exists
+    }
 
     db.run(`
         CREATE TABLE IF NOT EXISTS packages (

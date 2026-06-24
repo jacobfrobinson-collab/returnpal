@@ -7,6 +7,11 @@ const {
     REJECTED_MESSAGE,
 } = require('../utils/accountApproval');
 const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
+const {
+    userNeedsTermsAcceptance,
+    CURRENT_TERMS_VERSION,
+    TERMS_URL,
+} = require('../utils/termsOfService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-me';
 
@@ -56,6 +61,30 @@ async function authMiddleware(req, res, next) {
             }
             if (status === 'rejected') {
                 return res.status(403).json({ error: REJECTED_MESSAGE, approval_rejected: true });
+            }
+            const pathOnly = (req.originalUrl || req.url || '').split('?')[0];
+            const skipTermsCheck = pathOnly === '/api/auth/me' || pathOnly === '/api/auth/accept-terms';
+            if (!skipTermsCheck) {
+                const termsRes = db.exec(
+                    'SELECT terms_accepted_at, terms_version FROM users WHERE id = ?',
+                    [decoded.id]
+                );
+                let termsRow = {};
+                if (termsRes.length && termsRes[0].values && termsRes[0].values.length) {
+                    const cols = termsRes[0].columns;
+                    const row = termsRes[0].values[0];
+                    cols.forEach((col, i) => {
+                        termsRow[col] = row[i];
+                    });
+                }
+                if (userNeedsTermsAcceptance(termsRow)) {
+                    return res.status(403).json({
+                        error: 'You must accept the current Terms of Service to use ReturnPal.',
+                        terms_acceptance_required: true,
+                        terms_version: CURRENT_TERMS_VERSION,
+                        terms_url: TERMS_URL,
+                    });
+                }
             }
         }
         next();

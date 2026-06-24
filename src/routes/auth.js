@@ -17,6 +17,13 @@ const {
     REJECTED_MESSAGE,
 } = require('../utils/accountApproval');
 const { logClientAudit, logClientAuditForUser, clientRequestMeta } = require('../utils/clientAudit');
+const {
+    CURRENT_TERMS_VERSION,
+    CURRENT_TERMS_EFFECTIVE,
+    TERMS_URL,
+    recordTermsAcceptance,
+    enrichUserWithTerms,
+} = require('../utils/termsOfService');
 
 const router = express.Router();
 
@@ -87,6 +94,9 @@ router.get('/register-config', (req, res) => {
         turnstile_required: isTurnstileRequired(),
         min_form_seconds: parseInt(process.env.SIGNUP_MIN_FORM_SECONDS || '3', 10),
         require_admin_approval: isSignupApprovalRequired(),
+        terms_version: CURRENT_TERMS_VERSION,
+        terms_effective: CURRENT_TERMS_EFFECTIVE,
+        terms_url: TERMS_URL,
         register_rate_limit_max: parseInt(process.env.REGISTER_RATE_LIMIT_MAX || '1', 10),
         register_rate_limit_window_hours: Math.round(
             parseInt(process.env.REGISTER_RATE_LIMIT_WINDOW_MS || String(24 * 60 * 60 * 1000), 10) /
@@ -117,6 +127,19 @@ router.post(
             return res.status(signupCheck.status || 400).json({ error: signupCheck.error });
         }
 
+        const acceptTerms =
+            req.body.accept_terms === true ||
+            req.body.accept_terms === 'true' ||
+            req.body.accept_terms === 1 ||
+            req.body.accept_terms === '1';
+        if (!acceptTerms) {
+            return res.status(400).json({
+                error: 'You must read and accept the Returns Recovery Terms of Service to create an account.',
+                terms_url: TERMS_URL,
+                terms_version: CURRENT_TERMS_VERSION,
+            });
+        }
+
         const db = await getDb();
         const { email, password, full_name, company_name } = req.body;
         const rawRef = req.body.referral_code || req.body.ref;
@@ -137,10 +160,21 @@ router.post(
 
         const hashedPassword = await bcrypt.hash(password, 12);
         const accountStatus = defaultAccountStatusForSignup();
+        const termsAcceptedAt = new Date().toISOString();
 
         db.run(
-            'INSERT INTO users (email, password, full_name, company_name, referred_by, account_status) VALUES (?, ?, ?, ?, ?, ?)',
-            [email, hashedPassword, full_name, company_name || '', referredById, accountStatus]
+            `INSERT INTO users (email, password, full_name, company_name, referred_by, account_status, terms_accepted_at, terms_version)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                email,
+                hashedPassword,
+                full_name,
+                company_name || '',
+                referredById,
+                accountStatus,
+                termsAcceptedAt,
+                CURRENT_TERMS_VERSION,
+            ]
         );
         saveDb();
 
@@ -207,6 +241,9 @@ router.post(
                     full_name,
                     company_name: company_name || '',
                     account_status: 'pending',
+                    terms_accepted_at: termsAcceptedAt,
+                    terms_version: CURRENT_TERMS_VERSION,
+                    terms_acceptance_required: false,
                 },
             });
         }
@@ -224,14 +261,19 @@ router.post(
         res.status(201).json({
             message: 'Account created successfully',
             token,
-            user: {
-                id: userId,
-                email,
-                full_name,
-                company_name: company_name || '',
-                avatar_url: '',
-                account_status: 'approved',
-            },
+            user: enrichUserWithTerms(
+                {
+                    id: userId,
+                    email,
+                    full_name,
+                    company_name: company_name || '',
+                    avatar_url: '',
+                    account_status: 'approved',
+                    terms_accepted_at: termsAcceptedAt,
+                    terms_version: CURRENT_TERMS_VERSION,
+                },
+                false
+            ),
         });
     } catch (err) {
         console.error('Register error:', err);
@@ -257,7 +299,8 @@ router.post('/login', loginLimiter, [
         const result = db.exec(
             `SELECT id, email, password, full_name, company_name, avatar_url, is_admin,
                     COALESCE(legacy_client_id, '') AS legacy_client_id,
-                    COALESCE(account_status, 'approved') AS account_status
+                    COALESCE(account_status, 'approved') AS account_status,
+                    terms_accepted_at, terms_version
              FROM users WHERE email = ?`,
             [email]
         );
@@ -298,10 +341,8 @@ router.post('/login', loginLimiter, [
         }
         const { countLinkedClients } = require('../utils/clientDelegate');
         const linkedClientsCount = countLinkedClients(db, uid);
-        res.json({
-            message: 'Login successful',
-            token,
-            user: {
+        const userOut = enrichUserWithTerms(
+            {
                 id: Number.isFinite(uid) && uid > 0 ? uid : user.id,
                 email: user.email,
                 full_name: user.full_name,
@@ -312,7 +353,15 @@ router.post('/login', loginLimiter, [
                 is_hub_account: linkedClientsCount > 0,
                 linked_clients_count: linkedClientsCount,
                 account_status: accountStatus,
+                terms_accepted_at: user.terms_accepted_at,
+                terms_version: user.terms_version,
             },
+            isAdmin
+        );
+        res.json({
+            message: 'Login successful',
+            token,
+            user: userOut,
         });
     } catch (err) {
         console.error('Login error:', err);
@@ -327,7 +376,8 @@ router.get('/me', authMiddleware, async (req, res) => {
         const result = db.exec(
             `SELECT id, email, full_name, company_name, phone, vat_registered, discord_webhook, avatar_url, is_admin,
                     legacy_client_id, created_at, COALESCE(account_status, 'approved') AS account_status,
-                    COALESCE(client_preferences, '') AS client_preferences
+                    COALESCE(client_preferences, '') AS client_preferences,
+                    terms_accepted_at, terms_version
              FROM users WHERE id = ?`,
             [req.user.id]
         );
@@ -358,9 +408,70 @@ router.get('/me', authMiddleware, async (req, res) => {
         user.is_hub_account = linkedClientsCount > 0;
         user.linked_clients_count = linkedClientsCount;
 
+        enrichUserWithTerms(user, user.is_admin);
+
         res.json({ user });
     } catch (err) {
         console.error('Get profile error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/auth/accept-terms — record acceptance of current Terms of Service (clients)
+router.post('/accept-terms', authMiddleware, async (req, res) => {
+    try {
+        if (coerceIsAdmin(req.user.is_admin)) {
+            return res.json({ message: 'Terms acceptance is not required for admin accounts.' });
+        }
+        const acceptTerms =
+            req.body.accept_terms === true ||
+            req.body.accept_terms === 'true' ||
+            req.body.accept_terms === 1 ||
+            req.body.accept_terms === '1';
+        if (!acceptTerms) {
+            return res.status(400).json({
+                error: 'You must confirm that you accept the Terms of Service.',
+                terms_url: TERMS_URL,
+                terms_version: CURRENT_TERMS_VERSION,
+            });
+        }
+
+        const db = await getDb();
+        recordTermsAcceptance(db, req.user.id);
+        saveDb();
+
+        const result = db.exec(
+            `SELECT id, email, full_name, company_name, phone, vat_registered, discord_webhook, avatar_url, is_admin,
+                    legacy_client_id, created_at, COALESCE(account_status, 'approved') AS account_status,
+                    terms_accepted_at, terms_version
+             FROM users WHERE id = ?`,
+            [req.user.id]
+        );
+        const user = parseOneUserRow(result);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        user.is_admin = coerceIsAdmin(user.is_admin);
+        const { countLinkedClients } = require('../utils/clientDelegate');
+        const linkedClientsCount = countLinkedClients(db, user.id);
+        user.is_hub_account = linkedClientsCount > 0;
+        user.linked_clients_count = linkedClientsCount;
+        enrichUserWithTerms(user, false);
+
+        logClientAuditForUser(db, req.user.id, {
+            category: 'view',
+            action: 'client_accept_terms',
+            path: '/terms',
+            detail: { version: CURRENT_TERMS_VERSION, ...clientRequestMeta(req) },
+        });
+        saveDb();
+
+        res.json({
+            message: 'Terms of Service accepted.',
+            user,
+        });
+    } catch (err) {
+        console.error('Accept terms error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });

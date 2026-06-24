@@ -272,6 +272,17 @@ const API = {
         return this.request('/auth/me', options || {});
     },
 
+    async acceptTerms() {
+        const data = await this.request('/auth/accept-terms', {
+            method: 'POST',
+            body: { accept_terms: true },
+        });
+        if (data && data.user) {
+            this.setUser(data.user);
+        }
+        return data;
+    },
+
     async updateProfile(profile) {
         return this.request('/auth/profile', { method: 'PUT', body: profile });
     },
