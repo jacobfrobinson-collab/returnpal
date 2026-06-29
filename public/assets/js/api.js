@@ -272,10 +272,13 @@ const API = {
         return this.request('/auth/me', options || {});
     },
 
-    async acceptTerms() {
+    async acceptTerms(termsVersion, pricingAckVersion) {
         const data = await this.request('/auth/accept-terms', {
             method: 'POST',
-            body: { accept_terms: true },
+            body: {
+                terms_version: termsVersion != null ? String(termsVersion) : '1.0',
+                pricing_ack_version: pricingAckVersion != null ? String(pricingAckVersion) : '1.0',
+            },
         });
         if (data && data.user) {
             this.setUser(data.user);

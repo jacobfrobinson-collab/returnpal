@@ -20,4 +20,13 @@ const loginLimiter = rateLimit({
     skip: () => process.env.LOGIN_RATE_LIMIT_ENABLED === '0',
 });
 
-module.exports = { registerLimiter, loginLimiter };
+const acceptTermsLimiter = rateLimit({
+    windowMs: parseInt(process.env.ACCEPT_TERMS_RATE_LIMIT_WINDOW_MS || String(15 * 60 * 1000), 10),
+    max: parseInt(process.env.ACCEPT_TERMS_RATE_LIMIT_MAX || '10', 10),
+    message: { error: 'Too many acceptance attempts. Please try again in a few minutes.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.ACCEPT_TERMS_RATE_LIMIT_ENABLED === '0',
+});
+
+module.exports = { registerLimiter, loginLimiter, acceptTermsLimiter };

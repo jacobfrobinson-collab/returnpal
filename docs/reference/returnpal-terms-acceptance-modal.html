@@ -1,0 +1,348 @@
+<!--
+================================================================
+  ReturnPal — Updated Terms Acceptance Modal
+  ================================================================
+  WHAT THIS IS:
+  A blocking modal that appears when an existing client logs in.
+  They must tick two boxes and click Accept before they can use
+  the dashboard. The acceptance is logged with version + timestamp.
+
+  WHAT YOU NEED TO DO (or have Cursor do):
+  1. Drop the HTML below into your dashboard page (anywhere in the
+     <body>, ideally near the end before </body>).
+  2. Update the JavaScript section marked "BACKEND HOOKUP" to:
+       - Read the current user's accepted_terms_version from your DB
+       - Save the acceptance event when they click Accept
+     There are two clearly-marked TODO comments showing where.
+  3. Make sure your user/account table has these columns:
+       - accepted_terms_version  (string, e.g. "1.0")
+       - terms_accepted_at       (timestamp)
+       - pricing_ack_version     (string, e.g. "1.0")
+       - pricing_ack_at          (timestamp)
+     And an audit log table (recommended):
+       - account_id, terms_version, pricing_ack_version,
+         timestamp, ip_address, user_agent
+  4. Set CURRENT_TERMS_VERSION below to "1.0" (or whatever version
+     you're publishing). Bump this number whenever you update the
+     terms in future, and the modal will re-fire for everyone.
+  5. The "Cancel my account" link goes to a mailto. Change it to a
+     proper cancel-account page if you have one.
+
+  IMPORTANT — DO NOT change to dismiss-on-click-outside, do not add
+  a "skip" or "later" option. The whole point is the deliberate
+  click. The modal must block dashboard use until accepted.
+================================================================
+-->
+
+<!-- ==========================================================
+     PART 1 — DROP THIS HTML INTO YOUR DASHBOARD PAGE
+     ========================================================== -->
+
+<div id="rp-terms-modal" class="rp-terms-modal" aria-hidden="true" role="dialog" aria-labelledby="rp-terms-title" aria-modal="true">
+  <div class="rp-terms-backdrop"></div>
+  <div class="rp-terms-card" role="document">
+    <header class="rp-terms-head">
+      <div class="rp-terms-logo">Return<span>Pal</span></div>
+      <h2 id="rp-terms-title">We've updated our Terms of Service</h2>
+    </header>
+
+    <div class="rp-terms-body">
+      <p class="rp-terms-lead">To keep using your ReturnPal account, please review and accept our updated Terms of Service. The main changes:</p>
+
+      <ul class="rp-terms-changes">
+        <li><b>Clearer pricing breakdown.</b> Our commission is taken on the <b>net amount</b> &mdash; i.e. after the marketplace's own selling costs for each item.</li>
+        <li><b>Tiered commission rates in full.</b> 25% on items up to £50, 20% on items £50&ndash;£150, 15% on items above £150.</li>
+        <li><b>Itemised dashboard statements.</b> Every cost is shown against each item, with a 14-day window to query any statement.</li>
+        <li><b>Per-item liability cap.</b> Our liability for loss or damage to a single item is capped at £500.</li>
+        <li><b>Standard provisions</b> covering data protection, complaints and uncollected goods.</li>
+      </ul>
+
+      <p class="rp-terms-link"><a href="/terms" target="_blank" rel="noopener">Read the full Terms of Service</a> (opens in a new tab)</p>
+
+      <div class="rp-terms-consents">
+        <label class="rp-terms-consent">
+          <input type="checkbox" id="rp-agree-terms">
+          <span>I have read and agree to the updated <a href="/terms" target="_blank" rel="noopener">Returns Recovery Terms of Service</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+        </label>
+
+        <label class="rp-terms-consent">
+          <input type="checkbox" id="rp-agree-pricing">
+          <span>I understand that ReturnPal's commission (15&ndash;25%) is taken from the <b>net amount</b> &mdash; i.e. after the marketplace's own selling costs for each item (selling fees, shipping, per-item promoted-listing fees) have been deducted &mdash; and that the amount I receive is therefore lower than the gross sale price.</span>
+        </label>
+      </div>
+
+      <div class="rp-terms-actions">
+        <button type="button" id="rp-accept-btn" class="rp-btn-primary" disabled>Accept and continue</button>
+        <p class="rp-terms-decline">Don't want to accept? <a href="mailto:contact@returnpal.co.uk?subject=Cancel%20my%20ReturnPal%20account">Contact us to cancel your account</a>. We'll process any goods we currently hold for you under the previous terms.</p>
+      </div>
+
+      <p class="rp-terms-foot">Version 1.0 &middot; Effective 24 June 2026</p>
+    </div>
+  </div>
+</div>
+
+
+<style>
+/* ==========================================================
+   PART 2 — STYLES (matches the terms page styling)
+   ========================================================== */
+.rp-terms-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+}
+.rp-terms-modal[aria-hidden="false"] { display: flex; }
+.rp-terms-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(2px);
+}
+.rp-terms-card {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.25);
+  margin: 24px auto;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1c2430;
+}
+.rp-terms-head {
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid #e3e8f0;
+}
+.rp-terms-logo {
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  font-size: 18px;
+  color: #16365c;
+  margin-bottom: 12px;
+}
+.rp-terms-logo span { color: #1f4e79; }
+.rp-terms-head h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
+  color: #1c2430;
+  letter-spacing: -0.01em;
+}
+.rp-terms-body {
+  padding: 20px 28px 24px;
+}
+.rp-terms-lead {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.rp-terms-changes {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.rp-terms-changes li { margin: 6px 0; }
+.rp-terms-link {
+  margin: 0 0 18px;
+  font-size: 14px;
+}
+.rp-terms-link a {
+  color: #1f4e79;
+  font-weight: 600;
+  text-decoration: underline;
+}
+.rp-terms-consents {
+  background: #f7f9fc;
+  border: 1px solid #e3e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 0 0 18px;
+}
+.rp-terms-consent {
+  display: flex;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 8px 0;
+  cursor: pointer;
+  align-items: flex-start;
+}
+.rp-terms-consent input[type="checkbox"] {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #1f4e79;
+}
+.rp-terms-consent a {
+  color: #1f4e79;
+  text-decoration: underline;
+}
+.rp-terms-actions {
+  margin: 0 0 14px;
+}
+.rp-btn-primary {
+  display: block;
+  width: 100%;
+  padding: 12px 20px;
+  background: #16365c;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-family: inherit;
+}
+.rp-btn-primary:hover:not(:disabled) { background: #1f4e79; }
+.rp-btn-primary:disabled {
+  background: #b3bdcd;
+  cursor: not-allowed;
+}
+.rp-terms-decline {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #54637a;
+  text-align: center;
+  line-height: 1.5;
+}
+.rp-terms-decline a {
+  color: #54637a;
+  text-decoration: underline;
+}
+.rp-terms-foot {
+  margin: 16px 0 0;
+  font-size: 12px;
+  color: #54637a;
+  text-align: center;
+}
+
+/* When modal is open, lock the page scroll */
+body.rp-terms-open { overflow: hidden; }
+
+@media (max-width: 600px) {
+  .rp-terms-head { padding: 20px 20px 14px; }
+  .rp-terms-body { padding: 16px 20px 20px; }
+  .rp-terms-head h2 { font-size: 19px; }
+}
+</style>
+
+
+<script>
+/* ==========================================================
+   PART 3 — LOGIC (vanilla JS, no dependencies)
+   ========================================================== */
+(function () {
+  // Bump this number whenever you publish a new version of the terms.
+  // Anyone whose accepted_terms_version is below this will see the modal.
+  var CURRENT_TERMS_VERSION = "1.0";
+  var CURRENT_PRICING_ACK_VERSION = "1.0";
+
+  var modal = document.getElementById("rp-terms-modal");
+  var agreeTerms = document.getElementById("rp-agree-terms");
+  var agreePricing = document.getElementById("rp-agree-pricing");
+  var acceptBtn = document.getElementById("rp-accept-btn");
+
+  if (!modal) return;
+
+  function updateButtonState() {
+    acceptBtn.disabled = !(agreeTerms.checked && agreePricing.checked);
+  }
+
+  agreeTerms.addEventListener("change", updateButtonState);
+  agreePricing.addEventListener("change", updateButtonState);
+
+  function showModal() {
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("rp-terms-open");
+    // Focus the first checkbox for accessibility
+    setTimeout(function () { agreeTerms.focus(); }, 50);
+  }
+
+  function hideModal() {
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("rp-terms-open");
+  }
+
+  // ============================================================
+  // BACKEND HOOKUP #1 — DECIDE IF THE MODAL SHOULD SHOW
+  // ============================================================
+  // Replace this block with code that fetches the logged-in user's
+  // accepted_terms_version. If it's missing or older than
+  // CURRENT_TERMS_VERSION, show the modal.
+  //
+  // Example pattern (adjust to your stack):
+  //
+  //   fetch("/api/me")
+  //     .then(function (r) { return r.json(); })
+  //     .then(function (user) {
+  //       if (!user.accepted_terms_version
+  //           || user.accepted_terms_version < CURRENT_TERMS_VERSION) {
+  //         showModal();
+  //       }
+  //     });
+  //
+  // For now, this defaults to showing the modal. REMOVE the line
+  // below once your backend hookup is in place.
+  // ------------------------------------------------------------
+  showModal(); // TODO: replace with the fetch-and-check above
+
+  // ============================================================
+  // BACKEND HOOKUP #2 — SAVE THE ACCEPTANCE WHEN CLICKED
+  // ============================================================
+  acceptBtn.addEventListener("click", function () {
+    if (!(agreeTerms.checked && agreePricing.checked)) return;
+
+    acceptBtn.disabled = true;
+    acceptBtn.textContent = "Saving…";
+
+    // Replace this with a POST to your backend that:
+    //   1. Updates the user's accepted_terms_version + timestamp
+    //   2. Updates the user's pricing_ack_version + timestamp
+    //   3. Writes an audit log row with:
+    //        account_id, terms_version, pricing_ack_version,
+    //        timestamp (server-side), ip_address, user_agent
+    //
+    // Example pattern (adjust to your stack):
+    //
+    //   fetch("/api/accept-terms", {
+    //     method: "POST",
+    //     headers: { "Content-Type": "application/json" },
+    //     body: JSON.stringify({
+    //       terms_version: CURRENT_TERMS_VERSION,
+    //       pricing_ack_version: CURRENT_PRICING_ACK_VERSION
+    //     })
+    //   })
+    //   .then(function (r) {
+    //     if (r.ok) {
+    //       hideModal();
+    //     } else {
+    //       acceptBtn.disabled = false;
+    //       acceptBtn.textContent = "Accept and continue";
+    //       alert("Something went wrong. Please try again or contact us.");
+    //     }
+    //   });
+    //
+    // For now, this just hides the modal. REPLACE this with the
+    // real POST once your backend endpoint exists.
+    // ----------------------------------------------------------
+    setTimeout(function () { hideModal(); }, 300); // TODO: replace with real save
+  });
+
+  // Prevent backdrop-click and Esc from dismissing — this is
+  // intentional. The modal must be accepted, not closed.
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && modal.getAttribute("aria-hidden") === "false") {
+      e.preventDefault();
+    }
+  });
+})();
+</script>

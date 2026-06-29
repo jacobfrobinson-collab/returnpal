@@ -49,6 +49,7 @@ async function registerUser() {
             company_name: 'E2E Co',
                     form_started_at: Date.now() - 10000,
                     accept_terms: true,
+                    accept_pricing_ack: true,
         })
     });
     const data = await res.json().catch(() => ({}));

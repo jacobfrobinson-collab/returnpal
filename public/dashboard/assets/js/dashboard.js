@@ -98,6 +98,10 @@ function rpOpenInvoicePrintWindow(html) {
     }, 250);
 }
 
+const RP_TERMS_MODAL_HTML = "<div id=\"rp-terms-modal\" class=\"rp-terms-modal\" aria-hidden=\"true\" role=\"dialog\" aria-labelledby=\"rp-terms-title\" aria-modal=\"true\">\r\n  <div class=\"rp-terms-backdrop\"></div>\r\n  <div class=\"rp-terms-card\" role=\"document\">\r\n    <header class=\"rp-terms-head\">\r\n      <div class=\"rp-terms-logo\">Return<span>Pal</span></div>\r\n      <h2 id=\"rp-terms-title\">We've updated our Terms of Service</h2>\r\n    </header>\r\n\r\n    <div class=\"rp-terms-body\">\r\n      <p class=\"rp-terms-lead\">To keep using your ReturnPal account, please review and accept our updated Terms of Service. The main changes:</p>\r\n\r\n      <ul class=\"rp-terms-changes\">\r\n        <li><b>Clearer pricing breakdown.</b> Our commission is taken on the <b>net amount</b> &mdash; i.e. after the marketplace's own selling costs for each item.</li>\r\n        <li><b>Tiered commission rates in full.</b> 25% on items up to £50, 20% on items £50&ndash;£150, 15% on items above £150.</li>\r\n        <li><b>Itemised dashboard statements.</b> Every cost is shown against each item, with a 14-day window to query any statement.</li>\r\n        <li><b>Per-item liability cap.</b> Our liability for loss or damage to a single item is capped at £500.</li>\r\n        <li><b>Standard provisions</b> covering data protection, complaints and uncollected goods.</li>\r\n      </ul>\r\n\r\n      <p class=\"rp-terms-link\"><a href=\"/terms.html\" target=\"_blank\" rel=\"noopener\">Read the full Terms of Service</a> (opens in a new tab)</p>\r\n\r\n      <div class=\"rp-terms-consents\">\r\n        <label class=\"rp-terms-consent\">\r\n          <input type=\"checkbox\" id=\"rp-agree-terms\">\r\n          <span>I have read and agree to the updated <a href=\"/terms.html\" target=\"_blank\" rel=\"noopener\">Returns Recovery Terms of Service</a> and the <a href=\"/privacy.html\" target=\"_blank\" rel=\"noopener\">Privacy Policy</a>.</span>\r\n        </label>\r\n\r\n        <label class=\"rp-terms-consent\">\r\n          <input type=\"checkbox\" id=\"rp-agree-pricing\">\r\n          <span>I understand that ReturnPal's commission (15&ndash;25%) is taken from the <b>net amount</b> &mdash; i.e. after the marketplace's own selling costs for each item (selling fees, shipping, per-item promoted-listing fees) have been deducted &mdash; and that the amount I receive is therefore lower than the gross sale price.</span>\r\n        </label>\r\n      </div>\r\n\r\n      <div class=\"rp-terms-actions\">\n        <p class=\"rp-terms-error d-none\" id=\"rp-terms-accept-error\" role=\"alert\"></p>\r\n        <button type=\"button\" id=\"rp-accept-btn\" class=\"rp-btn-primary\" disabled>Accept and continue</button>\r\n        <p class=\"rp-terms-decline\">Don't want to accept? <a href=\"mailto:contact@returnpal.co.uk?subject=Cancel%20my%20ReturnPal%20account\">Contact us to cancel your account</a>. We'll process any goods we currently hold for you under the previous terms.</p>\r\n      </div>\r\n\r\n      <p class=\"rp-terms-foot\">Version 1.0 &middot; Effective 24 June 2026</p>\r\n    </div>\r\n  </div>\r\n</div>\r\n\r\n\r\n<style>\r\n/* ==========================================================\r\n   PART 2 — STYLES (matches the terms page styling)\r\n   ========================================================== */\r\n.rp-terms-modal {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: 9999;\r\n  display: none;\r\n  align-items: flex-start;\r\n  justify-content: center;\r\n  padding: 24px 16px;\r\n  overflow-y: auto;\r\n}\r\n.rp-terms-modal[aria-hidden=\"false\"] { display: flex; }\r\n.rp-terms-backdrop {\r\n  position: fixed;\r\n  inset: 0;\r\n  background: rgba(15, 23, 42, 0.72);\r\n  backdrop-filter: blur(2px);\r\n}\r\n.rp-terms-card {\r\n  position: relative;\r\n  width: 100%;\r\n  max-width: 640px;\r\n  background: #ffffff;\r\n  border-radius: 12px;\r\n  box-shadow: 0 24px 48px rgba(0,0,0,0.25);\r\n  margin: 24px auto;\r\n  font-family: \"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif;\r\n  color: #1c2430;\r\n}\r\n.rp-terms-head {\r\n  padding: 24px 28px 16px;\r\n  border-bottom: 1px solid #e3e8f0;\r\n}\r\n.rp-terms-logo {\r\n  font-weight: 800;\r\n  letter-spacing: 0.5px;\r\n  font-size: 18px;\r\n  color: #16365c;\r\n  margin-bottom: 12px;\r\n}\r\n.rp-terms-logo span { color: #1f4e79; }\r\n.rp-terms-head h2 {\r\n  margin: 0;\r\n  font-size: 22px;\r\n  line-height: 1.25;\r\n  color: #1c2430;\r\n  letter-spacing: -0.01em;\r\n}\r\n.rp-terms-body {\r\n  padding: 20px 28px 24px;\r\n}\r\n.rp-terms-lead {\r\n  margin: 0 0 14px;\r\n  font-size: 15px;\r\n  line-height: 1.55;\r\n}\r\n.rp-terms-changes {\r\n  margin: 0 0 16px;\r\n  padding-left: 20px;\r\n  font-size: 14.5px;\r\n  line-height: 1.55;\r\n}\r\n.rp-terms-changes li { margin: 6px 0; }\r\n.rp-terms-link {\r\n  margin: 0 0 18px;\r\n  font-size: 14px;\r\n}\r\n.rp-terms-link a {\r\n  color: #1f4e79;\r\n  font-weight: 600;\r\n  text-decoration: underline;\r\n}\r\n.rp-terms-consents {\r\n  background: #f7f9fc;\r\n  border: 1px solid #e3e8f0;\r\n  border-radius: 10px;\r\n  padding: 14px 16px;\r\n  margin: 0 0 18px;\r\n}\r\n.rp-terms-consent {\r\n  display: flex;\r\n  gap: 12px;\r\n  font-size: 14px;\r\n  line-height: 1.55;\r\n  margin: 8px 0;\r\n  cursor: pointer;\r\n  align-items: flex-start;\r\n}\r\n.rp-terms-consent input[type=\"checkbox\"] {\r\n  margin-top: 3px;\r\n  width: 18px;\r\n  height: 18px;\r\n  flex-shrink: 0;\r\n  cursor: pointer;\r\n  accent-color: #1f4e79;\r\n}\r\n.rp-terms-consent a {\r\n  color: #1f4e79;\r\n  text-decoration: underline;\r\n}\r\n.rp-terms-actions {\r\n  margin: 0 0 14px;\r\n}\r\n.rp-btn-primary {\r\n  display: block;\r\n  width: 100%;\r\n  padding: 12px 20px;\r\n  background: #16365c;\r\n  color: #ffffff;\r\n  border: none;\r\n  border-radius: 8px;\r\n  font-size: 15px;\r\n  font-weight: 600;\r\n  cursor: pointer;\r\n  transition: background 0.15s ease;\r\n  font-family: inherit;\r\n}\r\n.rp-btn-primary:hover:not(:disabled) { background: #1f4e79; }\r\n.rp-btn-primary:disabled {\r\n  background: #b3bdcd;\r\n  cursor: not-allowed;\r\n}\r\n.rp-terms-decline {\r\n  margin: 12px 0 0;\r\n  font-size: 13px;\r\n  color: #54637a;\r\n  text-align: center;\r\n  line-height: 1.5;\r\n}\r\n.rp-terms-decline a {\r\n  color: #54637a;\r\n  text-decoration: underline;\r\n}\r\n.rp-terms-foot {\r\n  margin: 16px 0 0;\r\n  font-size: 12px;\r\n  color: #54637a;\r\n  text-align: center;\r\n}\r\n\r\n/* When modal is open, lock the page scroll */\r\nbody.rp-terms-open { overflow: hidden; }\r\n\r\n@media (max-width: 600px) {\r\n  .rp-terms-head { padding: 20px 20px 14px; }\r\n  .rp-terms-body { padding: 16px 20px 20px; }\r\n  .rp-terms-head h2 { font-size: 19px; }\r\n}\r\n</style>\r\n\r\n\r\n<script>\r\n/* ==========================================================\r\n   PART 3 — LOGIC (vanilla JS, no dependencies)\r\n   ========================================================== */\r\n(function () {\r\n  // Bump this number whenever you publish a new version of the terms.\r\n  // Anyone whose accepted_terms_version is below this will see the modal.\r\n  var CURRENT_TERMS_VERSION = \"1.0\";\r\n  var CURRENT_PRICING_ACK_VERSION = \"1.0\";\r\n\r\n  var modal = document.getElementById(\"rp-terms-modal\");\r\n  var agreeTerms = document.getElementById(\"rp-agree-terms\");\r\n  var agreePricing = document.getElementById(\"rp-agree-pricing\");\r\n  var acceptBtn = document.getElementById(\"rp-accept-btn\");\r\n\r\n  if (!modal) return;\r\n\r\n  function updateButtonState() {\r\n    acceptBtn.disabled = !(agreeTerms.checked && agreePricing.checked);\r\n  }\r\n\r\n  agreeTerms.addEventListener(\"change\", updateButtonState);\r\n  agreePricing.addEventListener(\"change\", updateButtonState);\r\n\r\n  function showModal() {\r\n    modal.setAttribute(\"aria-hidden\", \"false\");\r\n    document.body.classList.add(\"rp-terms-open\");\r\n    // Focus the first checkbox for accessibility\r\n    setTimeout(function () { agreeTerms.focus(); }, 50);\r\n  }\r\n\r\n  function hideModal() {\r\n    modal.setAttribute(\"aria-hidden\", \"true\");\r\n    document.body.classList.remove(\"rp-terms-open\");\r\n  }\r\n\r\n  // ============================================================\r\n  // BACKEND HOOKUP #1 — DECIDE IF THE MODAL SHOULD SHOW\r\n  // ============================================================\r\n  // Replace this block with code that fetches the logged-in user's\r\n  // accepted_terms_version. If it's missing or older than\r\n  // CURRENT_TERMS_VERSION, show the modal.\r\n  //\r\n  // Example pattern (adjust to your stack):\r\n  //\r\n  //   fetch(\"/api/me\")\r\n  //     .then(function (r) { return r.json(); })\r\n  //     .then(function (user) {\r\n  //       if (!user.accepted_terms_version\r\n  //           || user.accepted_terms_version < CURRENT_TERMS_VERSION) {\r\n  //         showModal();\r\n  //       }\r\n  //     });\r\n  //\r\n  // For now, this defaults to showing the modal. REMOVE the line\r\n  // below once your backend hookup is in place.\r\n  // ------------------------------------------------------------\r\n  showModal(); // TODO: replace with the fetch-and-check above\r\n\r\n  // ============================================================\r\n  // BACKEND HOOKUP #2 — SAVE THE ACCEPTANCE WHEN CLICKED\r\n  // ============================================================\r\n  acceptBtn.addEventListener(\"click\", function () {\r\n    if (!(agreeTerms.checked && agreePricing.checked)) return;\r\n\r\n    acceptBtn.disabled = true;\r\n    acceptBtn.textContent = \"Saving…\";\r\n\r\n    // Replace this with a POST to your backend that:\r\n    //   1. Updates the user's accepted_terms_version + timestamp\r\n    //   2. Updates the user's pricing_ack_version + timestamp\r\n    //   3. Writes an audit log row with:\r\n    //        account_id, terms_version, pricing_ack_version,\r\n    //        timestamp (server-side), ip_address, user_agent\r\n    //\r\n    // Example pattern (adjust to your stack):\r\n    //\r\n    //   fetch(\"/api/accept-terms\", {\r\n    //     method: \"POST\",\r\n    //     headers: { \"Content-Type\": \"application/json\" },\r\n    //     body: JSON.stringify({\r\n    //       terms_version: CURRENT_TERMS_VERSION,\r\n    //       pricing_ack_version: CURRENT_PRICING_ACK_VERSION\r\n    //     })\r\n    //   })\r\n    //   .then(function (r) {\r\n    //     if (r.ok) {\r\n    //       hideModal();\r\n    //     } else {\r\n    //       acceptBtn.disabled = false;\r\n    //       acceptBtn.textContent = \"Accept and continue\";\r\n    //       alert(\"Something went wrong. Please try again or contact us.\");\r\n    //     }\r\n    //   });\r\n    //\r\n    // For now, this just hides the modal. REPLACE this with the\r\n    // real POST once your backend endpoint exists.\r\n    // ----------------------------------------------------------\r\n    setTimeout(function () { hideModal(); }, 300); // TODO: replace with real save\r\n  });\r\n\r\n  // Prevent backdrop-click and Esc from dismissing — this is\r\n  // intentional. The modal must be accepted, not closed.\r\n  document.addEventListener(\"keydown\", function (e) {\r\n    if (e.key === \"Escape\" && modal.getAttribute(\"aria-hidden\") === \"false\") {\r\n      e.preventDefault();\r\n    }\r\n  });\r\n})();\r\n</script>";
+
+const RP_TERMS_MODAL_CSS = "/* ==========================================================\r\n   PART 2 — STYLES (matches the terms page styling)\r\n   ========================================================== */\r\n.rp-terms-modal {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: 10050;\r\n  display: none;\r\n  align-items: flex-start;\r\n  justify-content: center;\r\n  padding: 24px 16px;\r\n  overflow-y: auto;\r\n}\r\n.rp-terms-modal[aria-hidden=\"false\"] { display: flex; }\r\n.rp-terms-backdrop {\r\n  position: fixed;\r\n  inset: 0;\r\n  background: rgba(15, 23, 42, 0.72);\r\n  backdrop-filter: blur(2px);\r\n}\r\n.rp-terms-card {\r\n  position: relative;\r\n  width: 100%;\r\n  max-width: 640px;\r\n  background: #ffffff;\r\n  border-radius: 12px;\r\n  box-shadow: 0 24px 48px rgba(0,0,0,0.25);\r\n  margin: 24px auto;\r\n  font-family: \"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif;\r\n  color: #1c2430;\r\n}\r\n.rp-terms-head {\r\n  padding: 24px 28px 16px;\r\n  border-bottom: 1px solid #e3e8f0;\r\n}\r\n.rp-terms-logo {\r\n  font-weight: 800;\r\n  letter-spacing: 0.5px;\r\n  font-size: 18px;\r\n  color: #16365c;\r\n  margin-bottom: 12px;\r\n}\r\n.rp-terms-logo span { color: #1f4e79; }\r\n.rp-terms-head h2 {\r\n  margin: 0;\r\n  font-size: 22px;\r\n  line-height: 1.25;\r\n  color: #1c2430;\r\n  letter-spacing: -0.01em;\r\n}\r\n.rp-terms-body {\r\n  padding: 20px 28px 24px;\r\n}\r\n.rp-terms-lead {\r\n  margin: 0 0 14px;\r\n  font-size: 15px;\r\n  line-height: 1.55;\r\n}\r\n.rp-terms-changes {\r\n  margin: 0 0 16px;\r\n  padding-left: 20px;\r\n  font-size: 14.5px;\r\n  line-height: 1.55;\r\n}\r\n.rp-terms-changes li { margin: 6px 0; }\r\n.rp-terms-link {\r\n  margin: 0 0 18px;\r\n  font-size: 14px;\r\n}\r\n.rp-terms-link a {\r\n  color: #1f4e79;\r\n  font-weight: 600;\r\n  text-decoration: underline;\r\n}\r\n.rp-terms-consents {\r\n  background: #f7f9fc;\r\n  border: 1px solid #e3e8f0;\r\n  border-radius: 10px;\r\n  padding: 14px 16px;\r\n  margin: 0 0 18px;\r\n}\r\n.rp-terms-consent {\r\n  display: flex;\r\n  gap: 12px;\r\n  font-size: 14px;\r\n  line-height: 1.55;\r\n  margin: 8px 0;\r\n  cursor: pointer;\r\n  align-items: flex-start;\r\n}\r\n.rp-terms-consent input[type=\"checkbox\"] {\r\n  margin-top: 3px;\r\n  width: 18px;\r\n  height: 18px;\r\n  flex-shrink: 0;\r\n  cursor: pointer;\r\n  accent-color: #1f4e79;\r\n}\r\n.rp-terms-consent a {\r\n  color: #1f4e79;\r\n  text-decoration: underline;\r\n}\r\n.rp-terms-actions {\r\n  margin: 0 0 14px;\r\n}\r\n.rp-btn-primary {\r\n  display: block;\r\n  width: 100%;\r\n  padding: 12px 20px;\r\n  background: #16365c;\r\n  color: #ffffff;\r\n  border: none;\r\n  border-radius: 8px;\r\n  font-size: 15px;\r\n  font-weight: 600;\r\n  cursor: pointer;\r\n  transition: background 0.15s ease;\r\n  font-family: inherit;\r\n}\r\n.rp-btn-primary:hover:not(:disabled) { background: #1f4e79; }\r\n.rp-btn-primary:disabled {\r\n  background: #b3bdcd;\r\n  cursor: not-allowed;\r\n}\r\n.rp-terms-decline {\r\n  margin: 12px 0 0;\r\n  font-size: 13px;\r\n  color: #54637a;\r\n  text-align: center;\r\n  line-height: 1.5;\r\n}\r\n.rp-terms-decline a {\r\n  color: #54637a;\r\n  text-decoration: underline;\r\n}\r\n.rp-terms-foot {\r\n  margin: 16px 0 0;\r\n  font-size: 12px;\r\n  color: #54637a;\r\n  text-align: center;\r\n}\r\n\r\n/* When modal is open, lock the page scroll */\r\nbody.rp-terms-open { overflow: hidden; }\r\n\r\n@media (max-width: 600px) {\r\n  .rp-terms-head { padding: 20px 20px 14px; }\r\n  .rp-terms-body { padding: 16px 20px 20px; }\r\n  .rp-terms-head h2 { font-size: 19px; }\r\n}\n.rp-terms-error { color: #b42318; font-size: 13px; margin: 0 0 10px; line-height: 1.45; }\n.rp-terms-error.d-none { display: none !important; }\n";
+
 const Dashboard = {
     /** Client reimbursement cockpit (admin adds claims/photos; clients file in Seller Central). */
     CLIENT_REIMBURSEMENT_UI_ENABLED: true,
@@ -1213,72 +1217,131 @@ const Dashboard = {
         });
     },
 
+    _termsModalAssetsInjected: false,
+    _termsEscapeHandlerWired: false,
+
+    _injectTermsAcceptanceModalAssets() {
+        if (this._termsModalAssetsInjected) return;
+        if (typeof RP_TERMS_MODAL_CSS === 'string' && !document.getElementById('rp-terms-modal-styles')) {
+            const styleEl = document.createElement('style');
+            styleEl.id = 'rp-terms-modal-styles';
+            styleEl.textContent = RP_TERMS_MODAL_CSS;
+            document.head.appendChild(styleEl);
+        }
+        if (typeof RP_TERMS_MODAL_HTML === 'string' && !document.getElementById('rp-terms-modal')) {
+            $('body').append(RP_TERMS_MODAL_HTML);
+        }
+        if (!this._termsEscapeHandlerWired) {
+            document.addEventListener('keydown', function (e) {
+                const modal = document.getElementById('rp-terms-modal');
+                if (e.key === 'Escape' && modal && modal.getAttribute('aria-hidden') === 'false') {
+                    e.preventDefault();
+                }
+            });
+            this._termsEscapeHandlerWired = true;
+        }
+        this._termsModalAssetsInjected = true;
+    },
+
+    _showTermsAcceptanceModal() {
+        const modal = document.getElementById('rp-terms-modal');
+        const agreeTerms = document.getElementById('rp-agree-terms');
+        const agreePricing = document.getElementById('rp-agree-pricing');
+        const acceptBtn = document.getElementById('rp-accept-btn');
+        const $error = $('#rp-terms-accept-error');
+        if (!modal || !agreeTerms || !agreePricing || !acceptBtn) return;
+        agreeTerms.checked = false;
+        agreePricing.checked = false;
+        acceptBtn.disabled = true;
+        acceptBtn.textContent = 'Accept and continue';
+        $error.addClass('d-none').text('');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('rp-terms-open');
+        setTimeout(function () { agreeTerms.focus(); }, 50);
+    },
+
+    _hideTermsAcceptanceModal() {
+        const modal = document.getElementById('rp-terms-modal');
+        if (!modal) return;
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('rp-terms-open');
+    },
+
     _ensureTermsAccepted(user) {
         const self = this;
         return new Promise((resolve) => {
-            let $modal = $('#rp-terms-accept-modal');
-            if (!$modal.length) {
-                $('body').append(
-                    '<div class="modal fade" id="rp-terms-accept-modal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="rpTermsAcceptLabel" aria-hidden="true">' +
-                    '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">' +
-                    '<div class="modal-header"><h5 class="modal-title" id="rpTermsAcceptLabel">Accept Terms of Service</h5></div>' +
-                    '<div class="modal-body">' +
-                    '<p>Before you can use ReturnPal, you need to read and accept our Returns Recovery Terms of Service.</p>' +
-                    '<p class="mb-3"><a href="/terms.html" target="_blank" rel="noopener" class="fw-semibold">Read the Terms of Service</a> ' +
-                    '<span class="text-muted" id="rp-terms-version-meta"></span></p>' +
-                    '<div class="form-check">' +
-                    '<input class="form-check-input" type="checkbox" id="rp-terms-accept-checkbox" />' +
-                    '<label class="form-check-label" for="rp-terms-accept-checkbox">I have read and agree to the Returns Recovery Terms of Service.</label>' +
-                    '</div>' +
-                    '<div class="alert alert-danger d-none mt-3 mb-0" id="rp-terms-accept-error"></div>' +
-                    '</div>' +
-                    '<div class="modal-footer">' +
-                    '<button type="button" class="btn btn-outline-secondary" id="rp-terms-logout-btn">Log out</button>' +
-                    '<button type="button" class="btn btn-primary" id="rp-terms-accept-btn">Accept and continue</button>' +
-                    '</div></div></div></div>'
+            const termsVersion =
+                user && user.current_terms_version != null ? String(user.current_terms_version).trim() : '';
+            const pricingVersion =
+                user && user.current_pricing_ack_version != null
+                    ? String(user.current_pricing_ack_version).trim()
+                    : '';
+            if (!termsVersion || !pricingVersion) {
+                console.error(
+                    '[ReturnPal] terms modal: missing current_terms_version or current_pricing_ack_version on /api/auth/me user',
+                    user
                 );
-                $modal = $('#rp-terms-accept-modal');
-                $('#rp-terms-logout-btn').on('click', function () {
-                    API.logout();
-                    window.location.assign((window.location.origin || '') + '/login.html');
-                });
+                self.showToast('Could not load terms version — please refresh and try again', 'error');
+                resolve();
+                return;
             }
 
-            const versionLabel = (user && user.current_terms_version) || '1.0';
-            const effective = (user && user.current_terms_effective) || '';
-            let meta = '(Version ' + versionLabel;
-            if (effective) {
-                const p = String(effective).split('-');
-                if (p.length === 3) {
-                    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                    meta += ', effective ' + parseInt(p[2], 10) + ' ' + months[parseInt(p[1], 10) - 1] + ' ' + p[0];
-                }
+            self._injectTermsAcceptanceModalAssets();
+
+            const pending = { resolve, termsVersion, pricingVersion };
+            self._termsAcceptPending = pending;
+
+            function updateButtonState() {
+                const btn = document.getElementById('rp-accept-btn');
+                const t = document.getElementById('rp-agree-terms');
+                const p = document.getElementById('rp-agree-pricing');
+                if (btn && t && p) btn.disabled = !(t.checked && p.checked);
             }
-            meta += ')';
-            $('#rp-terms-version-meta').text(meta);
-            $('#rp-terms-accept-checkbox').prop('checked', false);
-            $('#rp-terms-accept-error').addClass('d-none').text('');
 
-            const modalEl = $modal[0];
-            const bsModal = window.bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static', keyboard: false });
+            $('#rp-agree-terms').off('change.rpTerms').on('change.rpTerms', updateButtonState);
+            $('#rp-agree-pricing').off('change.rpTerms').on('change.rpTerms', updateButtonState);
+            $('#rp-accept-btn').off('click.rpTerms').on('click.rpTerms', async function () {
+                const active = self._termsAcceptPending;
+                if (!active) return;
 
-            $('#rp-terms-accept-btn').off('click.rpTerms').on('click.rpTerms', async function () {
-                if (!$('#rp-terms-accept-checkbox').is(':checked')) {
-                    $('#rp-terms-accept-error').removeClass('d-none').text('Please tick the box to confirm you accept the Terms of Service.');
+                const agreeT = document.getElementById('rp-agree-terms');
+                const agreeP = document.getElementById('rp-agree-pricing');
+                const acceptBtn = document.getElementById('rp-accept-btn');
+                const $err = $('#rp-terms-accept-error');
+                if (!agreeT || !agreeP || !acceptBtn) return;
+
+                if (!(agreeT.checked && agreeP.checked)) {
+                    $err.removeClass('d-none').text('Please tick both boxes to continue.');
                     return;
                 }
-                const $btn = $('#rp-terms-accept-btn');
-                $btn.prop('disabled', true).text('Saving…');
+                $err.addClass('d-none').text('');
+                acceptBtn.disabled = true;
+                acceptBtn.textContent = 'Saving…';
+
                 try {
-                    await API.acceptTerms();
-                    bsModal.hide();
-                    resolve();
+                    const data = await API.acceptTerms(active.termsVersion, active.pricingVersion);
+                    if (data && data.user) {
+                        if (API.getSessionToken()) API.setSessionUser(data.user);
+                        else API.setUser(data.user);
+                        self.updateUserIdentityUI(data.user);
+                    }
+                    self._hideTermsAcceptanceModal();
+                    if (self._termsAcceptPending === active && typeof active.resolve === 'function') {
+                        active.resolve();
+                    }
+                    if (self._termsAcceptPending === active) self._termsAcceptPending = null;
                 } catch (err) {
-                    $('#rp-terms-accept-error').removeClass('d-none').text((err && err.error) || 'Could not save your acceptance. Please try again.');
-                    $btn.prop('disabled', false).text('Accept and continue');
+                    acceptBtn.disabled = false;
+                    acceptBtn.textContent = 'Accept and continue';
+                    updateButtonState();
+                    const msg = (err && err.error) || 'Could not save your acceptance. Please try again.';
+                    $err.removeClass('d-none').text(msg);
+                    self.showToast(msg, 'error');
                 }
             });
-            bsModal.show();
+
+            updateButtonState();
+            self._showTermsAcceptanceModal();
         });
     },
 

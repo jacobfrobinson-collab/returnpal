@@ -10,6 +10,7 @@ const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 const {
     userNeedsTermsAcceptance,
     CURRENT_TERMS_VERSION,
+    CURRENT_PRICING_ACK_VERSION,
     TERMS_URL,
 } = require('../utils/termsOfService');
 
@@ -66,7 +67,8 @@ async function authMiddleware(req, res, next) {
             const skipTermsCheck = pathOnly === '/api/auth/me' || pathOnly === '/api/auth/accept-terms';
             if (!skipTermsCheck) {
                 const termsRes = db.exec(
-                    'SELECT terms_accepted_at, terms_version FROM users WHERE id = ?',
+                    `SELECT terms_accepted_at, terms_version, pricing_ack_at, pricing_ack_version
+                     FROM users WHERE id = ?`,
                     [decoded.id]
                 );
                 let termsRow = {};
@@ -82,6 +84,7 @@ async function authMiddleware(req, res, next) {
                         error: 'You must accept the current Terms of Service to use ReturnPal.',
                         terms_acceptance_required: true,
                         terms_version: CURRENT_TERMS_VERSION,
+                        pricing_ack_version: CURRENT_PRICING_ACK_VERSION,
                         terms_url: TERMS_URL,
                     });
                 }

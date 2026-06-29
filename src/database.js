@@ -209,6 +209,53 @@ async function getDb() {
     } catch (e) {
         // Column already exists
     }
+    try {
+        db.run('ALTER TABLE users ADD COLUMN pricing_ack_version TEXT');
+    } catch (e) {
+        // Column already exists
+    }
+    try {
+        db.run('ALTER TABLE users ADD COLUMN pricing_ack_at TEXT');
+    } catch (e) {
+        // Column already exists
+    }
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS terms_acceptance_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            terms_version TEXT NOT NULL,
+            pricing_ack_version TEXT NOT NULL,
+            accepted_at TEXT NOT NULL DEFAULT (datetime('now')),
+            ip_address TEXT,
+            user_agent TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    try {
+        db.run('CREATE INDEX IF NOT EXISTS idx_terms_acceptance_log_user_id ON terms_acceptance_log(user_id)');
+    } catch (e) {
+        // ignore
+    }
+    try {
+        db.run('CREATE INDEX IF NOT EXISTS idx_terms_acceptance_log_accepted_at ON terms_acceptance_log(accepted_at)');
+    } catch (e) {
+        // ignore
+    }
+
+    // One-time: legacy single-checkbox acceptances had no pricing ack — require new modal once.
+    try {
+        db.run(`
+            UPDATE users
+            SET terms_version = NULL,
+                terms_accepted_at = NULL
+            WHERE (pricing_ack_version IS NULL OR pricing_ack_version = '')
+              AND (terms_version IS NOT NULL AND terms_version != '')
+              AND COALESCE(is_admin, 0) = 0
+        `);
+    } catch (e) {
+        console.error('[db] reset legacy terms without pricing ack:', e.message || e);
+    }
 
     db.run(`
         CREATE TABLE IF NOT EXISTS packages (

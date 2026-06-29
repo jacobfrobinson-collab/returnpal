@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const { getDb, saveDb, pushActivity } = require('../database');
 const { generateToken, authMiddleware } = require('../middleware/auth');
-const { registerLimiter, loginLimiter } = require('../middleware/authRateLimit');
+const { registerLimiter, loginLimiter, acceptTermsLimiter } = require('../middleware/authRateLimit');
 const { coerceIsAdmin } = require('../utils/coerceIsAdmin');
 const { validateSignupRequest, getTurnstileSiteKey, isTurnstileRequired } = require('../utils/signupProtection');
 const {
@@ -19,6 +19,7 @@ const {
 const { logClientAudit, logClientAuditForUser, clientRequestMeta } = require('../utils/clientAudit');
 const {
     CURRENT_TERMS_VERSION,
+    CURRENT_PRICING_ACK_VERSION,
     CURRENT_TERMS_EFFECTIVE,
     TERMS_URL,
     recordTermsAcceptance,
@@ -34,6 +35,15 @@ function parseOneUserRow(result) {
     const o = {};
     cols.forEach((c, i) => { o[c] = row[i]; });
     return o;
+}
+
+function truthyBodyFlag(value) {
+    return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function acceptTermsBodyFieldPresent(value) {
+    if (value == null) return false;
+    return String(value).trim().length > 0;
 }
 
 const uploadRoot = process.env.UPLOAD_DIR
@@ -127,16 +137,14 @@ router.post(
             return res.status(signupCheck.status || 400).json({ error: signupCheck.error });
         }
 
-        const acceptTerms =
-            req.body.accept_terms === true ||
-            req.body.accept_terms === 'true' ||
-            req.body.accept_terms === 1 ||
-            req.body.accept_terms === '1';
-        if (!acceptTerms) {
+        const acceptTerms = truthyBodyFlag(req.body.accept_terms);
+        const acceptPricingAck = truthyBodyFlag(req.body.accept_pricing_ack);
+        if (!acceptTerms || !acceptPricingAck) {
             return res.status(400).json({
-                error: 'You must read and accept the Returns Recovery Terms of Service to create an account.',
+                error: 'You must read and accept the Terms of Service and confirm you understand our pricing before creating an account.',
                 terms_url: TERMS_URL,
                 terms_version: CURRENT_TERMS_VERSION,
+                pricing_ack_version: CURRENT_PRICING_ACK_VERSION,
             });
         }
 
@@ -163,8 +171,9 @@ router.post(
         const termsAcceptedAt = new Date().toISOString();
 
         db.run(
-            `INSERT INTO users (email, password, full_name, company_name, referred_by, account_status, terms_accepted_at, terms_version)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO users (email, password, full_name, company_name, referred_by, account_status,
+                                terms_accepted_at, terms_version, pricing_ack_at, pricing_ack_version)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 email,
                 hashedPassword,
@@ -174,6 +183,8 @@ router.post(
                 accountStatus,
                 termsAcceptedAt,
                 CURRENT_TERMS_VERSION,
+                termsAcceptedAt,
+                CURRENT_PRICING_ACK_VERSION,
             ]
         );
         saveDb();
@@ -243,6 +254,8 @@ router.post(
                     account_status: 'pending',
                     terms_accepted_at: termsAcceptedAt,
                     terms_version: CURRENT_TERMS_VERSION,
+                    pricing_ack_at: termsAcceptedAt,
+                    pricing_ack_version: CURRENT_PRICING_ACK_VERSION,
                     terms_acceptance_required: false,
                 },
             });
@@ -271,6 +284,8 @@ router.post(
                     account_status: 'approved',
                     terms_accepted_at: termsAcceptedAt,
                     terms_version: CURRENT_TERMS_VERSION,
+                    pricing_ack_at: termsAcceptedAt,
+                    pricing_ack_version: CURRENT_PRICING_ACK_VERSION,
                 },
                 false
             ),
@@ -300,7 +315,8 @@ router.post('/login', loginLimiter, [
             `SELECT id, email, password, full_name, company_name, avatar_url, is_admin,
                     COALESCE(legacy_client_id, '') AS legacy_client_id,
                     COALESCE(account_status, 'approved') AS account_status,
-                    terms_accepted_at, terms_version
+                    terms_accepted_at, terms_version,
+                    pricing_ack_at, pricing_ack_version
              FROM users WHERE email = ?`,
             [email]
         );
@@ -355,6 +371,8 @@ router.post('/login', loginLimiter, [
                 account_status: accountStatus,
                 terms_accepted_at: user.terms_accepted_at,
                 terms_version: user.terms_version,
+                pricing_ack_at: user.pricing_ack_at,
+                pricing_ack_version: user.pricing_ack_version,
             },
             isAdmin
         );
@@ -377,7 +395,8 @@ router.get('/me', authMiddleware, async (req, res) => {
             `SELECT id, email, full_name, company_name, phone, vat_registered, discord_webhook, avatar_url, is_admin,
                     legacy_client_id, created_at, COALESCE(account_status, 'approved') AS account_status,
                     COALESCE(client_preferences, '') AS client_preferences,
-                    terms_accepted_at, terms_version
+                    terms_accepted_at, terms_version,
+                    pricing_ack_at, pricing_ack_version
              FROM users WHERE id = ?`,
             [req.user.id]
         );
@@ -418,32 +437,39 @@ router.get('/me', authMiddleware, async (req, res) => {
 });
 
 // POST /api/auth/accept-terms — record acceptance of current Terms of Service (clients)
-router.post('/accept-terms', authMiddleware, async (req, res) => {
+router.post('/accept-terms', acceptTermsLimiter, authMiddleware, async (req, res) => {
     try {
         if (coerceIsAdmin(req.user.is_admin)) {
-            return res.json({ message: 'Terms acceptance is not required for admin accounts.' });
+            return res.json({ ok: true, message: 'Terms acceptance is not required for admin accounts.' });
         }
-        const acceptTerms =
-            req.body.accept_terms === true ||
-            req.body.accept_terms === 'true' ||
-            req.body.accept_terms === 1 ||
-            req.body.accept_terms === '1';
-        if (!acceptTerms) {
+
+        const hasNewShape =
+            acceptTermsBodyFieldPresent(req.body.terms_version) &&
+            acceptTermsBodyFieldPresent(req.body.pricing_ack_version);
+        const legacyBody = !hasNewShape && truthyBodyFlag(req.body.accept_terms);
+
+        if (!hasNewShape && !legacyBody) {
             return res.status(400).json({
-                error: 'You must confirm that you accept the Terms of Service.',
+                error: 'terms_version and pricing_ack_version are required (or accept_terms for legacy clients).',
                 terms_url: TERMS_URL,
                 terms_version: CURRENT_TERMS_VERSION,
+                pricing_ack_version: CURRENT_PRICING_ACK_VERSION,
             });
         }
 
         const db = await getDb();
-        recordTermsAcceptance(db, req.user.id);
+        const meta = clientRequestMeta(req);
+        recordTermsAcceptance(db, req.user.id, {
+            ip_address: meta.ip || null,
+            user_agent: meta.user_agent || null,
+        });
         saveDb();
 
         const result = db.exec(
             `SELECT id, email, full_name, company_name, phone, vat_registered, discord_webhook, avatar_url, is_admin,
                     legacy_client_id, created_at, COALESCE(account_status, 'approved') AS account_status,
-                    terms_accepted_at, terms_version
+                    terms_accepted_at, terms_version,
+                    pricing_ack_at, pricing_ack_version
              FROM users WHERE id = ?`,
             [req.user.id]
         );
@@ -458,15 +484,28 @@ router.post('/accept-terms', authMiddleware, async (req, res) => {
         user.linked_clients_count = linkedClientsCount;
         enrichUserWithTerms(user, false);
 
+        const auditDetail = {
+            terms_version: CURRENT_TERMS_VERSION,
+            pricing_ack_version: CURRENT_PRICING_ACK_VERSION,
+            ...meta,
+        };
+        if (legacyBody) {
+            auditDetail.legacy_body = true;
+        } else {
+            auditDetail.client_terms_version = String(req.body.terms_version).trim();
+            auditDetail.client_pricing_ack_version = String(req.body.pricing_ack_version).trim();
+        }
+
         logClientAuditForUser(db, req.user.id, {
             category: 'view',
             action: 'client_accept_terms',
             path: '/terms',
-            detail: { version: CURRENT_TERMS_VERSION, ...clientRequestMeta(req) },
+            detail: auditDetail,
         });
         saveDb();
 
         res.json({
+            ok: true,
             message: 'Terms of Service accepted.',
             user,
         });
